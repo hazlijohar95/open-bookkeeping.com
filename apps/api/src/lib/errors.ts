@@ -43,7 +43,10 @@ export type EntityType =
   | "account"
   | "user"
   | "settings"
-  | "submission";
+  | "submission"
+  | "api_key"
+  | "webhook"
+  | "webhook_delivery";
 
 // ============================================
 // ERROR FACTORY FUNCTIONS

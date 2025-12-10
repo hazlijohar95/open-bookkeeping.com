@@ -67,6 +67,62 @@ function ChartContainer({
   )
 }
 
+/**
+ * Validate and sanitize a CSS color value to prevent CSS injection.
+ * Allows: hex colors, rgb/rgba, hsl/hsla, named colors, CSS variables
+ */
+function sanitizeColorValue(color: string): string | null {
+  if (!color || typeof color !== "string") return null
+
+  // Trim and convert to lowercase for validation
+  const trimmed = color.trim()
+
+  // Allow hex colors: #rgb, #rrggbb, #rgba, #rrggbbaa
+  if (/^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(trimmed)) {
+    return trimmed
+  }
+
+  // Allow rgb/rgba: rgb(r, g, b) or rgba(r, g, b, a)
+  if (/^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*[\d.]+\s*)?\)$/.test(trimmed)) {
+    return trimmed
+  }
+
+  // Allow hsl/hsla: hsl(h, s%, l%) or hsla(h, s%, l%, a)
+  if (/^hsla?\(\s*\d{1,3}\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%\s*(,\s*[\d.]+\s*)?\)$/.test(trimmed)) {
+    return trimmed
+  }
+
+  // Allow CSS variables: var(--name) or var(--name, fallback)
+  if (/^var\(--[a-zA-Z0-9-]+(\s*,\s*[^)]+)?\)$/.test(trimmed)) {
+    return trimmed
+  }
+
+  // Allow named colors (common ones)
+  const namedColors = new Set([
+    "transparent", "currentcolor", "inherit",
+    "black", "white", "red", "green", "blue", "yellow", "orange", "purple",
+    "gray", "grey", "pink", "brown", "cyan", "magenta",
+  ])
+  if (namedColors.has(trimmed.toLowerCase())) {
+    return trimmed
+  }
+
+  // Reject anything else to prevent CSS injection
+  return null
+}
+
+/**
+ * Sanitize a CSS variable name (key) to prevent injection
+ */
+function sanitizeVarName(key: string): string | null {
+  if (!key || typeof key !== "string") return null
+  // Only allow alphanumeric, hyphens, and underscores
+  if (/^[a-zA-Z0-9_-]+$/.test(key)) {
+    return key
+  }
+  return null
+}
+
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(
     ([, config]) => config.theme || config.color
@@ -76,28 +132,38 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     return null
   }
 
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
-${colorConfig
-  .map(([key, itemConfig]) => {
-    const color =
-      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
-      itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
-  })
-  .join("\n")}
-}
-`
-          )
-          .join("\n"),
-      }}
-    />
-  )
+  // Build CSS rules safely by sanitizing all values
+  const cssRules = Object.entries(THEMES)
+    .map(([theme, prefix]) => {
+      const properties = colorConfig
+        .map(([key, itemConfig]) => {
+          const color =
+            itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
+            itemConfig.color
+
+          const sanitizedKey = sanitizeVarName(key)
+          const sanitizedColor = color ? sanitizeColorValue(color) : null
+
+          if (sanitizedKey && sanitizedColor) {
+            return `  --color-${sanitizedKey}: ${sanitizedColor};`
+          }
+          return null
+        })
+        .filter(Boolean)
+        .join("\n")
+
+      if (!properties) return null
+      return `${prefix} [data-chart=${id}] {\n${properties}\n}`
+    })
+    .filter(Boolean)
+    .join("\n")
+
+  if (!cssRules) {
+    return null
+  }
+
+  // Use a regular style element with textContent (safer than dangerouslySetInnerHTML)
+  return <style>{cssRules}</style>
 }
 
 const ChartTooltip = RechartsPrimitive.Tooltip

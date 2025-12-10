@@ -70,7 +70,14 @@
       "Bash(timeout 30 npx tsc:*)",
       "Bash(git init:*)",
       "Bash(git remote add:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nInitial commit: Open Bookkeeping v1.0\n\nFull-stack open-source bookkeeping and invoicing platform for Malaysian businesses.\n\nFeatures:\n- Invoice, quotation, credit/debit note management\n- MyInvois e-Invoice integration (LHDN compliance)\n- Chart of accounts with double-entry bookkeeping\n- 5 professional PDF templates\n- Multi-currency support (150+ currencies)\n- Offline-first with IndexedDB sync\n- AI-powered document processing\n\nTech stack:\n- Frontend: React 19, Vite, TypeScript, Tailwind CSS 4\n- Backend: Hono, tRPC 11, Node.js\n- Database: PostgreSQL, Drizzle ORM\n- Auth: Supabase Auth\n\nCode quality improvements:\n- Strict ESLint config with TypeScript rules\n- Result type for error handling\n- Standardized API response types\n- Centralized error classes\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(ssh -T:*)",
+      "Bash(timeout 120 npx tsc:*)",
+      "Bash(yarn test:*)",
+      "Bash(yarn test:run:*)"
     ],
     "deny": [],
     "ask": []

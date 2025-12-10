@@ -1,10 +1,11 @@
 import { IconProps } from "@/types";
+import { cn } from "@/lib/utils";
 
-function Truck({ fill = "currentColor", secondaryfill, ...props }: IconProps) {
+function Truck({ fill = "currentColor", secondaryfill, className, ...props }: IconProps) {
   secondaryfill = secondaryfill || fill;
 
   return (
-    <svg height="18" width="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" className={cn("size-[18px]", className)} {...props}>
       <g fill={fill}>
         <path
           d="M1 4.75C1 3.23079 2.23079 2 3.75 2H9.25C10.7692 2 12 3.23079 12 4.75V12.5H3.75C2.23079 12.5 1 11.2692 1 9.75V4.75Z"

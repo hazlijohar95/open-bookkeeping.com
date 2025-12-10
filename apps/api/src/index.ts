@@ -13,7 +13,17 @@ import {
   invoiceRoutes,
   quotationRoutes,
   billRoutes,
+  fixedAssetRoutes,
+  dashboardRoutes,
+  apiKeyRoutes,
+  webhookRoutes,
+  settingsRoutes,
+  storageRoutes,
+  einvoiceRoutes,
+  sstRoutes,
 } from "./routes";
+import { v1Router } from "./routes/v1";
+import { docsRouter } from "./routes/docs";
 import { securityHeaders, requestLogger } from "./middleware/security";
 import { generalRateLimit, aiRateLimit } from "./middleware/rate-limit";
 import { getQueueStats, closeQueues } from "./lib/queue";
@@ -78,7 +88,7 @@ app.use(
     },
     credentials: true,
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Request-Id", "X-API-Key"],
     exposeHeaders: [
       "X-Request-Id",
       "X-RateLimit-Limit",
@@ -135,8 +145,23 @@ app.get("/health", async (c) => {
   });
 });
 
-// Queue statistics endpoint (protected in production)
+// Queue statistics endpoint (protected - requires secret header in production)
 app.get("/health/queues", async (c) => {
+  // In production, require a secret header to access queue stats
+  // This prevents information disclosure about system load
+  if (process.env.NODE_ENV === "production") {
+    const adminSecret = process.env.ADMIN_HEALTH_SECRET;
+    const providedSecret = c.req.header("x-admin-secret");
+
+    if (!adminSecret || providedSecret !== adminSecret) {
+      return c.json({
+        status: "error",
+        message: "Unauthorized",
+        timestamp: new Date().toISOString(),
+      }, 401);
+    }
+  }
+
   try {
     const stats = await getQueueStats();
     return c.json({
@@ -167,12 +192,32 @@ async function checkDatabaseHealth(): Promise<boolean> {
 app.use("/api/ai/*", aiRateLimit);
 app.route("/api/ai", aiRoutes);
 
+// ============================================
+// Open API v1 Routes (Public API with API Key Auth)
+// ============================================
+app.route("/api/v1", v1Router);
+
+// ============================================
+// API Documentation (Swagger UI + OpenAPI spec)
+// ============================================
+app.route("/api/docs", docsRouter);
+app.get("/api/openapi.json", (c) => c.redirect("/api/docs/openapi.json"));
+app.get("/api/openapi.yaml", (c) => c.redirect("/api/docs/openapi.yaml"));
+
 // REST API routes (mirrors Supabase Edge Functions for local development)
 app.route("/customers", customerRoutes);
 app.route("/vendors", vendorRoutes);
 app.route("/invoices", invoiceRoutes);
 app.route("/quotations", quotationRoutes);
 app.route("/bills", billRoutes);
+app.route("/fixed-assets", fixedAssetRoutes);
+app.route("/dashboard", dashboardRoutes);
+app.route("/api-keys", apiKeyRoutes);
+app.route("/webhooks", webhookRoutes);
+app.route("/settings", settingsRoutes);
+app.route("/storage", storageRoutes);
+app.route("/einvoice", einvoiceRoutes);
+app.route("/sst", sstRoutes);
 
 // tRPC handler
 app.use(

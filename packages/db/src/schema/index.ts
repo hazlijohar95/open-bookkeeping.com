@@ -16,3 +16,13 @@ export * from "./bankFeeds";
 export * from "./chartOfAccounts";
 export * from "./sstTransactions";
 export * from "./aggregations";
+export * from "./apiKeys";
+export * from "./webhooks";
+export * from "./fixedAssets";
+
+// AI Agent schemas
+export * from "./agentSessions";
+export * from "./agentAuditLogs";
+export * from "./agentApprovals";
+export * from "./agentQuotas";
+export * from "./agentWorkflows";

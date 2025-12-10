@@ -24,14 +24,27 @@ const TRUSTED_PROXIES = new Set([
 ]);
 
 /**
- * Validate IP address format (basic validation)
+ * Validate IP address format with proper range checking
  */
 function isValidIP(ip: string): boolean {
-  // IPv4 pattern
-  const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
-  // IPv6 pattern (simplified)
-  const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
-  return ipv4Pattern.test(ip) || ipv6Pattern.test(ip);
+  if (!ip || typeof ip !== "string") return false;
+
+  // IPv4 validation with octet range check (0-255)
+  const ipv4Pattern = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+  const ipv4Match = ip.match(ipv4Pattern);
+  if (ipv4Match) {
+    // Validate each octet is 0-255
+    const octets = [ipv4Match[1], ipv4Match[2], ipv4Match[3], ipv4Match[4]];
+    return octets.every((octet) => {
+      const num = parseInt(octet!, 10);
+      return num >= 0 && num <= 255;
+    });
+  }
+
+  // IPv6 validation (simplified but more robust)
+  // Matches standard IPv6 and compressed forms (::)
+  const ipv6Pattern = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::$|^([0-9a-fA-F]{1,4}:){0,6}::([0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}$|^::([0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){1,7}:$/;
+  return ipv6Pattern.test(ip);
 }
 
 /**
@@ -146,3 +159,96 @@ export const strictRateLimit = rateLimit({
   limit: 5,
   windowSeconds: 60,
 });
+
+// ============================================
+// PUBLIC API v1 RATE LIMITS
+// ============================================
+
+/**
+ * API Key based rate limiter for public API v1
+ * Uses API key hash for identification
+ */
+const apiKeyKeyGenerator = (c: Context): string => {
+  // Check for API key in headers
+  const authHeader = c.req.header("authorization");
+  if (authHeader?.startsWith("Bearer ob_")) {
+    const key = authHeader.slice(7).trim();
+    // Hash the API key for privacy in logs/cache keys
+    const hashedKey = crypto.createHash("sha256").update(key).digest("hex").slice(0, 16);
+    return `apikey:${hashedKey}`;
+  }
+
+  const apiKeyHeader = c.req.header("x-api-key");
+  if (apiKeyHeader?.startsWith("ob_")) {
+    const hashedKey = crypto.createHash("sha256").update(apiKeyHeader).digest("hex").slice(0, 16);
+    return `apikey:${hashedKey}`;
+  }
+
+  // Fall back to IP-based limiting for unauthenticated requests
+  const ip = getClientIP(c);
+  return `ip:${ip}`;
+};
+
+/**
+ * API v1 read operations: 1000 requests per minute per API key
+ * Generous limit for listing/fetching data
+ */
+export const apiV1ReadRateLimit = rateLimit({
+  limit: 1000,
+  windowSeconds: 60,
+  keyGenerator: apiKeyKeyGenerator,
+});
+
+/**
+ * API v1 write operations: 100 requests per minute per API key
+ * Stricter limit for mutations (create/update/delete)
+ */
+export const apiV1WriteRateLimit = rateLimit({
+  limit: 100,
+  windowSeconds: 60,
+  keyGenerator: apiKeyKeyGenerator,
+});
+
+/**
+ * API v1 webhook operations: 50 requests per minute per API key
+ * Very strict limit for webhook management
+ */
+export const apiV1WebhookRateLimit = rateLimit({
+  limit: 50,
+  windowSeconds: 60,
+  keyGenerator: apiKeyKeyGenerator,
+});
+
+/**
+ * Middleware that applies different rate limits based on HTTP method
+ * GET/HEAD = read limits, POST/PUT/PATCH/DELETE = write limits
+ */
+export function methodBasedRateLimit(readLimit: number, writeLimit: number, windowSeconds = 60) {
+  const readLimiter = rateLimit({
+    limit: readLimit,
+    windowSeconds,
+    keyGenerator: apiKeyKeyGenerator,
+  });
+
+  const writeLimiter = rateLimit({
+    limit: writeLimit,
+    windowSeconds,
+    keyGenerator: apiKeyKeyGenerator,
+  });
+
+  return async (c: Context, next: Next) => {
+    const method = c.req.method;
+    const isReadMethod = method === "GET" || method === "HEAD" || method === "OPTIONS";
+
+    if (isReadMethod) {
+      return readLimiter(c, next);
+    }
+    return writeLimiter(c, next);
+  };
+}
+
+/**
+ * Combined API v1 rate limiter that varies by method type
+ * GET: 1000/min, Mutations: 100/min
+ */
+export const apiV1RateLimit = methodBasedRateLimit(1000, 100, 60);

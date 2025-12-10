@@ -9,7 +9,7 @@ import {
   FormMessage,
   useFormField,
 } from "@/components/ui/form/form";
-import { FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
+import { ControllerRenderProps, FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
 import { InfoIcon, TriangleAlertIcon } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,75 @@ interface FormInputProps<
   onValueChange?: (value: string | number) => void;
 }
 
+/**
+ * Inner component that uses the useFormField hook.
+ * Extracted to comply with React's rules of hooks.
+ */
+function FormInputContent<
+  TFieldValues extends FieldValues = FieldValues,
+  TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
+>({
+  field,
+  inputProps,
+}: {
+  field: ControllerRenderProps<TFieldValues, TName>;
+  inputProps: FormInputProps<TFieldValues, TName> & { className?: string; isOptional: boolean };
+}) {
+  const { error } = useFormField();
+  const { className, isOptional, ...props } = inputProps;
+
+  return (
+    <FormItem className="w-full">
+      {props.label ? (
+        <FormLabel className="flex items-center">
+          <span className="text-xs capitalize">{props.label}</span>
+          {isOptional ? (
+            <Badge size="xs" variant={Boolean(error) ? "destructive" : "secondary"}>
+              {props.sublabel ?? "Optional"}
+            </Badge>
+          ) : null}
+        </FormLabel>
+      ) : null}
+      <FormControl>
+        <Input
+          className={cn(
+            className,
+            Boolean(error) && "focus-visible:ring-destructive !border-destructive ring-transparent duration-200",
+          )}
+          {...props}
+          id={props.name}
+          {...field}
+          onChange={(e) => {
+            // Convert string to number if type is number
+            if (props.type === "number") {
+              const value = e.target.value === "" ? "" : Number(e.target.value);
+              field.onChange(value);
+              props.onValueChange?.(value);
+            } else {
+              field.onChange(e);
+              props.onValueChange?.(e.target.value);
+            }
+          }}
+        />
+      </FormControl>
+      {/* Render form error message or form description. Give priority to error else description */}
+      <div className="transition-all duration-200 ease-out">
+        {error ? (
+          <div className="flex items-center gap-1">
+            <TriangleAlertIcon className="text-destructive size-2.5" />
+            <FormMessage />
+          </div>
+        ) : props.description ? (
+          <div className="flex items-center gap-1">
+            <InfoIcon className="text-muted-foreground size-2.5" />
+            <FormDescription>{props.description}</FormDescription>
+          </div>
+        ) : null}
+      </div>
+    </FormItem>
+  );
+}
+
 export const FormInput = <
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
@@ -41,61 +110,12 @@ export const FormInput = <
     <FormField
       control={props.reactform.control}
       name={props.name}
-      render={({ field }) => {
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        const { error } = useFormField();
-
-        return (
-          <FormItem className="w-full">
-            {props.label ? (
-              <FormLabel className="flex items-center">
-                <span className="text-xs capitalize">{props.label}</span>
-                {isOptional ? (
-                  <Badge size="xs" variant={Boolean(error) ? "destructive" : "secondary"}>
-                    {props.sublabel ?? "Optional"}
-                  </Badge>
-                ) : null}
-              </FormLabel>
-            ) : null}
-            <FormControl>
-              <Input
-                className={cn(
-                  className,
-                  Boolean(error) && "focus-visible:ring-destructive !border-destructive ring-transparent duration-200",
-                )}
-                {...props}
-                id={props.name}
-                {...field}
-                onChange={(e) => {
-                  // Convert string to number if type is number
-                  if (props.type === "number") {
-                    const value = e.target.value === "" ? "" : Number(e.target.value);
-                    field.onChange(value);
-                    props.onValueChange?.(value);
-                  } else {
-                    field.onChange(e);
-                    props.onValueChange?.(e.target.value);
-                  }
-                }}
-              />
-            </FormControl>
-            {/* i.e Render form error message or form description Give priority to error else description */}
-            <div className="transition-all duration-200 ease-out">
-              {error ? (
-                <div className="flex items-center gap-1">
-                  <TriangleAlertIcon className="text-destructive size-2.5" />
-                  <FormMessage />
-                </div>
-              ) : props.description ? (
-                <div className="flex items-center gap-1">
-                  <InfoIcon className="text-muted-foreground size-2.5" />
-                  <FormDescription>{props.description}</FormDescription>
-                </div>
-              ) : null}
-            </div>
-          </FormItem>
-        );
-      }}
+      render={({ field }) => (
+        <FormInputContent
+          field={field}
+          inputProps={{ className, isOptional, ...props }}
+        />
+      )}
     />
   );
 };

@@ -12,6 +12,7 @@ const CACHE_KEYS = {
   INVOICE_LIST: "invoices:list:",
   CUSTOMER_LIST: "customers:list:",
   QUOTATION_LIST: "quotations:list:",
+  API_KEY: "apikey:hash:", // API key cache by hash
 } as const;
 
 // Cache TTL in seconds
@@ -19,6 +20,7 @@ const CACHE_TTL = {
   DASHBOARD_STATS: 60, // 1 minute - frequently updated data
   REVENUE_CHART: 300, // 5 minutes - less frequently updated
   LIST_DATA: 30, // 30 seconds - list data
+  API_KEY: 120, // 2 minutes - API key validation cache (shorter for security - revoked keys expire faster)
 } as const;
 
 /**
@@ -138,4 +140,43 @@ export async function invalidateCustomerCaches(userId: string): Promise<void> {
     invalidateCustomerList(userId),
     invalidateInvoiceList(userId), // Customer changes may affect invoice displays
   ]);
+}
+
+// ============================================
+// API KEY CACHE (for public API authentication)
+// ============================================
+
+import type { ApiKey } from "@open-bookkeeping/db";
+
+/**
+ * Get cached API key by hash
+ * Returns null if not cached (cache miss)
+ */
+export async function getCachedApiKey(keyHash: string): Promise<ApiKey | null> {
+  return cacheGet<ApiKey>(`${CACHE_KEYS.API_KEY}${keyHash}`);
+}
+
+/**
+ * Cache an API key record
+ * TTL: 5 minutes to balance performance vs security
+ */
+export async function setCachedApiKey(keyHash: string, apiKey: ApiKey): Promise<void> {
+  await cacheSet(`${CACHE_KEYS.API_KEY}${keyHash}`, apiKey, CACHE_TTL.API_KEY);
+}
+
+/**
+ * Invalidate cached API key (e.g., when revoked or updated)
+ */
+export async function invalidateApiKeyCache(keyHash: string): Promise<void> {
+  await cacheDel(`${CACHE_KEYS.API_KEY}${keyHash}`);
+}
+
+/**
+ * Invalidate all cached API keys for a user (e.g., when all keys revoked)
+ */
+export async function invalidateUserApiKeyCache(_userId: string): Promise<void> {
+  // Note: This requires knowing all key hashes, which we don't store
+  // In practice, keys will naturally expire from cache
+  // For immediate invalidation, consider storing user->keyHash mapping
+  await cacheDelPattern(`${CACHE_KEYS.API_KEY}*`);
 }

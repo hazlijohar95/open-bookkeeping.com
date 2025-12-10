@@ -10,6 +10,8 @@ import {
   accountingPeriodRepository,
   vendorRepository,
   billRepository,
+  journalEntryRepository,
+  accountRepository,
 } from "@open-bookkeeping/db";
 import { aggregationService } from "../services/aggregation.service";
 import {
@@ -18,6 +20,33 @@ import {
   extractedBankStatementSchema,
 } from "../schemas/extraction";
 import { authenticateRequest } from "../lib/auth-helpers";
+import { createLogger } from "@open-bookkeeping/shared";
+
+const logger = createLogger("ai-routes");
+
+// ============================================
+// AI TOOL RESOURCE LIMITS
+// ============================================
+
+/**
+ * Per-tool execution limits to prevent resource exhaustion
+ */
+const TOOL_LIMITS = {
+  // Maximum results per tool execution
+  maxResults: {
+    invoices: 50,
+    customers: 50,
+    vendors: 50,
+    quotations: 50,
+    bills: 50,
+    transactions: 100,
+    periods: 24, // 2 years of monthly periods
+  },
+  // Maximum tool calls per request
+  maxToolCallsPerRequest: 10,
+  // Timeout for tool execution (ms)
+  toolTimeoutMs: 10_000,
+} as const;
 
 // Helper to format currency
 function formatCurrency(amount: number, currency: string = "MYR"): string {
@@ -30,6 +59,32 @@ function formatCurrency(amount: number, currency: string = "MYR"): string {
 // Helper to calculate invoice total
 function calculateInvoiceTotal(items: Array<{ quantity: number | string; unitPrice: number | string }>) {
   return items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+}
+
+/**
+ * Wrap tool execution with timeout and error handling
+ */
+async function withToolTimeout<T>(
+  toolName: string,
+  fn: () => Promise<T>,
+  timeoutMs: number = TOOL_LIMITS.toolTimeoutMs
+): Promise<T> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const result = await Promise.race([
+      fn(),
+      new Promise<never>((_, reject) => {
+        controller.signal.addEventListener("abort", () => {
+          reject(new Error(`Tool ${toolName} timed out after ${timeoutMs}ms`));
+        });
+      }),
+    ]);
+    return result;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 const aiRoutes = new Hono();
@@ -56,39 +111,37 @@ aiRoutes.post("/chat", async (c) => {
         includeQuotations: z.boolean().optional().describe("Whether to include quotation statistics (defaults to true)"),
       }),
       execute: async ({ includeQuotations = true }) => {
-        try {
-          const stats = await aggregationService.getDashboardStats(user.id);
+        return withToolTimeout("getDashboardStats", async () => {
+          try {
+            const stats = await aggregationService.getDashboardStats(user.id);
 
-          const result: Record<string, unknown> = {
-            totalRevenue: formatCurrency(stats.totalRevenue),
-            totalRevenueRaw: stats.totalRevenue,
-            pendingAmount: formatCurrency(stats.pendingAmount),
-            pendingAmountRaw: stats.pendingAmount,
-            totalInvoices: stats.totalInvoices,
-            overdueCount: stats.overdueCount,
-            paidThisMonth: stats.paidThisMonth,
-            revenueThisMonth: formatCurrency(stats.revenueThisMonth),
-            revenueThisMonthRaw: stats.revenueThisMonth,
-            currency: "MYR",
-          };
+            const result: Record<string, unknown> = {
+              totalRevenue: formatCurrency(stats.totalRevenue),
+              totalRevenueRaw: stats.totalRevenue,
+              pendingAmount: formatCurrency(stats.pendingAmount),
+              pendingAmountRaw: stats.pendingAmount,
+              totalInvoices: stats.totalInvoices,
+              overdueCount: stats.overdueCount,
+              paidThisMonth: stats.paidThisMonth,
+              revenueThisMonth: formatCurrency(stats.revenueThisMonth),
+              revenueThisMonthRaw: stats.revenueThisMonth,
+              currency: "MYR",
+            };
 
-          if (includeQuotations) {
-            const quotations = await quotationRepository.findMany(user.id, { limit: 1000 });
-            const totalQuotations = quotations.length;
-            const convertedQuotations = quotations.filter(q => q.status === "converted").length;
-            const conversionRate = totalQuotations > 0
-              ? Math.round((convertedQuotations / totalQuotations) * 100)
-              : 0;
+            if (includeQuotations) {
+              // Use efficient count query instead of fetching all records
+              const quotationStats = await quotationRepository.getStats(user.id);
+              result.totalQuotations = quotationStats.total;
+              result.convertedQuotations = quotationStats.converted;
+              result.conversionRate = `${quotationStats.conversionRate}%`;
+            }
 
-            result.totalQuotations = totalQuotations;
-            result.convertedQuotations = convertedQuotations;
-            result.conversionRate = `${conversionRate}%`;
+            return result;
+          } catch (error) {
+            logger.error({ error }, "getDashboardStats failed");
+            return { error: "Failed to fetch dashboard stats" };
           }
-
-          return result;
-        } catch (error) {
-          return { error: "Failed to fetch dashboard stats" };
-        }
+        });
       },
     }),
 
@@ -96,41 +149,46 @@ aiRoutes.post("/chat", async (c) => {
     listInvoices: tool({
       description: "List user's invoices with optional filters. Use this to show recent invoices, find invoices by status, or get an overview of invoicing activity.",
       inputSchema: z.object({
-        limit: z.number().optional().describe("Number of invoices to return (default 10)"),
+        limit: z.number().max(TOOL_LIMITS.maxResults.invoices).optional().describe(`Number of invoices to return (default 10, max ${TOOL_LIMITS.maxResults.invoices})`),
         status: z.enum(["pending", "success", "overdue", "expired", "refunded"]).optional().describe("Filter by invoice status"),
       }),
       execute: async ({ limit = 10, status }: { limit?: number; status?: "pending" | "success" | "overdue" | "expired" | "refunded" }) => {
-        try {
-          const invoices = await invoiceRepository.findManyLight(user.id, { limit: limit || 50 });
+        return withToolTimeout("listInvoices", async () => {
+          try {
+            // Enforce limits
+            const effectiveLimit = Math.min(limit || 10, TOOL_LIMITS.maxResults.invoices);
+            const invoices = await invoiceRepository.findManyLight(user.id, { limit: effectiveLimit });
 
-          let filtered = invoices;
-          if (status) {
-            const now = new Date();
-            filtered = invoices.filter(inv => {
-              if (status === "overdue") {
-                return inv.status === "pending" && inv.dueDate && new Date(inv.dueDate) < now;
-              }
-              return inv.status === status;
-            });
+            let filtered = invoices;
+            if (status) {
+              const now = new Date();
+              filtered = invoices.filter(inv => {
+                if (status === "overdue") {
+                  return inv.status === "pending" && inv.dueDate && new Date(inv.dueDate) < now;
+                }
+                return inv.status === status;
+              });
+            }
+
+            return {
+              invoices: filtered.slice(0, effectiveLimit).map(inv => ({
+                id: inv.id,
+                serialNumber: `${inv.prefix || ""}${inv.serialNumber || "N/A"}`,
+                clientName: inv.clientName || "Unknown",
+                amount: formatCurrency(inv.amount, inv.currency || "MYR"),
+                amountRaw: inv.amount,
+                status: inv.status,
+                dueDate: inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "No due date",
+                createdAt: new Date(inv.createdAt).toLocaleDateString(),
+                isOverdue: inv.status === "pending" && inv.dueDate && new Date(inv.dueDate) < new Date(),
+              })),
+              total: filtered.length,
+            };
+          } catch (error) {
+            logger.error({ error }, "listInvoices failed");
+            return { error: "Failed to fetch invoices" };
           }
-
-          return {
-            invoices: filtered.slice(0, limit).map(inv => ({
-              id: inv.id,
-              serialNumber: `${inv.prefix || ""}${inv.serialNumber || "N/A"}`,
-              clientName: inv.clientName || "Unknown",
-              amount: formatCurrency(inv.amount, inv.currency || "MYR"),
-              amountRaw: inv.amount,
-              status: inv.status,
-              dueDate: inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "No due date",
-              createdAt: new Date(inv.createdAt).toLocaleDateString(),
-              isOverdue: inv.status === "pending" && inv.dueDate && new Date(inv.dueDate) < new Date(),
-            })),
-            total: filtered.length,
-          };
-        } catch (error) {
-          return { error: "Failed to fetch invoices" };
-        }
+        });
       },
     }),
 
@@ -921,6 +979,339 @@ aiRoutes.post("/chat", async (c) => {
         }
       },
     }),
+
+    // ==========================================
+    // ADVANCED MUTATION TOOLS - Full Document Creation
+    // ==========================================
+
+    createInvoice: tool({
+      description: "Create a new invoice with line items. Use this when the user wants to create an invoice for a customer. Requires company details, client details, and at least one line item.",
+      inputSchema: z.object({
+        customerId: z.string().optional().describe("Optional customer ID to link the invoice"),
+        companyName: z.string().describe("Your company/business name"),
+        companyAddress: z.string().describe("Your company/business address"),
+        clientName: z.string().describe("Customer/client name"),
+        clientAddress: z.string().describe("Customer/client address"),
+        currency: z.string().default("MYR").describe("Currency code (default: MYR)"),
+        prefix: z.string().default("INV-").describe("Invoice number prefix"),
+        serialNumber: z.string().describe("Invoice serial number (e.g., '0001')"),
+        date: z.string().describe("Invoice date (YYYY-MM-DD format)"),
+        dueDate: z.string().optional().describe("Due date (YYYY-MM-DD format)"),
+        items: z.array(z.object({
+          name: z.string().describe("Item/service name"),
+          description: z.string().optional().describe("Item description"),
+          quantity: z.number().describe("Quantity"),
+          unitPrice: z.number().describe("Unit price"),
+        })).min(1).describe("Invoice line items (at least one required)"),
+        notes: z.string().optional().describe("Additional notes for the invoice"),
+        terms: z.string().optional().describe("Payment terms"),
+      }),
+      execute: async ({ customerId, companyName, companyAddress, clientName, clientAddress, currency, prefix, serialNumber, date, dueDate, items, notes, terms }) => {
+        try {
+          // Validate customer if provided
+          if (customerId) {
+            const customer = await customerRepository.findById(customerId, user.id);
+            if (!customer) {
+              return { error: "Customer not found" };
+            }
+          }
+
+          const invoice = await invoiceRepository.create({
+            userId: user.id,
+            customerId: customerId || undefined,
+            companyDetails: {
+              name: companyName,
+              address: companyAddress,
+            },
+            clientDetails: {
+              name: clientName,
+              address: clientAddress,
+            },
+            invoiceDetails: {
+              currency,
+              prefix,
+              serialNumber,
+              date: new Date(date),
+              dueDate: dueDate ? new Date(dueDate) : null,
+            },
+            items: items.map(item => ({
+              name: item.name,
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+            })),
+            metadata: {
+              notes: notes || undefined,
+              terms: terms || undefined,
+            },
+          });
+
+          const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+
+          return {
+            success: true,
+            message: `Invoice ${prefix}${serialNumber} created successfully for ${clientName}`,
+            invoice: {
+              id: invoice.invoiceId,
+              serialNumber: `${prefix}${serialNumber}`,
+              clientName,
+              amount: formatCurrency(total, currency),
+              amountRaw: total,
+              currency,
+              date,
+              dueDate: dueDate || null,
+              itemCount: items.length,
+              status: "pending",
+            },
+          };
+        } catch (error) {
+          logger.error({ error }, "createInvoice failed");
+          return { error: "Failed to create invoice", details: String(error) };
+        }
+      },
+    }),
+
+    createBill: tool({
+      description: "Create a new bill (accounts payable) from a vendor. Use this when the user receives an invoice from a vendor that needs to be paid.",
+      inputSchema: z.object({
+        vendorId: z.string().optional().describe("Optional vendor ID to link the bill"),
+        billNumber: z.string().describe("Bill/invoice number from the vendor"),
+        description: z.string().optional().describe("Bill description"),
+        currency: z.string().default("MYR").describe("Currency code (default: MYR)"),
+        billDate: z.string().describe("Bill date (YYYY-MM-DD format)"),
+        dueDate: z.string().optional().describe("Due date (YYYY-MM-DD format)"),
+        items: z.array(z.object({
+          description: z.string().describe("Item/service description"),
+          quantity: z.number().describe("Quantity"),
+          unitPrice: z.number().describe("Unit price"),
+        })).min(1).describe("Bill line items (at least one required)"),
+        notes: z.string().optional().describe("Additional notes"),
+      }),
+      execute: async ({ vendorId, billNumber, description, currency, billDate, dueDate, items, notes }) => {
+        try {
+          // Validate vendor if provided
+          let vendorName: string | null = null;
+          if (vendorId) {
+            const vendor = await vendorRepository.findById(vendorId, user.id);
+            if (!vendor) {
+              return { error: "Vendor not found" };
+            }
+            vendorName = vendor.name;
+          }
+
+          const bill = await billRepository.create({
+            userId: user.id,
+            vendorId: vendorId || null,
+            billNumber,
+            description: description || null,
+            currency,
+            billDate: new Date(billDate),
+            dueDate: dueDate ? new Date(dueDate) : null,
+            status: "pending",
+            notes: notes || null,
+            items: items.map(item => ({
+              description: item.description,
+              quantity: String(item.quantity),
+              unitPrice: String(item.unitPrice),
+            })),
+          });
+
+          const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+
+          return {
+            success: true,
+            message: `Bill ${billNumber} created successfully${vendorName ? ` from ${vendorName}` : ""}`,
+            bill: {
+              id: bill!.id,
+              billNumber,
+              vendorName,
+              amount: formatCurrency(total, currency),
+              amountRaw: total,
+              currency,
+              billDate,
+              dueDate: dueDate || null,
+              itemCount: items.length,
+              status: "pending",
+            },
+          };
+        } catch (error) {
+          logger.error({ error }, "createBill failed");
+          return { error: "Failed to create bill", details: String(error) };
+        }
+      },
+    }),
+
+    listAccounts: tool({
+      description: "List chart of accounts for journal entry creation. Shows account codes, names, and types (asset, liability, equity, revenue, expense).",
+      inputSchema: z.object({
+        accountType: z.enum(["asset", "liability", "equity", "revenue", "expense"]).optional().describe("Filter by account type"),
+        limit: z.number().optional().describe("Number of accounts to return (default 50)"),
+      }),
+      execute: async ({ accountType, limit = 50 }) => {
+        try {
+          const accounts = await accountRepository.findAll(user.id, { accountType, isHeader: false });
+          const limitedAccounts = accounts.slice(0, limit);
+
+          return {
+            accounts: limitedAccounts.map((acc: { id: string; code: string; name: string; accountType: string; normalBalance: string; isHeader: boolean }) => ({
+              id: acc.id,
+              code: acc.code,
+              name: acc.name,
+              type: acc.accountType,
+              normalBalance: acc.normalBalance,
+              isHeader: acc.isHeader,
+            })),
+            total: accounts.length,
+          };
+        } catch (error) {
+          return { error: "Failed to fetch accounts" };
+        }
+      },
+    }),
+
+    createJournalEntry: tool({
+      description: "Create a manual journal entry with debit and credit lines. Debits must equal credits. Use listAccounts first to get valid account IDs.",
+      inputSchema: z.object({
+        entryDate: z.string().describe("Journal entry date (YYYY-MM-DD format)"),
+        description: z.string().describe("Description of the journal entry"),
+        reference: z.string().optional().describe("Optional reference number"),
+        lines: z.array(z.object({
+          accountId: z.string().describe("Account ID (use listAccounts to get valid IDs)"),
+          debitAmount: z.number().optional().describe("Debit amount (leave empty for credit)"),
+          creditAmount: z.number().optional().describe("Credit amount (leave empty for debit)"),
+          description: z.string().optional().describe("Line description"),
+        })).min(2).describe("Journal entry lines (at least 2 required - one debit, one credit)"),
+      }),
+      execute: async ({ entryDate, description, reference, lines }) => {
+        try {
+          // Validate debits equal credits
+          let totalDebit = 0;
+          let totalCredit = 0;
+
+          for (const line of lines) {
+            totalDebit += line.debitAmount || 0;
+            totalCredit += line.creditAmount || 0;
+          }
+
+          if (Math.abs(totalDebit - totalCredit) > 0.01) {
+            return {
+              error: `Debits (${formatCurrency(totalDebit)}) must equal credits (${formatCurrency(totalCredit)})`,
+              totalDebit,
+              totalCredit,
+            };
+          }
+
+          const entry = await journalEntryRepository.create({
+            userId: user.id,
+            entryDate,
+            description,
+            reference: reference || undefined,
+            sourceType: "manual",
+            lines: lines.map(line => ({
+              accountId: line.accountId,
+              debitAmount: line.debitAmount ? String(line.debitAmount) : undefined,
+              creditAmount: line.creditAmount ? String(line.creditAmount) : undefined,
+              description: line.description,
+            })),
+          });
+
+          return {
+            success: true,
+            message: `Journal entry ${entry.entryNumber} created successfully`,
+            entry: {
+              id: entry.id,
+              entryNumber: entry.entryNumber,
+              entryDate,
+              description,
+              totalDebit: formatCurrency(totalDebit),
+              totalCredit: formatCurrency(totalCredit),
+              lineCount: lines.length,
+              status: entry.status,
+            },
+          };
+        } catch (error) {
+          logger.error({ error }, "createJournalEntry failed");
+          return { error: "Failed to create journal entry", details: String(error) };
+        }
+      },
+    }),
+
+    postJournalEntry: tool({
+      description: "Post a draft journal entry to the ledger. This makes it permanent and updates account balances.",
+      inputSchema: z.object({
+        entryId: z.string().describe("The journal entry ID to post"),
+      }),
+      execute: async ({ entryId }) => {
+        try {
+          const entry = await journalEntryRepository.findById(entryId, user.id);
+          if (!entry) {
+            return { error: "Journal entry not found" };
+          }
+
+          if (entry.status === "posted") {
+            return { error: "Journal entry is already posted" };
+          }
+
+          if (entry.status === "reversed") {
+            return { error: "Cannot post a reversed journal entry" };
+          }
+
+          await journalEntryRepository.post(entryId, user.id);
+
+          return {
+            success: true,
+            message: `Journal entry ${entry.entryNumber} has been posted to the ledger`,
+            entry: {
+              id: entryId,
+              entryNumber: entry.entryNumber,
+              status: "posted",
+              postedAt: new Date().toLocaleDateString(),
+            },
+          };
+        } catch (error) {
+          return { error: "Failed to post journal entry", details: String(error) };
+        }
+      },
+    }),
+
+    reverseJournalEntry: tool({
+      description: "Reverse a posted journal entry. This creates a new entry with opposite debits/credits.",
+      inputSchema: z.object({
+        entryId: z.string().describe("The journal entry ID to reverse"),
+        reason: z.string().describe("Reason for reversal"),
+      }),
+      execute: async ({ entryId, reason }) => {
+        try {
+          const entry = await journalEntryRepository.findById(entryId, user.id);
+          if (!entry) {
+            return { error: "Journal entry not found" };
+          }
+
+          if (entry.status !== "posted") {
+            return { error: "Only posted journal entries can be reversed" };
+          }
+
+          const reversal = await journalEntryRepository.reverse(entryId, user.id, reason);
+
+          return {
+            success: true,
+            message: `Journal entry ${entry.entryNumber} has been reversed`,
+            originalEntry: {
+              id: entry.id,
+              entryNumber: entry.entryNumber,
+              newStatus: "reversed",
+            },
+            reversalEntry: {
+              id: reversal.id,
+              entryNumber: reversal.entryNumber,
+              description: reversal.description,
+            },
+          };
+        } catch (error) {
+          return { error: "Failed to reverse journal entry", details: String(error) };
+        }
+      },
+    }),
   };
 
   const result = streamText({
@@ -942,10 +1333,14 @@ READ OPERATIONS:
 
 ACTION OPERATIONS:
 - Create new customers and vendors
+- Create invoices with line items
+- Create bills (accounts payable) with line items
+- Create journal entries with debit/credit lines
 - Mark invoices as paid
 - Update invoice and quotation statuses
 - Convert quotations to invoices
 - Mark bills as paid
+- Post and reverse journal entries
 
 GUIDELINES:
 1. Always use the available tools to fetch real data - never make up numbers
@@ -968,9 +1363,14 @@ Data Access:
 
 Actions:
 - createCustomer, createVendor - Add new entities
+- createInvoice - Create full invoice with items
+- createBill - Create bill (accounts payable) with items
+- createJournalEntry - Create manual journal entry
+- postJournalEntry, reverseJournalEntry - Journal entry management
 - markInvoiceAsPaid, markBillAsPaid - Payment tracking
 - updateInvoiceStatus, updateQuotationStatus - Status management
 - convertQuotationToInvoice - Quotation conversion
+- listAccounts - Get chart of accounts for journal entries
 
 MULTI-STEP WORKFLOW EXAMPLES:
 1. "Add customer John and show all customers" → createCustomer → listCustomers
@@ -978,11 +1378,14 @@ MULTI-STEP WORKFLOW EXAMPLES:
 3. "Convert the latest quotation" → listQuotations → convertQuotationToInvoice
 4. "What bills need payment and mark the first one paid" → getUnpaidBills → markBillAsPaid
 
-When the user asks about their business or wants to perform actions, use the appropriate tools proactively.`,
+When the user asks about their business or wants to perform actions, use the appropriate tools proactively.
+
+IMPORTANT: Be efficient with tool calls. Avoid redundant queries.`,
     messages: convertToModelMessages(messages),
     tools,
   });
 
+  logger.debug({ userId: user.id }, "AI chat request processed");
   return result.toUIMessageStreamResponse();
 });
 

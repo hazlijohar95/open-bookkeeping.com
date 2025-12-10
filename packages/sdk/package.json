@@ -1,0 +1,57 @@
+{
+  "name": "@open-bookkeeping/sdk",
+  "version": "1.0.0",
+  "description": "Official TypeScript SDK for Open Bookkeeping API",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./webhooks": {
+      "import": "./dist/webhooks.js",
+      "types": "./dist/webhooks.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "check-types": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "open-bookkeeping",
+    "api",
+    "sdk",
+    "invoicing",
+    "bookkeeping",
+    "malaysia",
+    "e-invoice"
+  ],
+  "author": "Open Bookkeeping",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hazlijohar95/open-bookkeeping.com"
+  },
+  "homepage": "https://open-bookkeeping.com",
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.8.2"
+  },
+  "peerDependencies": {
+    "typescript": ">=4.7.0"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  }
+}

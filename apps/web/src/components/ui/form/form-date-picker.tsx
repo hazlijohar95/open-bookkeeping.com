@@ -10,7 +10,7 @@ import {
   useFormField,
 } from "@/components/ui/form/form";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
+import { ControllerRenderProps, FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
 import { InfoIcon, TriangleAlertIcon } from "@/components/ui/icons";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarPenIcon } from "@/assets/icons";
@@ -32,6 +32,75 @@ interface FormDatePickerProps<
   isOptional?: boolean;
 }
 
+/**
+ * Inner component that uses the useFormField hook.
+ * Extracted to comply with React's rules of hooks.
+ */
+function FormDatePickerContent<
+  TFieldValues extends FieldValues = FieldValues,
+  TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
+>({
+  field,
+  datePickerProps,
+}: {
+  field: ControllerRenderProps<TFieldValues, TName>;
+  datePickerProps: FormDatePickerProps<TFieldValues, TName> & { className?: string; isOptional: boolean };
+}) {
+  const { error } = useFormField();
+  const { className, isOptional, ...props } = datePickerProps;
+
+  return (
+    <FormItem className="w-full">
+      {props.label ? (
+        <FormLabel className="flex items-center">
+          <span className="text-xs capitalize">{props.label}</span>
+          {isOptional ? (
+            <Badge size="xs" variant={Boolean(error) ? "destructive" : "secondary"}>
+              {props.sublabel ?? "Optional"}
+            </Badge>
+          ) : null}
+        </FormLabel>
+      ) : null}
+      <FormControl>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant={"outline"}
+              className={cn(
+                className,
+                "w-full justify-start text-left font-normal",
+                !field.value && "text-muted-foreground",
+              )}
+            >
+              <CalendarPenIcon />
+              {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="center">
+            <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+          </PopoverContent>
+        </Popover>
+      </FormControl>
+      {/* Render form error message or form description. Give priority to error else description */}
+      {error || props.description ? (
+        <div className="-mt-0.5">
+          {error ? (
+            <div className="flex items-center gap-1">
+              <TriangleAlertIcon className="text-destructive size-2.5" />
+              <FormMessage />
+            </div>
+          ) : props.description ? (
+            <div className="flex items-center gap-1">
+              <InfoIcon className="text-muted-foreground size-2.5" />
+              <FormDescription>{props.description}</FormDescription>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </FormItem>
+  );
+}
+
 export const FormDatePicker = <
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
@@ -44,61 +113,12 @@ export const FormDatePicker = <
     <FormField
       control={props.reactform.control}
       name={props.name}
-      render={({ field }) => {
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        const { error } = useFormField();
-
-        return (
-          <FormItem className="w-full">
-            {props.label ? (
-              <FormLabel className="flex items-center">
-                <span className="text-xs capitalize">{props.label}</span>
-                {isOptional ? (
-                  <Badge size="xs" variant={Boolean(error) ? "destructive" : "secondary"}>
-                    {props.sublabel ?? "Optional"}
-                  </Badge>
-                ) : null}
-              </FormLabel>
-            ) : null}
-            <FormControl>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={"outline"}
-                    className={cn(
-                      className,
-                      "w-full justify-start text-left font-normal",
-                      !field.value && "text-muted-foreground",
-                    )}
-                  >
-                    <CalendarPenIcon />
-                    {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="center">
-                  <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                </PopoverContent>
-              </Popover>
-            </FormControl>
-            {/* i.e Render form error message or form description Give priority to error else description */}
-            {error || props.description ? (
-              <div className="-mt-0.5">
-                {error ? (
-                  <div className="flex items-center gap-1">
-                    <TriangleAlertIcon className="text-destructive size-2.5" />
-                    <FormMessage />
-                  </div>
-                ) : props.description ? (
-                  <div className="flex items-center gap-1">
-                    <InfoIcon className="text-muted-foreground size-2.5" />
-                    <FormDescription>{props.description}</FormDescription>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </FormItem>
-        );
-      }}
+      render={({ field }) => (
+        <FormDatePickerContent
+          field={field}
+          datePickerProps={{ className, isOptional, ...props }}
+        />
+      )}
     />
   );
 };

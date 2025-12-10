@@ -15,6 +15,7 @@ import { invoices } from "./invoices";
 import { bills } from "./bills";
 import { customers } from "./customers";
 import { vendors } from "./vendors";
+import { journalEntries } from "./chartOfAccounts";
 import {
   transactionTypeEnum,
   matchStatusEnum,
@@ -139,6 +140,11 @@ export const bankTransactions = pgTable(
 
     isReconciled: boolean("is_reconciled").default(false).notNull(),
     reconciledAt: timestamp("reconciled_at"),
+
+    // Link to auto-generated journal entry (when reconciled)
+    journalEntryId: uuid("journal_entry_id").references(() => journalEntries.id, {
+      onDelete: "set null",
+    }),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -276,6 +282,10 @@ export const bankTransactionsRelations = relations(
     category: one(transactionCategories, {
       fields: [bankTransactions.categoryId],
       references: [transactionCategories.id],
+    }),
+    journalEntry: one(journalEntries, {
+      fields: [bankTransactions.journalEntryId],
+      references: [journalEntries.id],
     }),
   })
 );

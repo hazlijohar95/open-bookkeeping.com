@@ -10,20 +10,38 @@ import {
   GearIcon,
   ReceiptIcon,
   DatabaseIcon,
+  FileMinusIcon,
+  FilePlusIcon,
+  ScaleIcon,
+  TrendingUpIcon,
+  BuildingIcon,
+  CodeIcon,
+  KeyIcon,
+  WebhookIcon,
+  FilePenIcon,
+  WarehouseIcon,
+  SparklesIcon,
 } from "@/assets/icons";
-import { FileMinus, FilePlus, BookOpen, Receipt, Scale, TrendingUp, Building2, FileText } from "@/components/ui/icons";
 import type { ISidebar } from "@/types";
 import { LINKS } from "./links";
 
 export const SIDEBAR_ITEMS: ISidebar = {
+  // Dashboard - primary entry point
   Overview: [
     {
       name: "Dashboard",
       url: LINKS.DASHBOARD,
       icon: <GaugeIcon />,
     },
+    {
+      name: "AI Agent",
+      url: LINKS.AGENT,
+      icon: <SparklesIcon />,
+    },
   ],
-  Revenue: [
+
+  // Sales - Money coming in (Quote → Invoice → Get Paid)
+  Sales: [
     {
       name: "Invoices",
       url: LINKS.INVOICES,
@@ -37,31 +55,32 @@ export const SIDEBAR_ITEMS: ISidebar = {
         {
           name: "Credit Notes",
           url: LINKS.CREDIT_NOTES,
-          icon: <FileMinus className="size-4" />,
+          icon: <FileMinusIcon />,
         },
         {
           name: "Debit Notes",
           url: LINKS.DEBIT_NOTES,
-          icon: <FilePlus className="size-4" />,
-        },
-        {
-          name: "Statements",
-          url: LINKS.STATEMENTS,
-          icon: <BookOpenIcon />,
-        },
-        {
-          name: "Assets",
-          url: LINKS.ASSETS,
-          icon: <BoxIcon />,
+          icon: <FilePlusIcon />,
         },
       ],
     },
+    {
+      name: "Statements",
+      url: LINKS.STATEMENTS,
+      icon: <BookOpenIcon />,
+    },
+  ],
+
+  // Purchases - Money going out
+  Purchases: [
     {
       name: "Bills",
       url: LINKS.BILLS,
       icon: <ReceiptIcon />,
     },
   ],
+
+  // Contacts - People you do business with
   Contacts: [
     {
       name: "Customers",
@@ -74,59 +93,100 @@ export const SIDEBAR_ITEMS: ISidebar = {
       icon: <TruckIcon />,
     },
   ],
+
+  // Banking - Transaction reconciliation
   Banking: [
     {
       name: "Bank Feeds",
       url: LINKS.BANK_FEEDS,
       icon: <DatabaseIcon />,
     },
+  ],
+
+  // Accounting - Chart of accounts, journal entries, and fixed assets
+  Accounting: [
     {
       name: "Chart of Accounts",
       url: LINKS.CHART_OF_ACCOUNTS,
-      icon: <BookOpen className="size-4" />,
+      icon: <BookOpenIcon />,
       children: [
         {
           name: "Journal Entries",
           url: LINKS.JOURNAL_ENTRIES,
-          icon: <FileText className="size-4" />,
+          icon: <FilePenIcon />,
         },
       ],
     },
-  ],
-  Reports: [
     {
-      name: "Trial Balance",
-      url: LINKS.TRIAL_BALANCE,
-      icon: <Scale className="size-4" />,
+      name: "Fixed Assets",
+      url: LINKS.FIXED_ASSETS,
+      icon: <WarehouseIcon />,
     },
+  ],
+
+  // Reports - Financial statements and compliance
+  Reports: [
     {
       name: "Profit & Loss",
       url: LINKS.PROFIT_LOSS,
-      icon: <TrendingUp className="size-4" />,
+      icon: <TrendingUpIcon />,
     },
     {
       name: "Balance Sheet",
       url: LINKS.BALANCE_SHEET,
-      icon: <Building2 className="size-4" />,
+      icon: <BuildingIcon />,
+    },
+    {
+      name: "Trial Balance",
+      url: LINKS.TRIAL_BALANCE,
+      icon: <ScaleIcon />,
     },
     {
       name: "SST Reports",
       url: LINKS.SST,
-      icon: <Receipt className="size-4" />,
+      icon: <ReceiptIcon />,
     },
   ],
-  Storage: [
+
+  // Tools - Utilities and integrations
+  Tools: [
     {
-      name: "Vault",
+      name: "Document Vault",
       url: LINKS.VAULT,
       icon: <FolderFeatherIcon />,
     },
+    {
+      name: "Developer",
+      url: LINKS.DEVELOPER,
+      icon: <CodeIcon />,
+      children: [
+        {
+          name: "API Keys",
+          url: LINKS.DEVELOPER_API_KEYS,
+          icon: <KeyIcon />,
+        },
+        {
+          name: "Webhooks",
+          url: LINKS.DEVELOPER_WEBHOOKS,
+          icon: <WebhookIcon />,
+        },
+      ],
+    },
   ],
+
+  // Account - User settings
   Account: [
     {
       name: "Settings",
       url: LINKS.SETTINGS,
       icon: <GearIcon />,
+      children: [
+        {
+          name: "Brand Assets",
+          url: LINKS.ASSETS,
+          icon: <BoxIcon />,
+        },
+      ],
     },
   ],
 };

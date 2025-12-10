@@ -1,8 +1,39 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { db, invoices, quotations, invoiceMonthlyTotals } from "@open-bookkeeping/db";
-import { eq, and, gte, desc } from "drizzle-orm";
+import { eq, and, gte, desc, count, sql } from "drizzle-orm";
 import { aggregationService } from "../../services/aggregation.service";
+
+/**
+ * Get quotation statistics using database aggregation (N+1 fix)
+ * Returns total count and converted count in a single query
+ */
+async function getQuotationStats(userId: string): Promise<{
+  totalQuotations: number;
+  convertedQuotations: number;
+  conversionRate: number;
+}> {
+  // Use a single query with conditional count to get both metrics
+  const result = await db
+    .select({
+      total: count(),
+      converted: count(
+        sql`CASE WHEN ${quotations.status} = 'converted' THEN 1 END`
+      ),
+    })
+    .from(quotations)
+    .where(eq(quotations.userId, userId));
+
+  const stats = result[0] ?? { total: 0, converted: 0 };
+  const totalQuotations = Number(stats.total);
+  const convertedQuotations = Number(stats.converted);
+  const conversionRate =
+    totalQuotations > 0
+      ? Math.round((convertedQuotations / totalQuotations) * 100)
+      : 0;
+
+  return { totalQuotations, convertedQuotations, conversionRate };
+}
 
 export const dashboardRouter = router({
   // Get dashboard statistics (uses fast aggregation-based approach)
@@ -19,22 +50,11 @@ export const dashboardRouter = router({
       await aggregationService.rebuildAllMonthlyTotals(userId);
     }
 
-    // Get stats from pre-computed aggregations (10x faster)
-    const stats = await aggregationService.getDashboardStats(userId);
-
-    // Get quotation stats (small dataset, direct query is fine)
-    const allQuotations = await db.query.quotations.findMany({
-      where: eq(quotations.userId, userId),
-    });
-
-    const totalQuotations = allQuotations.length;
-    const convertedQuotations = allQuotations.filter(
-      (q) => q.status === "converted"
-    ).length;
-    const conversionRate =
-      totalQuotations > 0
-        ? Math.round((convertedQuotations / totalQuotations) * 100)
-        : 0;
+    // Run both queries in parallel for better performance
+    const [stats, quotationStats] = await Promise.all([
+      aggregationService.getDashboardStats(userId),
+      getQuotationStats(userId), // Uses DB aggregation, not N+1
+    ]);
 
     return {
       totalInvoices: stats.totalInvoices,
@@ -44,9 +64,9 @@ export const dashboardRouter = router({
       overdueAmount: 0, // Not tracked in aggregations yet
       paidThisMonth: stats.paidThisMonth,
       revenueThisMonth: stats.revenueThisMonth,
-      totalQuotations,
-      convertedQuotations,
-      conversionRate,
+      totalQuotations: quotationStats.totalQuotations,
+      convertedQuotations: quotationStats.convertedQuotations,
+      conversionRate: quotationStats.conversionRate,
       currency: "MYR", // Default, could be fetched from settings
     };
   }),
@@ -65,22 +85,11 @@ export const dashboardRouter = router({
       await aggregationService.rebuildAllMonthlyTotals(userId);
     }
 
-    // Get stats from pre-computed aggregations
-    const stats = await aggregationService.getDashboardStats(userId);
-
-    // Get quotation stats (these are small, direct query is fine)
-    const allQuotations = await db.query.quotations.findMany({
-      where: eq(quotations.userId, userId),
-    });
-
-    const totalQuotations = allQuotations.length;
-    const convertedQuotations = allQuotations.filter(
-      (q) => q.status === "converted"
-    ).length;
-    const conversionRate =
-      totalQuotations > 0
-        ? Math.round((convertedQuotations / totalQuotations) * 100)
-        : 0;
+    // Run both queries in parallel for better performance
+    const [stats, quotationStats] = await Promise.all([
+      aggregationService.getDashboardStats(userId),
+      getQuotationStats(userId), // Uses DB aggregation, not N+1
+    ]);
 
     return {
       totalInvoices: stats.totalInvoices,
@@ -90,9 +99,9 @@ export const dashboardRouter = router({
       overdueAmount: 0, // Not tracked in aggregations yet
       paidThisMonth: stats.paidThisMonth,
       revenueThisMonth: stats.revenueThisMonth,
-      totalQuotations,
-      convertedQuotations,
-      conversionRate,
+      totalQuotations: quotationStats.totalQuotations,
+      convertedQuotations: quotationStats.convertedQuotations,
+      conversionRate: quotationStats.conversionRate,
       currency: "MYR", // Default, could be fetched from settings
     };
   }),

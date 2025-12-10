@@ -1,10 +1,11 @@
 import { IconProps } from "@/types";
+import { cn } from "@/lib/utils";
 
-function Box({ fill = "currentColor", secondaryfill, ...props }: IconProps) {
+function Box({ fill = "currentColor", secondaryfill, className, ...props }: IconProps) {
   secondaryfill = secondaryfill || fill;
 
   return (
-    <svg height="18" width="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" className={cn("size-[18px]", className)} {...props}>
       <g fill={fill}>
         <path
           d="M2 7.25C2 5.73128 3.23069 4.5 4.75 4.5H13.25C14.7693 4.5 16 5.73128 16 7.25V13.25C16 14.7687 14.7693 16 13.25 16H4.75C3.23069 16 2 14.7687 2 13.25V7.25Z"

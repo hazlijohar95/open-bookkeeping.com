@@ -1,4 +1,5 @@
 import { SVGProps } from "react";
+import { cn } from "@/lib/utils";
 
 type IconProps = SVGProps<SVGSVGElement> & {
   secondaryfill?: string;
@@ -6,11 +7,11 @@ type IconProps = SVGProps<SVGSVGElement> & {
   title?: string;
 };
 
-function Database({ fill = "currentColor", secondaryfill, ...props }: IconProps) {
+function Database({ fill = "currentColor", secondaryfill, className, ...props }: IconProps) {
   secondaryfill = secondaryfill || fill;
 
   return (
-    <svg height="18" width="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" className={cn("size-[18px]", className)} {...props}>
       <g fill={fill}>
         <path
           d="M2.75 3.5C2.33579 3.5 2 3.83579 2 4.25V8.5C2 8.92749 2.22718 9.30746 2.5867 9.62993C2.94759 9.95364 3.4632 10.2399 4.09183 10.4784C5.35093 10.9559 7.08613 11.25 9 11.25C10.9139 11.25 12.6491 10.9559 13.9082 10.4784C14.5368 10.2399 15.0524 9.95364 15.4133 9.62993C15.7728 9.30746 16 8.92749 16 8.5V4.25C16 3.83579 15.6642 3.5 15.25 3.5H2.75Z"

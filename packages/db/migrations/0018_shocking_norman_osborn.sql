@@ -1,0 +1,2 @@
+ALTER TABLE "bank_transactions" ADD COLUMN "journal_entry_id" uuid;--> statement-breakpoint
+ALTER TABLE "bank_transactions" ADD CONSTRAINT "bank_transactions_journal_entry_id_journal_entries_id_fk" FOREIGN KEY ("journal_entry_id") REFERENCES "public"."journal_entries"("id") ON DELETE set null ON UPDATE no action;

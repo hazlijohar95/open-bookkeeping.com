@@ -174,7 +174,9 @@ export async function createContext({
 
     return { user: userData, supabase };
   } catch (error) {
-    console.error("Auth error:", error);
+    // Sanitize error logging - never log tokens or sensitive data
+    const errorMessage = error instanceof Error ? error.message : "Unknown auth error";
+    console.error("Auth error:", errorMessage);
     return { user: null, supabase };
   }
 }

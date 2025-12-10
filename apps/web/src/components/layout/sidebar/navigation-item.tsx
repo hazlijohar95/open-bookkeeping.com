@@ -42,7 +42,7 @@ export function NavigationItem({ title, items }: { title: string; items: ISideba
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton isActive={isActive || isChildActive}>
-                      <span className="[&>svg]:size-4">{item.icon}</span>
+                      <span className="flex items-center justify-center [&>svg]:size-4">{item.icon}</span>
                       <span className="text-[13px] font-medium tracking-tighter">{item.name}</span>
                       <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                     </SidebarMenuButton>
@@ -64,7 +64,7 @@ export function NavigationItem({ title, items }: { title: string; items: ISideba
                           <SidebarMenuSubItem key={child.name}>
                             <SidebarMenuSubButton asChild isActive={isSubActive}>
                               <Link to={child.url}>
-                                {child.icon && <span className="[&>svg]:size-3.5">{child.icon}</span>}
+                                {child.icon && <span className="flex items-center justify-center [&>svg]:size-3.5">{child.icon}</span>}
                                 <span className="text-[13px]">{child.name}</span>
                               </Link>
                             </SidebarMenuSubButton>
@@ -82,7 +82,7 @@ export function NavigationItem({ title, items }: { title: string; items: ISideba
             <SidebarMenuItem key={item.name}>
               <SidebarMenuButton asChild isActive={isActive}>
                 <Link to={item.url}>
-                  <span className="[&>svg]:size-4">{item.icon}</span>
+                  <span className="flex items-center justify-center [&>svg]:size-4">{item.icon}</span>
                   <span className="text-[13px] font-medium tracking-tighter">{item.name}</span>
                 </Link>
               </SidebarMenuButton>

@@ -3,6 +3,51 @@ import { router, protectedProcedure } from "../trpc";
 import { db, userSettings } from "@open-bookkeeping/db";
 import { eq } from "drizzle-orm";
 
+/**
+ * Upsert user settings - handles race conditions safely
+ * Uses transaction + ON CONFLICT for atomic operation
+ */
+async function upsertUserSettings(
+  userId: string,
+  updates: Record<string, unknown>
+): Promise<typeof userSettings.$inferSelect> {
+  return db.transaction(async (tx) => {
+    // Try to update first (most common case)
+    const [updated] = await tx
+      .update(userSettings)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(userSettings.userId, userId))
+      .returning();
+
+    if (updated) {
+      return updated;
+    }
+
+    // If no rows updated, insert new record
+    // Use ON CONFLICT to handle race condition where another request
+    // inserted between our check and insert
+    const [created] = await tx
+      .insert(userSettings)
+      .values({
+        userId,
+        ...updates,
+      })
+      .onConflictDoUpdate({
+        target: userSettings.userId,
+        set: {
+          ...updates,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+
+    return created!;
+  });
+}
+
 // Validation schemas
 const companyProfileSchema = z.object({
   companyName: z.string().max(255).optional().nullable(),
@@ -69,170 +114,44 @@ export const settingsRouter = router({
     return settings;
   }),
 
-  // Update all settings
+  // Update all settings (race-condition safe)
   update: protectedProcedure
     .input(updateSettingsSchema)
     .mutation(async ({ ctx, input }) => {
-      const userId = ctx.user.id;
-
-      // Check if settings exist
-      const existing = await db.query.userSettings.findFirst({
-        where: eq(userSettings.userId, userId),
+      return upsertUserSettings(ctx.user.id, {
+        ...input,
+        defaultTaxRate: input.defaultTaxRate?.toString(),
       });
-
-      if (existing) {
-        // Update existing
-        const [updated] = await db
-          .update(userSettings)
-          .set({
-            ...input,
-            defaultTaxRate: input.defaultTaxRate?.toString(),
-            updatedAt: new Date(),
-          })
-          .where(eq(userSettings.userId, userId))
-          .returning();
-        return updated;
-      } else {
-        // Create new
-        const [created] = await db
-          .insert(userSettings)
-          .values({
-            userId,
-            ...input,
-            defaultTaxRate: input.defaultTaxRate?.toString(),
-          })
-          .returning();
-        return created;
-      }
     }),
 
-  // Update company profile only
+  // Update company profile only (race-condition safe)
   updateCompanyProfile: protectedProcedure
     .input(companyProfileSchema)
     .mutation(async ({ ctx, input }) => {
-      const userId = ctx.user.id;
-
-      const existing = await db.query.userSettings.findFirst({
-        where: eq(userSettings.userId, userId),
-      });
-
-      if (existing) {
-        const [updated] = await db
-          .update(userSettings)
-          .set({
-            ...input,
-            updatedAt: new Date(),
-          })
-          .where(eq(userSettings.userId, userId))
-          .returning();
-        return updated;
-      } else {
-        const [created] = await db
-          .insert(userSettings)
-          .values({
-            userId,
-            ...input,
-          })
-          .returning();
-        return created;
-      }
+      return upsertUserSettings(ctx.user.id, input);
     }),
 
-  // Update invoice defaults only
+  // Update invoice defaults only (race-condition safe)
   updateInvoiceDefaults: protectedProcedure
     .input(invoiceDefaultsSchema)
     .mutation(async ({ ctx, input }) => {
-      const userId = ctx.user.id;
-
-      const existing = await db.query.userSettings.findFirst({
-        where: eq(userSettings.userId, userId),
+      return upsertUserSettings(ctx.user.id, {
+        ...input,
+        defaultTaxRate: input.defaultTaxRate?.toString(),
       });
-
-      if (existing) {
-        const [updated] = await db
-          .update(userSettings)
-          .set({
-            ...input,
-            defaultTaxRate: input.defaultTaxRate?.toString(),
-            updatedAt: new Date(),
-          })
-          .where(eq(userSettings.userId, userId))
-          .returning();
-        return updated;
-      } else {
-        const [created] = await db
-          .insert(userSettings)
-          .values({
-            userId,
-            ...input,
-            defaultTaxRate: input.defaultTaxRate?.toString(),
-          })
-          .returning();
-        return created;
-      }
     }),
 
-  // Update notification settings only
+  // Update notification settings only (race-condition safe)
   updateNotifications: protectedProcedure
     .input(notificationSettingsSchema)
     .mutation(async ({ ctx, input }) => {
-      const userId = ctx.user.id;
-
-      const existing = await db.query.userSettings.findFirst({
-        where: eq(userSettings.userId, userId),
-      });
-
-      if (existing) {
-        const [updated] = await db
-          .update(userSettings)
-          .set({
-            ...input,
-            updatedAt: new Date(),
-          })
-          .where(eq(userSettings.userId, userId))
-          .returning();
-        return updated;
-      } else {
-        const [created] = await db
-          .insert(userSettings)
-          .values({
-            userId,
-            ...input,
-          })
-          .returning();
-        return created;
-      }
+      return upsertUserSettings(ctx.user.id, input);
     }),
 
-  // Update appearance settings only
+  // Update appearance settings only (race-condition safe)
   updateAppearance: protectedProcedure
     .input(appearanceSettingsSchema)
     .mutation(async ({ ctx, input }) => {
-      const userId = ctx.user.id;
-
-      const existing = await db.query.userSettings.findFirst({
-        where: eq(userSettings.userId, userId),
-      });
-
-      if (existing) {
-        const [updated] = await db
-          .update(userSettings)
-          .set({
-            ...input,
-            updatedAt: new Date(),
-          })
-          .where(eq(userSettings.userId, userId))
-          .returning();
-        return updated;
-      } else {
-        const [created] = await db
-          .insert(userSettings)
-          .values({
-            userId,
-            ...input,
-          })
-          .returning();
-        return created;
-      }
+      return upsertUserSettings(ctx.user.id, input);
     }),
 });

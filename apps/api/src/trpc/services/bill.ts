@@ -3,6 +3,7 @@ import { router, protectedProcedure } from "../trpc";
 import { billRepository } from "@open-bookkeeping/db";
 import { createLogger } from "@open-bookkeeping/shared";
 import { journalEntryIntegration } from "../../services/journalEntry.integration";
+import { webhookDispatcher } from "../../services/webhook.integration";
 import { documentStatusSchema, paginationBaseSchema } from "../../schemas/common";
 import { assertFound } from "../../lib/errors";
 
@@ -131,6 +132,19 @@ export const billRouter = router({
 
       logger.info({ userId: ctx.user.id, billId: bill?.id }, "Bill created");
 
+      // Dispatch webhook event (non-blocking)
+      if (bill?.id) {
+        webhookDispatcher.billCreated(ctx.user.id, {
+          id: bill.id,
+          billNumber: input.billNumber,
+          status: input.status,
+          total: input.items.reduce((sum, item) => sum + (parseFloat(item.quantity) * parseFloat(item.unitPrice)), 0),
+          currency: input.currency,
+          vendorId: input.vendorId,
+          dueDate: input.dueDate,
+        });
+      }
+
       // Create journal entry in background (non-blocking)
       if (bill?.id) {
         journalEntryIntegration.hasChartOfAccounts(ctx.user.id).then(async (hasAccounts) => {
@@ -215,6 +229,28 @@ export const billRouter = router({
       assertFound(updated, "bill", input.id);
 
       logger.info({ userId: ctx.user.id, billId: input.id, status: input.status }, "Bill status updated");
+
+      // Dispatch webhook event for bill paid
+      if (input.status === "paid" && updated) {
+        webhookDispatcher.billPaid(ctx.user.id, {
+          id: input.id,
+          billNumber: updated.billNumber,
+          status: "paid",
+          total: updated.total || undefined,
+          currency: updated.currency,
+          vendorId: updated.vendorId,
+          paidAt: input.paidAt,
+        });
+      } else if (updated) {
+        webhookDispatcher.billUpdated(ctx.user.id, {
+          id: input.id,
+          billNumber: updated.billNumber,
+          status: input.status,
+          total: updated.total || undefined,
+          currency: updated.currency,
+          vendorId: updated.vendorId,
+        });
+      }
 
       // Create payment journal entry when bill is marked as paid
       if (input.status === "paid") {

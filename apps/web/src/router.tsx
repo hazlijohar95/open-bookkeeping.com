@@ -41,6 +41,9 @@ const Terms = lazy(() => import("./routes/terms").then((m) => ({ default: m.Term
 const NotFound = lazy(() => import("./routes/not-found").then((m) => ({ default: m.NotFound })));
 const AuthCallback = lazy(() => import("./routes/auth-callback").then((m) => ({ default: m.AuthCallback })));
 const Login = lazy(() => import("./routes/login").then((m) => ({ default: m.Login })));
+const Developer = lazy(() => import("./routes/developer").then((m) => ({ default: m.Developer })));
+const FixedAssets = lazy(() => import("./routes/fixed-assets").then((m) => ({ default: m.FixedAssets })));
+const Agent = lazy(() => import("./routes/agent").then((m) => ({ default: m.Agent })));
 
 // Page skeleton for route transitions - shows structure immediately
 function RouteLoader() {
@@ -119,8 +122,13 @@ export const router = createBrowserRouter([
           { path: "sst", element: <LazyRoute><SST /></LazyRoute> },
           { path: "vault", element: <LazyRoute><Vault /></LazyRoute> },
           { path: "assets", element: <LazyRoute><Assets /></LazyRoute> },
+          { path: "fixed-assets", element: <LazyRoute><FixedAssets /></LazyRoute> },
           { path: "settings", element: <LazyRoute><Settings /></LazyRoute> },
           { path: "statements", element: <LazyRoute><Statements /></LazyRoute> },
+          { path: "developer", element: <LazyRoute><Developer /></LazyRoute> },
+          { path: "developer/api-keys", element: <LazyRoute><Developer /></LazyRoute> },
+          { path: "developer/webhooks", element: <LazyRoute><Developer /></LazyRoute> },
+          { path: "agent", element: <LazyRoute><Agent /></LazyRoute> },
           { path: "edit/invoice/:type/:id", element: <LazyRoute><EditInvoice /></LazyRoute> },
           { path: "edit/quotation/:type/:id", element: <LazyRoute><EditQuotation /></LazyRoute> },
           { path: "edit/credit-note/:type/:id", element: <LazyRoute><EditCreditNote /></LazyRoute> },

@@ -17,6 +17,10 @@ import { bankFeedRouter } from "./services/bankFeed";
 import { chartOfAccountsRouter } from "./services/chartOfAccounts";
 import { sstRouter } from "./services/sst";
 import { ledgerRouter } from "./services/ledger";
+import { apiKeyRouter } from "./services/apiKey";
+import { webhookRouter } from "./services/webhook";
+import { fixedAssetRouter } from "./services/fixedAsset";
+import { agentRouter } from "./services/agent";
 
 export { router, publicProcedure, protectedProcedure };
 
@@ -39,6 +43,10 @@ export const appRouter = router({
   chartOfAccounts: chartOfAccountsRouter,
   sst: sstRouter,
   ledger: ledgerRouter,
+  apiKey: apiKeyRouter,
+  webhook: webhookRouter,
+  fixedAsset: fixedAssetRouter,
+  agent: agentRouter,
 });
 
 export type AppRouter = typeof appRouter;

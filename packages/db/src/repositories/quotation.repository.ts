@@ -1,4 +1,4 @@
-import { eq, and, desc, isNull } from "drizzle-orm";
+import { eq, and, desc, isNull, count, sql } from "drizzle-orm";
 import { db } from "../index";
 import {
   quotations,
@@ -714,6 +714,36 @@ export const quotationRepository = {
       columns: { id: true },
     });
     return !!quotation;
+  },
+
+  /**
+   * Get quotation statistics using DB aggregation (efficient single query)
+   * Returns total count, converted count, and conversion rate
+   */
+  getStats: async (userId: string): Promise<{
+    total: number;
+    converted: number;
+    conversionRate: number;
+  }> => {
+    const result = await db
+      .select({
+        total: count(),
+        converted: count(
+          sql`CASE WHEN ${quotations.status} = 'converted' THEN 1 END`
+        ),
+      })
+      .from(quotations)
+      .where(
+        and(eq(quotations.userId, userId), isNull(quotations.deletedAt))
+      );
+
+    const stats = result[0] ?? { total: 0, converted: 0 };
+    const total = Number(stats.total);
+    const converted = Number(stats.converted);
+    const conversionRate =
+      total > 0 ? Math.round((converted / total) * 100) : 0;
+
+    return { total, converted, conversionRate };
   },
 };
 

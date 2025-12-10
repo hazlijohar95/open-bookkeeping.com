@@ -33,6 +33,11 @@ export const LINKS = {
   ASSETS: "/assets",
   SETTINGS: "/settings",
   STATEMENTS: "/statements",
+  DEVELOPER: "/developer",
+  DEVELOPER_API_KEYS: "/developer/api-keys",
+  DEVELOPER_WEBHOOKS: "/developer/webhooks",
+  FIXED_ASSETS: "/fixed-assets",
+  AGENT: "/agent",
   CREATE: {
     INVOICE: "/create/invoice",
     QUOTATION: "/create/quotation",

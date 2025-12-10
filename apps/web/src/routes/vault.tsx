@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { PageContainer } from "@/components/ui/page-container";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageSkeleton } from "@/components/skeletons";
@@ -35,21 +34,14 @@ import {
 import {
   MoreVertical,
   Loader2,
-  Check,
-  AlertCircle,
   Sparkles,
   FileText,
   Building2,
-  ArrowRight,
   Zap,
   Eye,
-  TrendingUp,
-  TrendingDown,
   RefreshCw,
   CheckCircle2,
-  Clock,
   Brain,
-  ChevronRight,
 } from "@/components/ui/icons";
 import {
   DropdownMenu,
@@ -67,9 +59,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { VaultCategory, ProcessingStatus } from "@/types/common/vault";
+import { VaultCategory } from "@/types/common/vault";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+
+// Import extracted components
+import { formatFileSize, getFileIcon } from "@/components/vault/utils";
+import { DocumentDetailModal } from "@/components/vault/document-detail-modal";
 
 const CATEGORIES: { value: VaultCategory | "all"; label: string; icon: React.ReactNode }[] = [
   { value: "all", label: "All", icon: <FolderFeatherIcon className="size-4" /> },
@@ -82,176 +78,6 @@ const CATEGORIES: { value: VaultCategory | "all"; label: string; icon: React.Rea
   { value: "images", label: "Images", icon: <ImageSparkleIcon className="size-4" /> },
   { value: "other", label: "Other", icon: <BoxIcon className="size-4" /> },
 ];
-
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
-}
-
-function getFileIcon(mimeType: string, className = "size-8") {
-  if (mimeType.startsWith("image/")) return <ImageSparkleIcon className={cn(className, "text-info")} />;
-  if (mimeType === "application/pdf") return <FileFeatherIcon className={cn(className, "text-destructive")} />;
-  if (mimeType.includes("word")) return <FileFeatherIcon className={cn(className, "text-primary")} />;
-  if (mimeType.includes("excel") || mimeType.includes("spreadsheet"))
-    return <ReceiptIcon className={cn(className, "text-success")} />;
-  return <BoxIcon className={cn(className, "text-muted-foreground")} />;
-}
-
-function getDocumentTypeLabel(type: string) {
-  switch (type) {
-    case "bank_statement":
-      return "Bank Statement";
-    case "receipt":
-      return "Receipt";
-    case "invoice":
-      return "Invoice";
-    case "bill":
-      return "Bill";
-    default:
-      return "Document";
-  }
-}
-
-function ConfidenceRing({ confidence, size = 48 }: { confidence: number; size?: number }) {
-  const strokeWidth = 3;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const offset = circumference - (confidence * circumference);
-
-  const getColor = () => {
-    if (confidence >= 0.9) return "stroke-success";
-    if (confidence >= 0.7) return "stroke-warning";
-    return "stroke-destructive";
-  };
-
-  return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg className="transform -rotate-90" width={size} height={size}>
-        <circle
-          className="stroke-muted"
-          strokeWidth={strokeWidth}
-          fill="none"
-          r={radius}
-          cx={size / 2}
-          cy={size / 2}
-        />
-        <circle
-          className={cn("transition-all duration-1000 ease-out", getColor())}
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          fill="none"
-          r={radius}
-          cx={size / 2}
-          cy={size / 2}
-          style={{
-            strokeDasharray: circumference,
-            strokeDashoffset: offset,
-          }}
-        />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-xs font-semibold tabular-nums">{Math.round(confidence * 100)}%</span>
-      </div>
-    </div>
-  );
-}
-
-function ProcessingStatusIndicator({ status, className }: { status: ProcessingStatus; className?: string }) {
-  switch (status) {
-    case "unprocessed":
-      return (
-        <div className={cn("flex items-center gap-1.5 text-muted-foreground", className)}>
-          <div className="size-2 rounded-full bg-muted-foreground/50" />
-          <span className="text-xs">Not processed</span>
-        </div>
-      );
-    case "queued":
-      return (
-        <div className={cn("flex items-center gap-1.5 text-warning", className)}>
-          <Clock className="size-3.5 animate-pulse" />
-          <span className="text-xs font-medium">Queued</span>
-        </div>
-      );
-    case "processing":
-      return (
-        <div className={cn("flex items-center gap-1.5 text-primary", className)}>
-          <div className="relative">
-            <Brain className="size-3.5 animate-pulse" />
-            <span className="absolute -top-0.5 -right-0.5 size-1.5 bg-primary rounded-full animate-ping" />
-          </div>
-          <span className="text-xs font-medium">AI Processing...</span>
-        </div>
-      );
-    case "processed":
-      return (
-        <div className={cn("flex items-center gap-1.5 text-success", className)}>
-          <CheckCircle2 className="size-3.5" />
-          <span className="text-xs font-medium">Processed</span>
-        </div>
-      );
-    case "failed":
-      return (
-        <div className={cn("flex items-center gap-1.5 text-destructive", className)}>
-          <AlertCircle className="size-3.5" />
-          <span className="text-xs font-medium">Failed</span>
-        </div>
-      );
-  }
-}
-
-function DataCard({ label, value, icon, trend }: { label: string; value: string; icon?: React.ReactNode; trend?: "up" | "down" }) {
-  return (
-    <div className="bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl p-4 border border-border/50 hover:border-border transition-colors">
-      <div className="flex items-start justify-between">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
-        {icon}
-      </div>
-      <div className="mt-2 flex items-baseline gap-2">
-        <p className="text-lg font-semibold">{value}</p>
-        {trend && (
-          trend === "up"
-            ? <TrendingUp className="size-4 text-success" />
-            : <TrendingDown className="size-4 text-destructive" />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ActionButton({ onClick, icon, label, variant = "default", disabled, loading }: {
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-  variant?: "default" | "primary" | "success";
-  disabled?: boolean;
-  loading?: boolean;
-}) {
-  const variants = {
-    default: "bg-muted hover:bg-muted/80 text-foreground",
-    primary: "bg-primary hover:bg-primary/90 text-primary-foreground",
-    success: "bg-success hover:bg-success/90 text-success-foreground",
-  };
-
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled || loading}
-      className={cn(
-        "flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all",
-        "disabled:opacity-50 disabled:cursor-not-allowed",
-        "active:scale-[0.98]",
-        variants[variant]
-      )}
-    >
-      {loading ? <Loader2 className="size-4 animate-spin" /> : icon}
-      <span>{label}</span>
-      {!loading && <ChevronRight className="size-4 opacity-50" />}
-    </button>
-  );
-}
 
 export function Vault() {
   const [activeCategory, setActiveCategory] = useState<VaultCategory | "all">("all");
@@ -281,7 +107,6 @@ export function Vault() {
   });
 
   const { data: counts } = useDocumentCounts();
-
   const { data: processingAvailable } = useProcessingAvailable();
 
   const { data: rawProcessingResult, isLoading: isLoadingResult } = useProcessingResult(
@@ -312,13 +137,9 @@ export function Vault() {
   }, [documents]);
 
   const uploadMutation = useUploadDocument();
-
   const renameMutation = useRenameDocument();
-
   const deleteMutation = useDeleteDocument();
-
   const processMutation = useProcessDocument();
-
   const createBillMutation = useCreateBillFromDocument();
 
   const onDrop = useCallback(
@@ -524,138 +345,14 @@ export function Vault() {
                 }
               />
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {documents.map((doc) => (
-                  <div
-                    key={doc.id}
-                    onClick={() => setDetailModal({ open: true, document: doc })}
-                    className={cn(
-                      "group relative bg-card rounded-xl border overflow-hidden cursor-pointer transition-all duration-200",
-                      "hover:shadow-lg hover:shadow-primary/5 hover:border-primary/30 hover:-translate-y-0.5",
-                      doc.processingStatus === "processing" && "ring-2 ring-primary/50 ring-offset-2 ring-offset-background"
-                    )}
-                  >
-                    {/* Preview */}
-                    <div className="relative aspect-[4/3] bg-gradient-to-br from-muted/80 to-muted/40 flex items-center justify-center overflow-hidden">
-                      {doc.mimeType.startsWith("image/") && doc.publicUrl ? (
-                        <img
-                          src={doc.publicUrl}
-                          alt={doc.displayName}
-                          className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center gap-2">
-                          {getFileIcon(doc.mimeType, "size-12")}
-                        </div>
-                      )}
-
-                      {/* Processing Overlay */}
-                      {doc.processingStatus === "processing" && (
-                        <div className="absolute inset-0 bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
-                          <div className="relative">
-                            <Brain className="size-8 text-primary animate-pulse" />
-                            <span className="absolute -top-1 -right-1 size-3 bg-primary rounded-full animate-ping" />
-                          </div>
-                          <div className="text-center">
-                            <p className="font-medium text-sm">AI Processing</p>
-                            <p className="text-xs text-muted-foreground">Extracting data...</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Quick Process Button */}
-                      {processingAvailable?.available && doc.processingStatus === "unprocessed" && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleProcess(doc);
-                          }}
-                          className={cn(
-                            "absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full",
-                            "bg-primary text-primary-foreground text-xs font-medium",
-                            "opacity-0 group-hover:opacity-100 transition-opacity",
-                            "hover:bg-primary/90 active:scale-95"
-                          )}
-                        >
-                          <Zap className="size-3" />
-                          Process
-                        </button>
-                      )}
-
-                      {/* Processed Badge */}
-                      {doc.processingStatus === "processed" && (
-                        <div className="absolute top-3 right-3">
-                          <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-success text-success-foreground text-xs font-medium backdrop-blur-sm">
-                            <CheckCircle2 className="size-3" />
-                            <span>AI Ready</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Info */}
-                    <div className="p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-sm truncate" title={doc.displayName}>
-                            {doc.displayName}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-muted-foreground">{formatFileSize(doc.size)}</span>
-                            <span className="text-muted-foreground/30">•</span>
-                            <span className="text-xs text-muted-foreground capitalize">{doc.category.replace("_", " ")}</span>
-                          </div>
-                        </div>
-
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <MoreVertical className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                            <DropdownMenuItem onClick={() => setDetailModal({ open: true, document: doc })}>
-                              <Eye className="size-4" />
-                              <span>View Details</span>
-                            </DropdownMenuItem>
-                            {doc.publicUrl && (
-                              <DropdownMenuItem asChild>
-                                <a href={doc.publicUrl} target="_blank" rel="noopener noreferrer">
-                                  <FileDownloadIcon className="size-4" />
-                                  <span>Download</span>
-                                </a>
-                              </DropdownMenuItem>
-                            )}
-                            {processingAvailable?.available && doc.processingStatus !== "processing" && (
-                              <DropdownMenuItem onClick={() => handleProcess(doc)}>
-                                {doc.processingStatus === "processed" ? <RefreshCw className="size-4" /> : <Sparkles className="size-4" />}
-                                <span>{doc.processingStatus === "processed" ? "Reprocess" : "Process with AI"}</span>
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => openRenameModal(doc)}>
-                              <FilePenIcon className="size-4" />
-                              <span>Rename</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => setDeleteModal({ open: true, document: doc })}
-                            >
-                              <TrashIcon className="size-4" />
-                              <span>Delete</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <DocumentGrid
+                documents={documents}
+                processingAvailable={processingAvailable?.available || false}
+                onDocumentClick={(doc) => setDetailModal({ open: true, document: doc })}
+                onProcess={handleProcess}
+                onRename={openRenameModal}
+                onDelete={(doc) => setDeleteModal({ open: true, document: doc })}
+              />
             )}
           </TabsContent>
         </Tabs>
@@ -714,421 +411,207 @@ export function Vault() {
         </DialogContent>
       </Dialog>
 
-      {/* Document Detail Modal - Redesigned */}
-      <Dialog
+      {/* Document Detail Modal */}
+      <DocumentDetailModal
         open={detailModal.open}
         onOpenChange={(open) => !open && setDetailModal({ open: false, document: null })}
-      >
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0">
-          {detailModal.document && (
-            <>
-              {/* Header */}
-              <div className="px-6 pt-6 pb-4 border-b bg-gradient-to-b from-muted/30 to-transparent">
-                <div className="flex items-start gap-4">
-                  <div className="size-14 rounded-xl bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center flex-shrink-0 border">
-                    {getFileIcon(detailModal.document.mimeType, "size-7")}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="instrument-serif text-xl font-semibold truncate pr-8">
-                      {detailModal.document.displayName}
-                    </h2>
-                    <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                      <Badge variant="outline" className="capitalize font-normal">
-                        {detailModal.document.category.replace("_", " ")}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">{formatFileSize(detailModal.document.size)}</span>
-                      <ProcessingStatusIndicator status={detailModal.document.processingStatus} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Content */}
-              <ScrollArea className="flex-1 px-6">
-                <div className="py-6 space-y-6">
-                  {/* Document Preview */}
-                  {detailModal.document.mimeType === "application/pdf" && detailModal.document.publicUrl && (
-                    <a
-                      href={detailModal.document.publicUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block rounded-xl bg-gradient-to-br from-muted/50 to-muted/30 border border-dashed p-8 text-center hover:border-primary/50 transition-colors"
-                    >
-                      <FileFeatherIcon className="size-12 mx-auto mb-3 text-muted-foreground" />
-                      <p className="font-medium">View PDF Document</p>
-                      <p className="text-sm text-muted-foreground mt-1">Click to open in new tab</p>
-                    </a>
-                  )}
-
-                  {/* Not Processed State */}
-                  {detailModal.document.processingStatus === "unprocessed" && processingAvailable?.available && (
-                    <div className="rounded-xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/20 p-6">
-                      <div className="flex items-start gap-4">
-                        <div className="size-12 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
-                          <Sparkles className="size-6 text-primary" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-lg">Extract Data with AI</h3>
-                          <p className="text-muted-foreground text-sm mt-1">
-                            Let AI analyze this document to automatically extract vendor info, amounts, dates, and line items.
-                          </p>
-                          <Button
-                            onClick={() => handleProcess(detailModal.document!)}
-                            disabled={processMutation.isPending}
-                            className="mt-4"
-                            size="lg"
-                          >
-                            {processMutation.isPending ? (
-                              <>
-                                <Loader2 className="size-4 mr-2 animate-spin" />
-                                Processing...
-                              </>
-                            ) : (
-                              <>
-                                <Zap className="size-4 mr-2" />
-                                Process with AI
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Processing State */}
-                  {detailModal.document.processingStatus === "processing" && (
-                    <div className="rounded-xl bg-gradient-to-br from-primary/10 to-transparent border p-8 text-center">
-                      <div className="relative inline-block mb-4">
-                        <Brain className="size-12 text-primary animate-pulse" />
-                        <span className="absolute -top-1 -right-1 size-4 bg-primary rounded-full animate-ping" />
-                      </div>
-                      <h3 className="font-semibold text-lg">AI is analyzing your document</h3>
-                      <p className="text-muted-foreground text-sm mt-1">This usually takes 10-30 seconds...</p>
-                      <div className="mt-4 flex justify-center">
-                        <div className="flex gap-1">
-                          {[0, 1, 2].map((i) => (
-                            <div
-                              key={i}
-                              className="size-2 rounded-full bg-primary animate-bounce"
-                              style={{ animationDelay: `${i * 150}ms` }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Loading Result */}
-                  {isLoadingResult && detailModal.document.processingStatus === "processed" && (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="size-8 animate-spin text-muted-foreground" />
-                    </div>
-                  )}
-
-                  {/* Processed Results */}
-                  {processingResult?.status === "completed" && processingResult.extractedData && (
-                    <div className={cn(
-                      "space-y-6",
-                      showExtractionAnimation && "animate-in fade-in slide-in-from-bottom-4 duration-500"
-                    )}>
-                      {/* AI Summary Header */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="size-10 rounded-lg bg-success/10 flex items-center justify-center">
-                            <CheckCircle2 className="size-5 text-success" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold">AI Extraction Complete</h3>
-                            <p className="text-xs text-muted-foreground">
-                              {getDocumentTypeLabel(processingResult.extractedData.documentType || "document")} detected
-                            </p>
-                          </div>
-                        </div>
-                        {processingResult.confidenceScore && (
-                          <ConfidenceRing confidence={typeof processingResult.confidenceScore === 'string'
-                            ? parseFloat(processingResult.confidenceScore)
-                            : processingResult.confidenceScore} />
-                        )}
-                      </div>
-
-                      {/* Bank Statement Data */}
-                      {processingResult.extractedData.documentType === "bank_statement" && (
-                        <div className="space-y-4">
-                          <div className="rounded-xl bg-gradient-to-br from-muted/50 to-muted/30 border p-5">
-                            <div className="flex items-center gap-3 mb-4">
-                              <Building2 className="size-5 text-muted-foreground" />
-                              <div>
-                                <p className="font-semibold">{processingResult.extractedData.bankName}</p>
-                                {processingResult.extractedData.accountNumber && (
-                                  <p className="text-sm text-muted-foreground">Account: {processingResult.extractedData.accountNumber}</p>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                              {processingResult.extractedData.statementPeriod && (
-                                <DataCard
-                                  label="Period"
-                                  value={`${processingResult.extractedData.statementPeriod.startDate || "?"} - ${processingResult.extractedData.statementPeriod.endDate || "?"}`}
-                                />
-                              )}
-                              {processingResult.extractedData.openingBalance !== undefined && (
-                                <DataCard
-                                  label="Opening"
-                                  value={`${processingResult.extractedData.currency || "MYR"} ${processingResult.extractedData.openingBalance.toLocaleString()}`}
-                                />
-                              )}
-                              {processingResult.extractedData.closingBalance !== undefined && (
-                                <DataCard
-                                  label="Closing"
-                                  value={`${processingResult.extractedData.currency || "MYR"} ${processingResult.extractedData.closingBalance.toLocaleString()}`}
-                                  trend={processingResult.extractedData.closingBalance >= (processingResult.extractedData.openingBalance || 0) ? "up" : "down"}
-                                />
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Transactions */}
-                          {processingResult.extractedData.transactions?.length > 0 && (
-                            <div>
-                              <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-medium">Transactions</h4>
-                                <Badge variant="secondary">{processingResult.extractedData.transactions.length} found</Badge>
-                              </div>
-                              <div className="rounded-xl border overflow-hidden">
-                                <div className="max-h-64 overflow-y-auto">
-                                  <table className="w-full text-sm">
-                                    <thead className="bg-muted/80 sticky top-0">
-                                      <tr>
-                                        <th className="text-left p-3 font-medium">Date</th>
-                                        <th className="text-left p-3 font-medium">Description</th>
-                                        <th className="text-right p-3 font-medium">Amount</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y">
-                                      {processingResult.extractedData.transactions.map((tx: { date: string; description: string; debit?: number; credit?: number }, i: number) => (
-                                        <tr key={i} className="hover:bg-muted/30 transition-colors">
-                                          <td className="p-3 whitespace-nowrap font-mono text-xs">{tx.date}</td>
-                                          <td className="p-3">{tx.description}</td>
-                                          <td className={cn(
-                                            "p-3 text-right font-medium tabular-nums",
-                                            tx.debit ? "text-destructive" : "text-success"
-                                          )}>
-                                            {tx.debit ? `-${tx.debit.toLocaleString()}` : `+${(tx.credit || 0).toLocaleString()}`}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Receipt Data */}
-                      {processingResult.extractedData.documentType === "receipt" && (
-                        <div className="space-y-4">
-                          {processingResult.extractedData.vendor && (
-                            <div className="rounded-xl bg-gradient-to-br from-muted/50 to-muted/30 border p-5">
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Merchant</p>
-                              <p className="font-semibold text-lg">{processingResult.extractedData.vendor.name}</p>
-                              {processingResult.extractedData.vendor.address && (
-                                <p className="text-sm text-muted-foreground mt-1">{processingResult.extractedData.vendor.address}</p>
-                              )}
-                            </div>
-                          )}
-
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            {processingResult.extractedData.receiptNumber && (
-                              <DataCard label="Receipt #" value={processingResult.extractedData.receiptNumber} />
-                            )}
-                            {processingResult.extractedData.date && (
-                              <DataCard label="Date" value={processingResult.extractedData.date} />
-                            )}
-                            {processingResult.extractedData.paymentMethod && (
-                              <DataCard label="Payment" value={processingResult.extractedData.paymentMethod} />
-                            )}
-                            {processingResult.extractedData.total !== undefined && (
-                              <DataCard
-                                label="Total"
-                                value={`${processingResult.extractedData.currency || "MYR"} ${processingResult.extractedData.total.toLocaleString()}`}
-                              />
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Invoice/Bill Data */}
-                      {(!processingResult.extractedData.documentType || processingResult.extractedData.documentType === "invoice" || processingResult.extractedData.documentType === "bill") && (
-                        <div className="space-y-4">
-                          {processingResult.extractedData.vendor && (
-                            <div className="rounded-xl bg-gradient-to-br from-muted/50 to-muted/30 border p-5">
-                              <div className="flex items-start justify-between">
-                                <div>
-                                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Vendor</p>
-                                  <p className="font-semibold text-lg">{processingResult.extractedData.vendor.name}</p>
-                                  {processingResult.extractedData.vendor.address && (
-                                    <p className="text-sm text-muted-foreground mt-1">{processingResult.extractedData.vendor.address}</p>
-                                  )}
-                                  {processingResult.extractedData.vendor.taxId && (
-                                    <p className="text-sm mt-2">
-                                      <span className="text-muted-foreground">Tax ID:</span> {processingResult.extractedData.vendor.taxId}
-                                    </p>
-                                  )}
-                                </div>
-                                {processingResult.matchedVendor && (
-                                  <Badge className="bg-success/10 text-success border-success/20">
-                                    <Check className="size-3 mr-1" />
-                                    Matched
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            {processingResult.extractedData.invoiceNumber && (
-                              <DataCard label="Invoice #" value={processingResult.extractedData.invoiceNumber} />
-                            )}
-                            {processingResult.extractedData.invoiceDate && (
-                              <DataCard label="Date" value={processingResult.extractedData.invoiceDate} />
-                            )}
-                            {processingResult.extractedData.dueDate && (
-                              <DataCard label="Due Date" value={processingResult.extractedData.dueDate} />
-                            )}
-                            {processingResult.extractedData.total !== undefined && (
-                              <DataCard
-                                label="Total"
-                                value={`${processingResult.extractedData.currency || "MYR"} ${processingResult.extractedData.total.toLocaleString()}`}
-                              />
-                            )}
-                          </div>
-
-                          {/* Line Items */}
-                          {processingResult.extractedData.lineItems?.length > 0 && (
-                            <div>
-                              <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-medium">Line Items</h4>
-                                <Badge variant="secondary">{processingResult.extractedData.lineItems.length} items</Badge>
-                              </div>
-                              <div className="rounded-xl border overflow-hidden">
-                                <table className="w-full text-sm">
-                                  <thead className="bg-muted/80">
-                                    <tr>
-                                      <th className="text-left p-3 font-medium">Description</th>
-                                      <th className="text-right p-3 font-medium">Qty</th>
-                                      <th className="text-right p-3 font-medium">Price</th>
-                                      <th className="text-right p-3 font-medium">Amount</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y">
-                                    {processingResult.extractedData.lineItems.map((item: { description: string; quantity: number; unitPrice: number; amount: number }, i: number) => (
-                                      <tr key={i} className="hover:bg-muted/30 transition-colors">
-                                        <td className="p-3">{item.description}</td>
-                                        <td className="p-3 text-right tabular-nums">{item.quantity}</td>
-                                        <td className="p-3 text-right tabular-nums">{item.unitPrice?.toLocaleString()}</td>
-                                        <td className="p-3 text-right font-medium tabular-nums">{item.amount?.toLocaleString()}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Actions */}
-                      {!processingResult.linkedBillId && (
-                        <div className="rounded-xl bg-gradient-to-r from-success/10 via-success/5 to-transparent border border-success/20 p-5">
-                          <h4 className="font-semibold mb-1">Ready to create a bill?</h4>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            All extracted data will be automatically filled in.
-                          </p>
-                          <ActionButton
-                            onClick={handleCreateBill}
-                            icon={<FileText className="size-4" />}
-                            label="Create Bill"
-                            variant="success"
-                            loading={createBillMutation.isPending}
-                          />
-                        </div>
-                      )}
-
-                      {processingResult.linkedBillId && (
-                        <div className="flex items-center gap-3 p-4 rounded-xl bg-success/10 border border-success/20">
-                          <CheckCircle2 className="size-5 text-success" />
-                          <div>
-                            <p className="font-medium text-success">Bill Created</p>
-                            <p className="text-sm text-muted-foreground">This document has been converted to a bill.</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Error State */}
-                  {processingResult?.status === "failed" && (
-                    <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-5">
-                      <div className="flex items-start gap-3">
-                        <AlertCircle className="size-5 text-destructive flex-shrink-0 mt-0.5" />
-                        <div>
-                          <h4 className="font-semibold text-destructive">Processing Failed</h4>
-                          <p className="text-sm text-muted-foreground mt-1">{processingResult.errorMessage}</p>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-3"
-                            onClick={() => handleProcess(detailModal.document!)}
-                            disabled={processMutation.isPending}
-                          >
-                            <RefreshCw className="size-3 mr-2" />
-                            Try Again
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-
-              {/* Footer */}
-              <div className="px-6 py-4 border-t bg-muted/30 flex items-center justify-between">
-                <div className="flex gap-2">
-                  {detailModal.document.publicUrl && (
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={detailModal.document.publicUrl} target="_blank" rel="noopener noreferrer">
-                        <FileDownloadIcon className="size-4 mr-2" />
-                        Download
-                      </a>
-                    </Button>
-                  )}
-                </div>
-                {processingAvailable?.available && detailModal.document.processingStatus === "processed" && !processingResult?.linkedBillId && (
-                  <Button
-                    onClick={handleCreateBill}
-                    disabled={createBillMutation.isPending}
-                  >
-                    {createBillMutation.isPending ? (
-                      <>
-                        <Loader2 className="size-4 mr-2 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <ArrowRight className="size-4 mr-2" />
-                        Create Bill
-                      </>
-                    )}
-                  </Button>
-                )}
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+        document={detailModal.document}
+        processingResult={processingResult}
+        isLoadingResult={isLoadingResult}
+        showExtractionAnimation={showExtractionAnimation}
+        processingAvailable={processingAvailable?.available || false}
+        onProcess={() => detailModal.document && handleProcess(detailModal.document)}
+        onCreateBill={handleCreateBill}
+        isProcessing={processMutation.isPending}
+        isCreatingBill={createBillMutation.isPending}
+      />
     </PageContainer>
+  );
+}
+
+// Document Grid component
+interface DocumentGridProps {
+  documents: VaultDocument[];
+  processingAvailable: boolean;
+  onDocumentClick: (doc: VaultDocument) => void;
+  onProcess: (doc: VaultDocument) => void;
+  onRename: (doc: VaultDocument) => void;
+  onDelete: (doc: VaultDocument) => void;
+}
+
+function DocumentGrid({
+  documents,
+  processingAvailable,
+  onDocumentClick,
+  onProcess,
+  onRename,
+  onDelete,
+}: DocumentGridProps) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      {documents.map((doc) => (
+        <DocumentCard
+          key={doc.id}
+          document={doc}
+          processingAvailable={processingAvailable}
+          onClick={() => onDocumentClick(doc)}
+          onProcess={() => onProcess(doc)}
+          onRename={() => onRename(doc)}
+          onDelete={() => onDelete(doc)}
+          onView={() => onDocumentClick(doc)}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Document Card component
+interface DocumentCardProps {
+  document: VaultDocument;
+  processingAvailable: boolean;
+  onClick: () => void;
+  onProcess: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+  onView: () => void;
+}
+
+function DocumentCard({
+  document: doc,
+  processingAvailable,
+  onClick,
+  onProcess,
+  onRename,
+  onDelete,
+  onView,
+}: DocumentCardProps) {
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        "group relative bg-card rounded-xl border overflow-hidden cursor-pointer transition-all duration-200",
+        "hover:shadow-lg hover:shadow-primary/5 hover:border-primary/30 hover:-translate-y-0.5",
+        doc.processingStatus === "processing" && "ring-2 ring-primary/50 ring-offset-2 ring-offset-background"
+      )}
+    >
+      {/* Preview */}
+      <div className="relative aspect-[4/3] bg-gradient-to-br from-muted/80 to-muted/40 flex items-center justify-center overflow-hidden">
+        {doc.mimeType.startsWith("image/") && doc.publicUrl ? (
+          <img
+            src={doc.publicUrl}
+            alt={doc.displayName}
+            className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="flex flex-col items-center gap-2">
+            {getFileIcon(doc.mimeType, "size-12")}
+          </div>
+        )}
+
+        {/* Processing Overlay */}
+        {doc.processingStatus === "processing" && (
+          <div className="absolute inset-0 bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+            <div className="relative">
+              <Brain className="size-8 text-primary animate-pulse" />
+              <span className="absolute -top-1 -right-1 size-3 bg-primary rounded-full animate-ping" />
+            </div>
+            <div className="text-center">
+              <p className="font-medium text-sm">AI Processing</p>
+              <p className="text-xs text-muted-foreground">Extracting data...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Quick Process Button */}
+        {processingAvailable && doc.processingStatus === "unprocessed" && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onProcess();
+            }}
+            className={cn(
+              "absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full",
+              "bg-primary text-primary-foreground text-xs font-medium",
+              "opacity-0 group-hover:opacity-100 transition-opacity",
+              "hover:bg-primary/90 active:scale-95"
+            )}
+          >
+            <Zap className="size-3" />
+            Process
+          </button>
+        )}
+
+        {/* Processed Badge */}
+        {doc.processingStatus === "processed" && (
+          <div className="absolute top-3 right-3">
+            <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-success text-success-foreground text-xs font-medium backdrop-blur-sm">
+              <CheckCircle2 className="size-3" />
+              <span>AI Ready</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-sm truncate" title={doc.displayName}>
+              {doc.displayName}
+            </p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs text-muted-foreground">{formatFileSize(doc.size)}</span>
+              <span className="text-muted-foreground/30">•</span>
+              <span className="text-xs text-muted-foreground capitalize">{doc.category.replace("_", " ")}</span>
+            </div>
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem onClick={onView}>
+                <Eye className="size-4" />
+                <span>View Details</span>
+              </DropdownMenuItem>
+              {doc.publicUrl && (
+                <DropdownMenuItem asChild>
+                  <a href={doc.publicUrl} target="_blank" rel="noopener noreferrer">
+                    <FileDownloadIcon className="size-4" />
+                    <span>Download</span>
+                  </a>
+                </DropdownMenuItem>
+              )}
+              {processingAvailable && doc.processingStatus !== "processing" && (
+                <DropdownMenuItem onClick={onProcess}>
+                  {doc.processingStatus === "processed" ? <RefreshCw className="size-4" /> : <Sparkles className="size-4" />}
+                  <span>{doc.processingStatus === "processed" ? "Reprocess" : "Process with AI"}</span>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onRename}>
+                <FilePenIcon className="size-4" />
+                <span>Rename</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={onDelete}
+              >
+                <TrashIcon className="size-4" />
+                <span>Delete</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    </div>
   );
 }

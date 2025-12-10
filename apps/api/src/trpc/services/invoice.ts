@@ -4,6 +4,7 @@ import { invoiceRepository } from "@open-bookkeeping/db";
 import { createLogger } from "@open-bookkeeping/shared";
 import { aggregationService } from "../../services/aggregation.service";
 import { journalEntryIntegration } from "../../services/journalEntry.integration";
+import { invoiceWebhooks } from "../../lib/webhooks";
 import {
   paginationSchema,
   metadataItemSchema,
@@ -142,6 +143,18 @@ export const invoiceRouter = router({
 
         logger.info({ userId: ctx.user.id, invoiceId: result.invoiceId }, "Invoice created");
 
+        // Trigger webhook in background (non-blocking)
+        invoiceWebhooks.created(ctx.user.id, {
+          id: result.invoiceId,
+          invoiceNumber: input.invoiceDetails.serialNumber,
+          customerId: input.customerId,
+          currency: input.invoiceDetails.currency,
+          date: input.invoiceDetails.date,
+          dueDate: input.invoiceDetails.dueDate,
+          status: "pending",
+          itemCount: input.items.length,
+        });
+
         // Create journal entry in background (non-blocking)
         journalEntryIntegration.hasChartOfAccounts(ctx.user.id).then((hasAccounts) => {
           if (hasAccounts) {
@@ -180,6 +193,13 @@ export const invoiceRouter = router({
       assertFound(deleted, "invoice", input.id);
 
       logger.info({ userId: ctx.user.id, invoiceId: input.id }, "Invoice deleted");
+
+      // Trigger webhook in background (non-blocking)
+      invoiceWebhooks.deleted(ctx.user.id, {
+        id: input.id,
+        deletedAt: new Date().toISOString(),
+      });
+
       return { success: true };
     }),
 
@@ -203,6 +223,21 @@ export const invoiceRouter = router({
         { userId: ctx.user.id, invoiceId: input.id, status: input.status },
         "Invoice status updated"
       );
+
+      // Trigger webhook in background (non-blocking)
+      invoiceWebhooks.updated(ctx.user.id, {
+        id: input.id,
+        status: input.status,
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Also trigger invoice.paid webhook when status is "success"
+      if (input.status === "success") {
+        invoiceWebhooks.paid(ctx.user.id, {
+          id: input.id,
+          paidAt: new Date().toISOString(),
+        });
+      }
 
       // Trigger aggregation update in the background (non-blocking) with retry
       if (updated.createdAt) {

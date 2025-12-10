@@ -531,13 +531,42 @@ export const vaultRouter = router({
         return null;
       }
 
-      // Parse extracted data
+      // Parse and validate extracted data with Zod schema
+      const extractedDataSchema = z.object({
+        vendor: z.object({
+          name: z.string().optional(),
+          address: z.string().optional(),
+          taxId: z.string().optional(),
+          email: z.string().optional(),
+          phone: z.string().optional(),
+        }).optional(),
+        invoice: z.object({
+          number: z.string().optional(),
+          date: z.string().optional(),
+          dueDate: z.string().optional(),
+          subtotal: z.number().optional(),
+          tax: z.number().optional(),
+          total: z.number().optional(),
+          currency: z.string().optional(),
+        }).optional(),
+        lineItems: z.array(z.object({
+          description: z.string().optional(),
+          quantity: z.number().optional(),
+          unitPrice: z.number().optional(),
+          amount: z.number().optional(),
+        })).optional(),
+        raw: z.record(z.unknown()).optional(),
+      }).passthrough(); // Allow additional fields
+
       let extractedData = null;
       if (job.extractedData) {
         try {
-          extractedData = JSON.parse(job.extractedData);
+          const parsed = JSON.parse(job.extractedData);
+          // Validate with Zod schema, but use passthrough to allow extra fields
+          const validated = extractedDataSchema.safeParse(parsed);
+          extractedData = validated.success ? validated.data : parsed;
         } catch {
-          // Ignore parse error
+          // Ignore parse error - leave extractedData as null
         }
       }
 

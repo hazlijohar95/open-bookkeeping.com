@@ -176,4 +176,24 @@ export {
   ClipboardText as ClipboardList,
   Lightning as Zap,
   Brain,
+
+  // Developer Portal
+  Code as Code2,
+  Key,
+  WebhooksLogo as Webhook,
+  Terminal as TerminalIcon,
+
+  // Additional icons
+  Play,
+  Prohibit as Ban,
+  Pencil as Edit,
+  PencilSimple as EditIcon,
+
+  // Agent/Workflow icons
+  Shield,
+  StopCircle,
+  Pause,
+  ArrowCounterClockwise as RotateCcw,
+  Pulse as Activity,
+  ChatCircle as MessageSquare,
 } from "@phosphor-icons/react";

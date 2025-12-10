@@ -1,4 +1,5 @@
 import { SVGProps } from "react";
+import { cn } from "@/lib/utils";
 
 type IconProps = SVGProps<SVGSVGElement> & {
   secondaryfill?: string;
@@ -6,11 +7,11 @@ type IconProps = SVGProps<SVGSVGElement> & {
   title?: string;
 };
 
-function FileFeather({ fill = "currentColor", secondaryfill, ...props }: IconProps) {
+function FileFeather({ fill = "currentColor", secondaryfill, className, ...props }: IconProps) {
   secondaryfill = secondaryfill || fill;
 
   return (
-    <svg height="18" width="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" className={cn("size-[18px]", className)} {...props}>
       <g fill={fill}>
         <path
           d="M11.572 1.512L15.487 5.427C15.8155 5.7553 16 6.2009 16 6.6655V8.65418C12.8627 9.25495 10.9845 11.1865 9.91922 13.0116C9.20821 14.2299 8.67298 15.5914 8.51397 17H4.75C3.2312 17 2 15.7688 2 14.25V3.75C2 2.2312 3.2312 1 4.75 1H10.336C10.7996 1 11.2442 1.1841 11.572 1.512Z"

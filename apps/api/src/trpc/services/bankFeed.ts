@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
 import { bankFeedRepository, customerRepository, vendorRepository, invoiceRepository, billRepository } from "@open-bookkeeping/db";
 import { createLogger } from "@open-bookkeeping/shared";
-import { journalEntryIntegration } from "../../services/journalEntry.integration";
+import { reconciliationService } from "../../services/reconciliation.service";
 
 // Type for match suggestions
 interface MatchSuggestion {
@@ -331,7 +331,10 @@ export const bankFeedRouter = router({
     }),
 
   reconcileTransaction: protectedProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(z.object({
+      id: z.string().uuid(),
+      bankAccountLedgerId: z.string().uuid().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       // First, get the transaction to validate it's matched
       const transaction = await bankFeedRepository.findTransactionById(input.id, ctx.user.id);
@@ -356,78 +359,46 @@ export const bankFeedRouter = router({
         });
       }
 
-      const reconciled = await bankFeedRepository.reconcileTransaction(input.id, ctx.user.id);
-      if (!reconciled) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Transaction not found" });
-      }
-
-      logger.info({ userId: ctx.user.id, transactionId: input.id }, "Transaction reconciled");
-
-      // Create journal entry for the bank transaction (non-blocking)
-      journalEntryIntegration.hasChartOfAccounts(ctx.user.id).then(async (hasAccounts) => {
-        if (hasAccounts) {
-          // Determine the journal entry based on transaction type and match
-          const isDeposit = transaction.type === "deposit";
-          const amount = Math.abs(parseFloat(transaction.amount));
-
-          // Get reference for the journal entry
-          let reference = transaction.reference || undefined;
-
-          if (transaction.matchedInvoiceId && transaction.matchedInvoice) {
-            const invoiceFields = transaction.matchedInvoice.invoiceFields as {
-              invoiceDetails?: { serialNumber?: string };
-            } | null;
-            const serialNumber = invoiceFields?.invoiceDetails?.serialNumber;
-            reference = serialNumber;
-          } else if (transaction.matchedBillId && transaction.matchedBill) {
-            reference = transaction.matchedBill.billNumber || undefined;
-          }
-
-          // Create the appropriate journal entry
-          if (isDeposit && transaction.matchedInvoiceId) {
-            // Invoice payment: already handled by invoice service when status changes
-            // But for bank reconciliation, we can create a supplementary entry if needed
-            journalEntryIntegration.createPaymentJournalEntry(ctx.user.id, {
-              sourceType: "invoice",
-              sourceId: transaction.matchedInvoiceId,
-              sourceNumber: reference || transaction.id,
-              amount,
-              date: transaction.transactionDate,
-              partyName: transaction.matchedCustomer?.name || "Customer",
-            }).then((result) => {
-              if (result.success) {
-                logger.info({ transactionId: input.id, entryId: result.entryId }, "Journal entry created for bank deposit");
-              }
-            }).catch((err) => {
-              logger.warn({ transactionId: input.id, error: err }, "Failed to create journal entry for bank deposit");
-            });
-          } else if (!isDeposit && transaction.matchedBillId) {
-            // Bill payment
-            journalEntryIntegration.createPaymentJournalEntry(ctx.user.id, {
-              sourceType: "bill",
-              sourceId: transaction.matchedBillId,
-              sourceNumber: reference || transaction.id,
-              amount,
-              date: transaction.transactionDate,
-              partyName: transaction.matchedVendor?.name || "Vendor",
-            }).then((result) => {
-              if (result.success) {
-                logger.info({ transactionId: input.id, entryId: result.entryId }, "Journal entry created for bank withdrawal");
-              }
-            }).catch((err) => {
-              logger.warn({ transactionId: input.id, error: err }, "Failed to create journal entry for bank withdrawal");
-            });
-          }
-        }
-      }).catch(() => {
-        // Silently ignore - chart of accounts not initialized
+      // Use the reconciliation service to create journal entry and reconcile
+      const result = await reconciliationService.reconcileTransaction({
+        transactionId: input.id,
+        userId: ctx.user.id,
+        categoryId: transaction.categoryId || undefined,
+        matchedInvoiceId: transaction.matchedInvoiceId || undefined,
+        matchedBillId: transaction.matchedBillId || undefined,
+        bankAccountLedgerId: input.bankAccountLedgerId,
       });
 
+      if (!result.success) {
+        // If reconciliation service fails (e.g., no bank ledger account),
+        // fall back to simple reconciliation without journal entry
+        logger.warn({ transactionId: input.id, error: result.error }, "Journal entry creation failed, reconciling without journal entry");
+
+        const reconciled = await bankFeedRepository.reconcileTransaction(input.id, ctx.user.id);
+        if (!reconciled) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Transaction not found" });
+        }
+
+        logger.info({ userId: ctx.user.id, transactionId: input.id }, "Transaction reconciled (no journal entry)");
+        return reconciled;
+      }
+
+      logger.info({
+        userId: ctx.user.id,
+        transactionId: input.id,
+        journalEntryId: result.journalEntryId
+      }, "Transaction reconciled with journal entry");
+
+      // Return the updated transaction
+      const reconciled = await bankFeedRepository.findTransactionById(input.id, ctx.user.id);
       return reconciled;
     }),
 
   reconcileMatched: protectedProcedure
-    .input(z.object({ bankAccountId: z.string().uuid().optional() }).optional())
+    .input(z.object({
+      bankAccountId: z.string().uuid().optional(),
+      bankAccountLedgerId: z.string().uuid().optional(),
+    }).optional())
     .mutation(async ({ ctx, input }) => {
       // Get all matched transactions
       const transactions = await bankFeedRepository.findTransactionsByAccount(
@@ -454,59 +425,72 @@ export const bankFeedRouter = router({
       // Filter only non-reconciled, matched transactions
       const toReconcile = allTransactions.filter((t) => !t.isReconciled && t.matchStatus === "matched");
 
-      // Check if user has chart of accounts for journal entries
-      const hasAccounts = await journalEntryIntegration.hasChartOfAccounts(ctx.user.id);
+      // Reconcile each transaction using the reconciliation service
+      let successCount = 0;
+      let failedCount = 0;
+      const journalEntryIds: string[] = [];
 
-      // Reconcile each transaction and create journal entries
-      let count = 0;
       for (const transaction of toReconcile) {
-        // Get full transaction details for journal entry
-        const fullTransaction = await bankFeedRepository.findTransactionById(transaction.id, ctx.user.id);
-        if (!fullTransaction) continue;
+        // Use reconciliation service to create journal entry and reconcile
+        const result = await reconciliationService.reconcileTransaction({
+          transactionId: transaction.id,
+          userId: ctx.user.id,
+          categoryId: transaction.categoryId || undefined,
+          matchedInvoiceId: transaction.matchedInvoiceId || undefined,
+          matchedBillId: transaction.matchedBillId || undefined,
+          bankAccountLedgerId: input?.bankAccountLedgerId,
+        });
 
-        await bankFeedRepository.reconcileTransaction(transaction.id, ctx.user.id);
-        count++;
-
-        // Create journal entry (non-blocking, per transaction)
-        if (hasAccounts) {
-          const isDeposit = fullTransaction.type === "deposit";
-          const amount = Math.abs(parseFloat(fullTransaction.amount));
-
-          if (isDeposit && fullTransaction.matchedInvoiceId) {
-            const invoiceFields = fullTransaction.matchedInvoice?.invoiceFields as {
-              invoiceDetails?: { serialNumber?: string };
-            } | null;
-            const reference = invoiceFields?.invoiceDetails?.serialNumber || fullTransaction.id;
-
-            journalEntryIntegration.createPaymentJournalEntry(ctx.user.id, {
-              sourceType: "invoice",
-              sourceId: fullTransaction.matchedInvoiceId,
-              sourceNumber: reference,
-              amount,
-              date: fullTransaction.transactionDate,
-              partyName: fullTransaction.matchedCustomer?.name || "Customer",
-            }).catch((err) => {
-              logger.warn({ transactionId: transaction.id, error: err }, "Failed to create journal entry during batch reconciliation");
-            });
-          } else if (!isDeposit && fullTransaction.matchedBillId) {
-            const reference = fullTransaction.matchedBill?.billNumber || fullTransaction.id;
-
-            journalEntryIntegration.createPaymentJournalEntry(ctx.user.id, {
-              sourceType: "bill",
-              sourceId: fullTransaction.matchedBillId,
-              sourceNumber: reference,
-              amount,
-              date: fullTransaction.transactionDate,
-              partyName: fullTransaction.matchedVendor?.name || "Vendor",
-            }).catch((err) => {
-              logger.warn({ transactionId: transaction.id, error: err }, "Failed to create journal entry during batch reconciliation");
-            });
+        if (result.success) {
+          successCount++;
+          if (result.journalEntryId) {
+            journalEntryIds.push(result.journalEntryId);
+          }
+        } else {
+          // Fall back to simple reconciliation without journal entry
+          try {
+            await bankFeedRepository.reconcileTransaction(transaction.id, ctx.user.id);
+            successCount++;
+            logger.warn({ transactionId: transaction.id, error: result.error }, "Reconciled without journal entry");
+          } catch (err) {
+            failedCount++;
+            logger.error({ transactionId: transaction.id, error: err }, "Failed to reconcile transaction");
           }
         }
       }
 
-      logger.info({ userId: ctx.user.id, count }, "Batch reconciliation completed");
-      return { reconciledCount: count };
+      logger.info({
+        userId: ctx.user.id,
+        successCount,
+        failedCount,
+        journalEntriesCreated: journalEntryIds.length
+      }, "Batch reconciliation completed");
+
+      return {
+        reconciledCount: successCount,
+        failedCount,
+        journalEntriesCreated: journalEntryIds.length
+      };
+    }),
+
+  undoReconciliation: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // Use reconciliation service to undo and delete journal entry
+      const result = await reconciliationService.undoReconciliation(input.id, ctx.user.id);
+
+      if (!result.success) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: result.error || "Failed to undo reconciliation",
+        });
+      }
+
+      logger.info({ userId: ctx.user.id, transactionId: input.id }, "Reconciliation undone");
+
+      // Return the updated transaction
+      const transaction = await bankFeedRepository.findTransactionById(input.id, ctx.user.id);
+      return transaction;
     }),
 
   acceptSuggestion: protectedProcedure

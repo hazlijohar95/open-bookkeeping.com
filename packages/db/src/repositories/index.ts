@@ -107,3 +107,37 @@ export type {
   PeriodCloseResult,
   YearEndCloseResult,
 } from "./accountingPeriod.repository";
+
+// API Keys & Webhooks
+export { apiKeyRepository, hashApiKey, type ApiKeyRepository } from "./apiKey.repository";
+export type {
+  CreateApiKeyInput,
+  UpdateApiKeyInput,
+  ApiKeyQueryOptions,
+  UsageQueryOptions,
+} from "./apiKey.repository";
+
+export { webhookRepository, type WebhookRepository } from "./webhook.repository";
+export type {
+  CreateWebhookInput,
+  UpdateWebhookInput,
+  WebhookQueryOptions,
+  DeliveryQueryOptions,
+} from "./webhook.repository";
+
+// Fixed Assets
+export {
+  fixedAssetRepository,
+  fixedAssetCategoryRepository,
+  type FixedAssetRepository,
+  type FixedAssetCategoryRepository,
+} from "./fixedAsset.repository";
+export type {
+  CreateFixedAssetInput,
+  UpdateFixedAssetInput,
+  FixedAssetQueryOptions,
+  CreateFixedAssetCategoryInput,
+  UpdateFixedAssetCategoryInput,
+  DepreciationCalculation,
+  CreateDisposalInput,
+} from "./fixedAsset.repository";
