@@ -1,0 +1,38 @@
+import { FileFeatherIcon, LayoutSplitIcon, EyeScannerIcon } from "@/assets/icons";
+import { invoiceTabAtom, type InvoiceTab } from "@/global/atoms/invoice-atom";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAtomValue } from "jotai";
+
+interface InvoiceTabSwitchProps {
+  onTabChange?: (tab: InvoiceTab) => void;
+}
+
+const InvoiceTabSwitch = ({ onTabChange }: InvoiceTabSwitchProps) => {
+  // Only read the atom value - parent handles both state update and side effects
+  const invoiceTab = useAtomValue(invoiceTabAtom);
+
+  const handleValueChange = (value: string) => {
+    onTabChange?.(value as InvoiceTab);
+  };
+
+  return (
+    <Tabs value={invoiceTab} onValueChange={handleValueChange}>
+      <TabsList className="h-9">
+        <TabsTrigger value="form" className="gap-1.5 px-3">
+          <FileFeatherIcon className="size-4" />
+          <span className="hidden sm:inline">Form</span>
+        </TabsTrigger>
+        <TabsTrigger value="both" className="hidden gap-1.5 px-3 md:flex">
+          <LayoutSplitIcon className="size-4" />
+          <span className="hidden sm:inline">Both</span>
+        </TabsTrigger>
+        <TabsTrigger value="preview" className="gap-1.5 px-3">
+          <EyeScannerIcon className="size-4" />
+          <span className="hidden sm:inline">Preview</span>
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
+  );
+};
+
+export default InvoiceTabSwitch;

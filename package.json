@@ -1,0 +1,59 @@
+{
+  "name": "open-bookkeeping",
+  "version": "1.0.0",
+  "description": "Open-source bookkeeping and invoicing platform with PDF generation, multi-currency support, and offline-first architecture",
+  "private": true,
+  "type": "module",
+  "packageManager": "yarn@4.9.1",
+  "license": "MIT",
+  "author": "Open Bookkeeping Contributors",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/open-bookkeeping/open-bookkeeping"
+  },
+  "homepage": "https://open-bookkeeping.com",
+  "bugs": {
+    "url": "https://github.com/open-bookkeeping/open-bookkeeping/issues"
+  },
+  "keywords": [
+    "bookkeeping",
+    "invoice",
+    "invoicing",
+    "pdf",
+    "billing",
+    "accounting",
+    "react",
+    "typescript",
+    "supabase",
+    "offline-first",
+    "open-source"
+  ],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=web",
+    "dev:api": "turbo run dev --filter=api",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "check-types": "turbo run check-types",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e --filter=web",
+    "db:generate": "turbo run db:generate --filter=@open-bookkeeping/db",
+    "db:migrate": "turbo run db:migrate --filter=@open-bookkeeping/db",
+    "db:push": "turbo run db:push --filter=@open-bookkeeping/db",
+    "db:studio": "turbo run db:studio --filter=@open-bookkeeping/db"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "prettier-plugin-tailwindcss": "^0.6.11",
+    "turbo": "^2.5.3",
+    "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

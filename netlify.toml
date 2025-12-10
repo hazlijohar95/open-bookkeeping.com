@@ -1,0 +1,39 @@
+[build]
+  command = "yarn build"
+  publish = "apps/web/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback - redirect all routes to index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# API proxy to Supabase Edge Functions
+# Uncomment and update YOUR_PROJECT_REF with your Supabase project reference
+# [[redirects]]
+#   from = "/api/*"
+#   to = "https://YOUR_PROJECT_REF.supabase.co/functions/v1/api/:splat"
+#   status = 200
+#   force = true
+
+[dev]
+  command = "yarn dev:web"
+  port = 5173
+  targetPort = 5173
+
+# Headers for security
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Cache static assets
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

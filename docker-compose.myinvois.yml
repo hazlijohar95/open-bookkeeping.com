@@ -1,0 +1,51 @@
+# MyInvois Gateway Docker Compose Configuration
+# This file deploys the myinvois-gateway service for Malaysia e-Invoice submission
+
+services:
+  myinvois-gateway:
+    image: farhansyah/myinvois-gateway
+    container_name: myinvois-gateway
+    restart: unless-stopped
+    ports:
+      - "3002:3000"
+    environment:
+      - ENVIRONMENT=${MYINVOIS_ENVIRONMENT:-SANDBOX}
+      - CLIENT_ID=${MYINVOIS_CLIENT_ID}
+      - CLIENT_SECRET=${MYINVOIS_CLIENT_SECRET}
+      - GATEWAY_API_KEY=${MYINVOIS_GATEWAY_API_KEY}
+      - REDIS_URL=redis://myinvois-redis:6379
+    volumes:
+      - ./certs:/app/certs:ro
+    depends_on:
+      myinvois-redis:
+        condition: service_healthy
+    networks:
+      - myinvois-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/docs/api"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  myinvois-redis:
+    image: redis:alpine
+    container_name: myinvois-redis
+    restart: unless-stopped
+    volumes:
+      - myinvois-redis-data:/data
+    networks:
+      - myinvois-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  myinvois-redis-data:
+    driver: local
+
+networks:
+  myinvois-network:
+    driver: bridge

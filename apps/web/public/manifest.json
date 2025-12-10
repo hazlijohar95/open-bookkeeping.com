@@ -1,0 +1,21 @@
+{
+  "name": "Open Bookkeeping",
+  "short_name": "Bookkeeping",
+  "description": "Open Bookkeeping is a free, open-source bookkeeping and invoice platform. Create unlimited invoices, quotations, and financial documents with professional PDF generation.",
+  "icons": [
+    {
+      "src": "/official/open-bookkeeping-logo.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/official/open-bookkeeping-logo.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff"
+}

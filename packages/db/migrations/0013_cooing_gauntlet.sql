@@ -1,0 +1,2 @@
+CREATE INDEX "vault_documents_user_status_idx" ON "vault_documents" USING btree ("user_id","processing_status");--> statement-breakpoint
+CREATE INDEX "vault_documents_user_category_idx" ON "vault_documents" USING btree ("user_id","category");
