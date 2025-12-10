@@ -10,6 +10,61 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+#### AI Agent System
+
+| Feature | Description |
+|---------|-------------|
+| **Chat Interface** | Natural language interaction with AI assistant |
+| **20+ Agentic Tools** | Read dashboards, invoices, customers, reports; create invoices, bills, journal entries |
+| **Approval Workflow** | Human-in-loop approval for high-value or sensitive actions |
+| **Audit Logs** | Complete action history with AI reasoning and confidence scores |
+| **Safety Controls** | Emergency stop, daily quotas, amount limits, rate limiting |
+| **Workflow Manager** | Create and manage multi-step automated workflows |
+
+#### Public REST API
+
+| Feature | Description |
+|---------|-------------|
+| **REST Endpoints** | Full CRUD API at `/api/v1/*` for invoices, customers, vendors, bills, quotations |
+| **API Key Auth** | Generate and manage API keys (`ob_live_xxx`) |
+| **Swagger Docs** | Interactive API documentation at `/api/docs` |
+| **Rate Limiting** | Configurable rate limits per API key |
+
+#### TypeScript SDK
+
+| Feature | Description |
+|---------|-------------|
+| **SDK Package** | `@open-bookkeeping/sdk` for API integrations |
+| **Full Type Support** | TypeScript types for all resources |
+| **Webhook Utilities** | Signature verification helpers |
+
+#### Webhooks
+
+| Feature | Description |
+|---------|-------------|
+| **Event Notifications** | Real-time events for invoice, customer, vendor, bill, quotation changes |
+| **Self-Service Management** | Create, list, and delete webhooks via API |
+| **Signature Verification** | HMAC-SHA256 signed payloads |
+| **Retry Logic** | Automatic retries with exponential backoff |
+
+#### Developer Portal
+
+| Feature | Description |
+|---------|-------------|
+| **API Keys Page** | Generate, view, and revoke API keys |
+| **Webhooks Page** | Manage webhook endpoints |
+| **Usage Dashboard** | View API usage statistics |
+
+#### Fixed Assets
+
+| Feature | Description |
+|---------|-------------|
+| **Asset Register** | Track business assets with acquisition details |
+| **Depreciation** | Calculate depreciation (straight-line, declining balance) |
+| **Disposal Tracking** | Record asset disposals and gains/losses |
+
+#### Other Additions
+
 - Open-source release under MIT License
 - Comprehensive documentation suite (README, CONTRIBUTING, SECURITY, CHANGELOG)
 - GitHub issue and pull request templates
@@ -20,10 +75,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Renamed project from Invoicely to Open Bookkeeping
 - Updated all package namespaces to `@open-bookkeeping/*`
 - Improved project structure documentation
+- Added AI SDK to tech stack
+- Updated authentication to support both Supabase Auth and API Keys
+
+### Technical Details
+
+#### New Database Tables
+
+| Table | Purpose |
+|-------|---------|
+| `api_keys` | Store hashed API keys |
+| `webhooks` | Webhook endpoint configurations |
+| `webhook_deliveries` | Delivery attempt logs |
+| `agent_approval_settings` | User approval preferences |
+| `agent_pending_approvals` | Actions awaiting approval |
+| `agent_audit_logs` | Complete action history |
+| `agent_quotas` | Usage limits configuration |
+| `agent_usage` | Daily usage tracking |
+| `agent_workflows` | Workflow definitions |
+| `fixed_assets` | Asset register |
+
+#### New API Routes
+
+| Route | Description |
+|-------|-------------|
+| `POST /api/ai/chat` | AI chat endpoint with tool calling |
+| `GET/POST/DELETE /api/v1/invoices` | Invoice REST API |
+| `GET/POST/DELETE /api/v1/customers` | Customer REST API |
+| `GET/POST/DELETE /api/v1/vendors` | Vendor REST API |
+| `GET/POST/DELETE /api/v1/bills` | Bill REST API |
+| `GET/POST/DELETE /api/v1/webhooks` | Webhook management |
 
 ### Migration Guide
 
-No migration required. This release introduces documentation and branding changes only.
+Run database migrations to add new tables:
+
+```bash
+yarn db:generate
+yarn db:migrate
+```
+
+Add AI provider API key to environment:
+
+```env
+OPENAI_API_KEY=sk-xxx
+# or
+ANTHROPIC_API_KEY=sk-ant-xxx
+```
 
 ---
 

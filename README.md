@@ -22,16 +22,35 @@ A **free, self-hostable** invoicing platform built for freelancers and small bus
 
 | Benefit | Description |
 |---------|-------------|
+| **AI-Powered** | Intelligent assistant to automate accounting tasks |
 | **Malaysia e-Invoice Ready** | Built-in MyInvois integration for LHDN compliance |
 | **Privacy First** | Self-host on your infrastructure. Your data stays yours. |
 | **Offline Ready** | Create invoices without internet. Syncs when reconnected. |
 | **Beautiful PDFs** | 5 professional templates with custom branding |
-| **Multi-Currency** | 150+ currencies with automatic symbol detection |
-| **Zero Cost** | MIT licensed. No subscriptions, no limits. |
+| **Public API & SDK** | REST API with TypeScript SDK for integrations |
 
 ---
 
 ## Features
+
+### AI Agent
+
+An intelligent assistant that can analyze data, create documents, and automate accounting tasks.
+
+| Feature | Description |
+|---------|-------------|
+| **Chat Interface** | Natural language interaction for accounting tasks |
+| **20+ Tools** | Read reports, create invoices, analyze data |
+| **Approval Workflow** | Human-in-loop for high-value transactions |
+| **Audit Trail** | Full history with AI reasoning logged |
+| **Safety Controls** | Emergency stop, daily quotas, amount limits |
+
+```
++------------------+     +------------------+     +------------------+
+|    Chat with     | --> |   AI Processes   | --> |  Execute with    |
+|   AI Assistant   |     |   Your Request   |     |  Approval Flow   |
++------------------+     +------------------+     +------------------+
+```
 
 ### Document Management
 
@@ -49,6 +68,7 @@ A **free, self-hostable** invoicing platform built for freelancers and small bus
 |---------|-------------|
 | **Chart of Accounts** | Full double-entry bookkeeping with customizable accounts |
 | **Journal Entries** | Manual and automated journal entries |
+| **Fixed Assets** | Asset register with depreciation tracking |
 | **Trial Balance** | Real-time trial balance reports |
 | **Profit & Loss** | Income statement with date range filtering |
 | **Balance Sheet** | Assets, liabilities, and equity reports |
@@ -63,6 +83,16 @@ A **free, self-hostable** invoicing platform built for freelancers and small bus
 | **Document Vault** | Store contracts, receipts, attachments |
 | **Bank Feeds** | Import and categorize bank transactions |
 | **Dashboard** | Revenue overview, pending payments, activity |
+
+### Developer Portal
+
+| Feature | Description |
+|---------|-------------|
+| **REST API** | Full CRUD for invoices, customers, bills, and more |
+| **API Keys** | Generate and manage API keys for integrations |
+| **Webhooks** | Real-time event notifications to your endpoints |
+| **TypeScript SDK** | First-class SDK with full type support |
+| **Swagger Docs** | Interactive API documentation at `/api/docs` |
 
 ### PDF Templates
 
@@ -86,8 +116,9 @@ Five professionally designed templates:
 | **Forms** | React Hook Form + Zod validation |
 | **PDF** | @react-pdf/renderer |
 | **Backend** | Hono, tRPC 11, Node.js |
+| **AI** | AI SDK with tool calling |
 | **Database** | PostgreSQL, Drizzle ORM |
-| **Auth** | Supabase Auth |
+| **Auth** | Supabase Auth + API Keys |
 | **Queue** | BullMQ with Redis/Upstash |
 
 ---
@@ -131,6 +162,11 @@ DATABASE_URL=postgresql://user:password@host:5432/database
 
 # API
 VITE_API_URL=http://localhost:3001
+
+# AI (for agent features - choose one)
+OPENAI_API_KEY=sk-xxx
+# or
+ANTHROPIC_API_KEY=sk-ant-xxx
 ```
 
 ### Database Setup
@@ -162,20 +198,24 @@ open-bookkeeping/
 ├── apps/
 │   ├── web/                    # React frontend (port 5173)
 │   │   ├── src/
-│   │   │   ├── components/     # UI components
-│   │   │   │   ├── ui/         # Base components (Button, Input, etc.)
+│   │   │   ├── components/
+│   │   │   │   ├── agent/      # AI Agent components
+│   │   │   │   ├── ui/         # Base components
 │   │   │   │   └── pdf/        # PDF templates
 │   │   │   ├── routes/         # Page components
-│   │   │   ├── hooks/          # Custom React hooks
+│   │   │   ├── api/            # React Query hooks
 │   │   │   ├── global/         # Jotai atoms, IndexedDB
 │   │   │   └── zod-schemas/    # Form validation
 │   │   └── package.json
 │   │
-│   └── api/                    # tRPC backend (port 3001)
+│   └── api/                    # Hono + tRPC backend (port 3001)
 │       ├── src/
+│       │   ├── routes/
+│       │   │   ├── ai.ts       # AI chat endpoint
+│       │   │   └── v1/         # Public REST API
 │       │   ├── trpc/
-│       │   │   └── services/   # Business logic
-│       │   ├── routes/         # HTTP routes
+│       │   │   └── services/   # tRPC procedures
+│       │   ├── services/       # Business logic
 │       │   └── workers/        # Background jobs
 │       └── package.json
 │
@@ -185,9 +225,71 @@ open-bookkeeping/
 │   │       ├── schema/         # Table definitions
 │   │       └── repositories/   # Data access
 │   │
+│   ├── sdk/                    # TypeScript SDK
+│   │   └── src/
+│   │       ├── client.ts       # API client
+│   │       └── webhooks.ts     # Webhook utilities
+│   │
 │   └── shared/                 # Shared utilities
 │
 └── supabase/                   # Supabase config
+```
+
+---
+
+## API & SDK
+
+### Public REST API
+
+Base URL: `/api/v1`
+Auth: API Key (`Authorization: Bearer ob_live_xxx`)
+Docs: `/api/docs` (Swagger UI)
+
+| Endpoint | Methods | Description |
+|----------|---------|-------------|
+| `/invoices` | GET, POST, PATCH, DELETE | Invoice management |
+| `/customers` | GET, POST, PATCH, DELETE | Customer management |
+| `/vendors` | GET, POST, PATCH, DELETE | Vendor management |
+| `/quotations` | GET, POST, PATCH, DELETE | Quotation management |
+| `/bills` | GET, POST, PATCH, DELETE | Bill management |
+| `/accounts` | GET | Chart of accounts |
+| `/webhooks` | GET, POST, DELETE | Webhook management |
+
+### TypeScript SDK
+
+```bash
+npm install @open-bookkeeping/sdk
+```
+
+```typescript
+import { OpenBookkeeping } from '@open-bookkeeping/sdk';
+
+const client = new OpenBookkeeping({
+  apiKey: 'ob_live_xxxxx',
+});
+
+// List invoices
+const { data } = await client.invoices.list({ status: 'unpaid' });
+
+// Create customer
+const customer = await client.customers.create({
+  name: 'Acme Corp',
+  email: 'billing@acme.com',
+});
+
+// Webhook verification
+import { constructWebhookEvent } from '@open-bookkeeping/sdk/webhooks';
+const event = await constructWebhookEvent(payload, sig, ts, secret);
+```
+
+### Webhook Events
+
+```
+invoice.created   invoice.updated   invoice.sent   invoice.paid
+customer.created  customer.updated  customer.deleted
+vendor.created    vendor.updated    vendor.deleted
+quotation.created quotation.updated quotation.accepted
+bill.created      bill.updated      bill.paid
 ```
 
 ---
@@ -313,7 +415,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 Built with these excellent open source projects:
 
-[React](https://react.dev/) | [Supabase](https://supabase.com/) | [tRPC](https://trpc.io/) | [Drizzle](https://orm.drizzle.team/) | [Hono](https://hono.dev/) | [Tailwind CSS](https://tailwindcss.com/) | [Radix UI](https://www.radix-ui.com/)
+[React](https://react.dev/) | [Supabase](https://supabase.com/) | [tRPC](https://trpc.io/) | [Drizzle](https://orm.drizzle.team/) | [Hono](https://hono.dev/) | [Tailwind CSS](https://tailwindcss.com/) | [Radix UI](https://www.radix-ui.com/) | [AI SDK](https://sdk.vercel.ai/)
 
 ---
 
