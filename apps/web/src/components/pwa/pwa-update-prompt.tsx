@@ -12,7 +12,7 @@ import { XIcon, RefreshCwIcon, SparklesIcon } from "@/components/ui/icons";
 
 export interface PWAUpdatePromptProps {
   open: boolean;
-  onUpdate: () => void;
+  onUpdate: () => Promise<void>;
   onDismiss: () => void;
   className?: string;
 }

@@ -99,10 +99,9 @@ export function usePWA(): PWAStatus {
   // Unregister service worker on desktop to prevent caching issues
   useEffect(() => {
     if (!isMobile && typeof navigator !== "undefined" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
+      void navigator.serviceWorker.getRegistrations().then((registrations) => {
         for (const registration of registrations) {
-          registration.unregister();
-          console.log("[PWA] Service worker unregistered on desktop");
+          void registration.unregister();
         }
       });
     }
@@ -116,21 +115,19 @@ export function usePWA(): PWAStatus {
   } = useRegisterSW({
     // Only register on mobile
     immediate: isMobile,
-    onRegisteredSW(swUrl, registration) {
+    onRegisteredSW(_swUrl, registration) {
       if (!isMobile) {
         // Unregister immediately on desktop
-        registration?.unregister();
+        void registration?.unregister();
         return;
       }
 
       // Check for updates every hour (mobile only)
       if (registration) {
         setInterval(() => {
-          registration.update();
+          void registration.update();
         }, 60 * 60 * 1000);
       }
-
-      console.log("[PWA] Service worker registered:", swUrl);
     },
     onRegisterError(error) {
       console.error("[PWA] Service worker registration error:", error);
