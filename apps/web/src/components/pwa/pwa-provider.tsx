@@ -1,10 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { usePWA } from "@/hooks/use-pwa";
-import { PWAUpdatePrompt } from "./pwa-update-prompt";
-import { PWAInstallPrompt } from "./pwa-install-prompt";
-import { PWAOfflineIndicator } from "./pwa-offline-indicator";
+
+// ============================================================================
+// MOBILE DETECTION
+// ============================================================================
+
+function isMobileDevice(): boolean {
+  if (typeof window === "undefined") return false;
+  const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+  return mobileRegex.test(navigator.userAgent);
+}
 
 // ============================================================================
 // TYPES
@@ -15,12 +21,8 @@ export interface PWAProviderProps {
   showInstallPrompt?: boolean;
   showUpdatePrompt?: boolean;
   showOfflineIndicator?: boolean;
-  installPromptDelay?: number; // Delay before showing install prompt (ms)
+  installPromptDelay?: number;
 }
-
-// ============================================================================
-// CONTEXT
-// ============================================================================
 
 interface PWAContextValue {
   isMobile: boolean;
@@ -42,106 +44,75 @@ export function usePWAContext() {
 }
 
 // ============================================================================
-// COMPONENT
+// DESKTOP PROVIDER (no service worker, just passthrough)
 // ============================================================================
 
-export function PWAProvider({
-  children,
-  showInstallPrompt: enableInstallPrompt = true,
-  showUpdatePrompt: enableUpdatePrompt = true,
-  showOfflineIndicator: enableOfflineIndicator = true,
-  installPromptDelay = 30000, // 30 seconds default
-}: PWAProviderProps) {
-  const pwa = usePWA();
-  const [showInstallModal, setShowInstallModal] = React.useState(false);
-  const installPromptShownRef = React.useRef(false);
+function PWAProviderDesktop({ children }: { children: React.ReactNode }) {
+  const [isOnline, setIsOnline] = React.useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
 
-  // Auto-show install prompt after delay (only once per session)
+  // Unregister any existing service workers on desktop
   React.useEffect(() => {
-    if (
-      !enableInstallPrompt ||
-      !pwa.canInstall ||
-      pwa.isStandalone ||
-      installPromptShownRef.current
-    ) {
-      return;
+    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      void navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          void registration.unregister();
+        }
+      });
     }
+  }, []);
 
-    const timer = setTimeout(() => {
-      if (pwa.canInstall && !pwa.isStandalone) {
-        setShowInstallModal(true);
-        installPromptShownRef.current = true;
-      }
-    }, installPromptDelay);
+  // Online/offline events
+  React.useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
-    return () => clearTimeout(timer);
-  }, [pwa.canInstall, pwa.isStandalone, enableInstallPrompt, installPromptDelay]);
-
-  // Handle install
-  const handleInstall = async () => {
-    const success = await pwa.installApp();
-    if (success) {
-      setShowInstallModal(false);
-    }
-    return success;
-  };
-
-  // Handle install dismiss
-  const handleInstallDismiss = () => {
-    setShowInstallModal(false);
-    pwa.dismissInstallPrompt();
-  };
-
-  // Manual trigger for install prompt
-  const triggerInstallPrompt = React.useCallback(() => {
-    if (pwa.canInstall) {
-      setShowInstallModal(true);
-    }
-  }, [pwa.canInstall]);
-
-  // Context value
   const contextValue: PWAContextValue = {
-    isMobile: pwa.isMobile,
-    isOnline: pwa.isOnline,
-    isStandalone: pwa.isStandalone,
-    isInstalled: pwa.isInstalled,
-    canInstall: pwa.canInstall,
-    showInstallPrompt: triggerInstallPrompt,
+    isMobile: false,
+    isOnline,
+    isStandalone: false,
+    isInstalled: false,
+    canInstall: false,
+    showInstallPrompt: () => {},
   };
 
   return (
     <PWAContext.Provider value={contextValue}>
       {children}
-
-      {/* PWA UI only shown on mobile devices */}
-      {pwa.isMobile && (
-        <>
-          {/* Offline Indicator */}
-          {enableOfflineIndicator && (
-            <PWAOfflineIndicator isOffline={!pwa.isOnline} />
-          )}
-
-          {/* Update Prompt */}
-          {enableUpdatePrompt && (
-            <PWAUpdatePrompt
-              open={pwa.needRefresh}
-              onUpdate={pwa.updateServiceWorker}
-              onDismiss={pwa.dismissUpdatePrompt}
-            />
-          )}
-
-          {/* Install Prompt */}
-          {enableInstallPrompt && (
-            <PWAInstallPrompt
-              open={showInstallModal}
-              onInstall={handleInstall}
-              onDismiss={handleInstallDismiss}
-            />
-          )}
-        </>
-      )}
     </PWAContext.Provider>
   );
+}
+
+// ============================================================================
+// MOBILE PROVIDER (lazy loaded to avoid SW registration on desktop)
+// ============================================================================
+
+const PWAProviderMobile = React.lazy(() => import("./pwa-provider-mobile"));
+
+// ============================================================================
+// MAIN PROVIDER (chooses mobile or desktop)
+// ============================================================================
+
+export function PWAProvider(props: PWAProviderProps) {
+  const [isMobile] = React.useState(() => isMobileDevice());
+
+  if (isMobile) {
+    return (
+      <React.Suspense fallback={props.children}>
+        <PWAProviderMobile {...props} />
+      </React.Suspense>
+    );
+  }
+
+  return <PWAProviderDesktop>{props.children}</PWAProviderDesktop>;
 }
 
 export default PWAProvider;
