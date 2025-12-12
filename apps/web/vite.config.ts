@@ -189,47 +189,11 @@ export default defineConfig({
     },
   },
   build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          // Core React - always needed
-          if (id.includes("node_modules/react/") ||
-              id.includes("node_modules/react-dom/") ||
-              id.includes("node_modules/react-router")) {
-            return "vendor-react";
-          }
-          // Data layer - always needed for API calls
-          if (id.includes("@tanstack/react-query") ||
-              id.includes("@trpc/client") ||
-              id.includes("@trpc/react-query")) {
-            return "vendor-query";
-          }
-          // PDF libraries - only load on create/edit pages (NOT in main bundle)
-          // These will be code-split automatically via lazy routes
-          if (id.includes("react-pdf") ||
-              id.includes("@react-pdf") ||
-              id.includes("pdfjs-dist")) {
-            return "vendor-pdf";
-          }
-          // NOTE: Charts (recharts, d3-*, victory-vendor) are NOT manually chunked.
-          // The d3 ecosystem has complex circular dependencies that cause TDZ errors
-          // ("can't access lexical declaration before initialization") when manually split.
-          // Let Vite/Rollup handle automatic code splitting for these packages.
-          // Radix UI - commonly used, group together
-          if (id.includes("@radix-ui/")) {
-            return "vendor-radix";
-          }
-          // Framer Motion - animations
-          if (id.includes("framer-motion") || id.includes("motion")) {
-            return "vendor-motion";
-          }
-          // Date utilities
-          if (id.includes("date-fns")) {
-            return "vendor-date";
-          }
-        },
-      },
-    },
+    // NOTE: Manual chunking (manualChunks) has been removed.
+    // It was causing runtime errors in production:
+    // - "can't access lexical declaration 'S' before initialization" (d3/recharts circular deps)
+    // - "can't access property 'createContext' of undefined" (React not available for @react-pdf)
+    // Vite's automatic code splitting handles dependency order correctly.
     chunkSizeWarningLimit: 500,
   },
   server: {
