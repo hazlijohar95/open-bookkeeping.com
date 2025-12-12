@@ -174,11 +174,10 @@ export default defineConfig({
         navigateFallback: "/offline.html",
         navigateFallbackDenylist: [/^\/api\//, /^\/trpc\//],
       },
-      // Development options
+      // Development options - DISABLED to prevent caching localhost URLs
+      // which causes issues when switching between dev and production
       devOptions: {
-        enabled: true,
-        type: "module",
-        navigateFallback: "index.html",
+        enabled: false,
       },
     }),
   ],
