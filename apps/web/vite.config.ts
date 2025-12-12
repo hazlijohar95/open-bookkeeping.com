@@ -211,13 +211,10 @@ export default defineConfig({
               id.includes("pdfjs-dist")) {
             return "vendor-pdf";
           }
-          // Charts - used on dashboard, SST pages
-          // Include d3 dependencies with recharts to prevent initialization errors
-          if (id.includes("recharts") ||
-              id.includes("d3-") ||
-              id.includes("victory-vendor")) {
-            return "vendor-charts";
-          }
+          // NOTE: Charts (recharts, d3-*, victory-vendor) are NOT manually chunked.
+          // The d3 ecosystem has complex circular dependencies that cause TDZ errors
+          // ("can't access lexical declaration before initialization") when manually split.
+          // Let Vite/Rollup handle automatic code splitting for these packages.
           // Radix UI - commonly used, group together
           if (id.includes("@radix-ui/")) {
             return "vendor-radix";
