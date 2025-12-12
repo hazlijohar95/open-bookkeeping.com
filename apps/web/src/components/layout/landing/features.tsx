@@ -1,4 +1,5 @@
-import { motion } from "motion/react";
+import { motion, useInView } from "motion/react";
+import { useRef } from "react";
 import {
   ReceiptIcon,
   FileFeatherIcon,
@@ -11,219 +12,218 @@ import {
 } from "@/assets/icons";
 import { cn } from "@/lib/utils";
 
+// ============================================================================
+// TYPES
+// ============================================================================
+
 interface FeatureCardProps {
   icon: React.ReactNode;
   title: string;
   description: string;
   index: number;
-  className?: string;
   accentColor: string;
 }
+
+// ============================================================================
+// FEATURE CARD - Mobile-optimized with touch feedback
+// ============================================================================
 
 const FeatureCard = ({
   icon,
   title,
   description,
   index,
-  className,
   accentColor,
 }: FeatureCardProps) => {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-50px" });
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      ref={ref}
+      initial={{ opacity: 0, y: 30 }}
+      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
       transition={{
         duration: 0.5,
         delay: index * 0.05,
         ease: [0.25, 0.4, 0.25, 1],
       }}
       className={cn(
-        "group relative p-6 md:p-8 transition-all duration-500",
-        "hover:bg-gradient-to-br hover:from-muted/50 hover:to-transparent",
-        className
+        "group relative p-5 sm:p-6 md:p-8",
+        "bg-card/30 hover:bg-card/60",
+        "border border-border/30 hover:border-border/50",
+        "rounded-2xl sm:rounded-xl",
+        "transition-all duration-300 ease-out",
+        "active:scale-[0.98] sm:active:scale-100", // Touch feedback on mobile
+        "cursor-default"
       )}
     >
-      {/* Hover glow effect */}
+      {/* Hover/Active glow effect */}
       <div
         className={cn(
-          "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none",
-          "bg-gradient-to-br from-transparent via-transparent to-transparent"
+          "absolute inset-0 rounded-2xl sm:rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
         )}
         style={{
-          background: `radial-gradient(circle at 30% 30%, ${accentColor}08 0%, transparent 60%)`,
+          background: `radial-gradient(circle at 30% 30%, ${accentColor}10 0%, transparent 60%)`,
         }}
       />
 
-      {/* Icon with animation */}
-      <div className="relative mb-5">
+      {/* Icon */}
+      <div className="relative mb-4 sm:mb-5">
         <motion.div
           className={cn(
-            "inline-flex items-center justify-center size-10 rounded-xl transition-all duration-500",
-            "bg-muted/50 group-hover:bg-gradient-to-br group-hover:shadow-lg",
+            "inline-flex items-center justify-center size-12 sm:size-11 rounded-xl sm:rounded-lg",
+            "bg-muted/50 group-hover:bg-muted transition-colors duration-300"
           )}
-          style={{
-            ['--tw-shadow-color' as string]: `${accentColor}20`,
-          }}
           whileHover={{ scale: 1.05 }}
-          transition={{ duration: 0.2 }}
+          whileTap={{ scale: 0.95 }}
         >
-          <div className="text-muted-foreground group-hover:text-foreground transition-colors duration-300">
+          <div
+            className="text-muted-foreground group-hover:text-foreground transition-colors duration-300"
+            style={{ color: accentColor }}
+          >
             {icon}
           </div>
         </motion.div>
       </div>
 
       {/* Title */}
-      <h3 className="text-foreground font-medium text-base mb-2.5 tracking-tight group-hover:text-foreground/90 transition-colors">
+      <h3 className="text-foreground font-semibold text-base sm:text-[15px] mb-2 tracking-tight">
         {title}
       </h3>
 
       {/* Description */}
-      <p className="text-muted-foreground text-sm leading-relaxed group-hover:text-muted-foreground/80 transition-colors">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         {description}
       </p>
-
-      {/* Corner accent on hover */}
-      <div
-        className="absolute bottom-0 right-0 w-20 h-20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-        style={{
-          background: `radial-gradient(circle at 100% 100%, ${accentColor}06 0%, transparent 70%)`,
-        }}
-      />
     </motion.div>
   );
 };
 
+// ============================================================================
+// FEATURES DATA
+// ============================================================================
+
 const features = [
   {
-    icon: <ReceiptIcon className="size-5" />,
+    icon: <ReceiptIcon className="size-5 sm:size-[18px]" />,
     title: "Beautiful Invoices",
     description:
-      "Create professional invoices in seconds. Multiple templates, custom branding, instant PDF export.",
-    accentColor: "#3b82f6", // blue
+      "Create professional invoices in seconds. Multiple templates, custom branding, instant PDF.",
+    accentColor: "#3b82f6",
   },
   {
-    icon: <FileFeatherIcon className="size-5" />,
+    icon: <FileFeatherIcon className="size-5 sm:size-[18px]" />,
     title: "Quotations",
     description:
-      "SendIcon quotes, track acceptance, convert to invoices with one click.",
-    accentColor: "#8b5cf6", // violet
+      "Send quotes, track acceptance, convert to invoices with one click.",
+    accentColor: "#8b5cf6",
   },
   {
-    icon: <TruckIcon className="size-5" />,
+    icon: <TruckIcon className="size-5 sm:size-[18px]" />,
     title: "Bills & Expenses",
     description:
       "Track what you owe. Manage vendor bills, never miss a payment.",
-    accentColor: "#f97316", // orange
+    accentColor: "#f97316",
   },
   {
-    icon: <UsersIcon className="size-5" />,
+    icon: <UsersIcon className="size-5 sm:size-[18px]" />,
     title: "Contacts",
     description:
       "Customers and vendors in one place. Full transaction history.",
-    accentColor: "#06b6d4", // cyan
+    accentColor: "#06b6d4",
   },
   {
-    icon: <BookOpenIcon className="size-5" />,
+    icon: <BookOpenIcon className="size-5 sm:size-[18px]" />,
     title: "Chart of Accounts",
     description:
       "Customizable accounts structure. Assets, liabilities, equity, revenue.",
-    accentColor: "#10b981", // emerald
+    accentColor: "#10b981",
   },
   {
-    icon: <OpenLedgerIcon className="size-5" />,
+    icon: <OpenLedgerIcon className="size-5 sm:size-[18px]" />,
     title: "General Ledger",
     description:
       "Double-entry bookkeeping. Every transaction properly recorded.",
-    accentColor: "#6366f1", // indigo
+    accentColor: "#6366f1",
   },
   {
-    icon: <GaugeIcon className="size-5" />,
+    icon: <GaugeIcon className="size-5 sm:size-[18px]" />,
     title: "Financial Reports",
     description:
       "Trial balance, P&L, balance sheet. Real-time, always accurate.",
-    accentColor: "#ec4899", // pink
+    accentColor: "#ec4899",
   },
   {
-    icon: <SquareWandSparkleIcon className="size-5" />,
+    icon: <SquareWandSparkleIcon className="size-5 sm:size-[18px]" />,
     title: "AI Assistant",
     description:
       "Natural language commands. Create invoices, query data, get insights.",
-    accentColor: "#a855f7", // purple
+    accentColor: "#a855f7",
   },
 ];
 
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 const Features = () => {
+  const headerRef = useRef(null);
+  const isHeaderInView = useInView(headerRef, { once: true, margin: "-100px" });
+
   return (
-    <section className="relative py-24 md:py-32 overflow-hidden">
-      {/* Subtle background decoration */}
+    <section id="features" className="relative py-16 sm:py-24 md:py-32 overflow-hidden">
+      {/* Background decoration */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-6xl h-px bg-gradient-to-r from-transparent via-border/50 to-transparent" />
       </div>
 
       {/* Section Header */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.25, 0.4, 0.25, 1] }}
-        className="text-center mb-16 md:mb-20 px-6"
+        ref={headerRef}
+        initial={{ opacity: 0, y: 30 }}
+        animate={isHeaderInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
+        transition={{ duration: 0.6, ease: [0.25, 0.4, 0.25, 1] }}
+        className="text-center mb-10 sm:mb-16 md:mb-20 px-4 sm:px-6"
       >
-        <span className="inline-block text-xs tracking-[0.25em] uppercase text-muted-foreground mb-4 font-medium">
+        <span className="inline-block text-[10px] sm:text-xs tracking-[0.2em] sm:tracking-[0.25em] uppercase text-muted-foreground mb-3 sm:mb-4 font-medium">
           Features
         </span>
-        <h2 className="instrument-serif text-3xl md:text-4xl lg:text-5xl tracking-tight">
+        <h2 className="instrument-serif text-3xl sm:text-4xl lg:text-5xl tracking-tight">
           Everything you need
         </h2>
-        <p className="mt-4 text-muted-foreground text-lg max-w-md mx-auto">
+        <p className="mt-3 sm:mt-4 text-muted-foreground text-base sm:text-lg max-w-md mx-auto">
           Professional tools, beautifully simple
         </p>
       </motion.div>
 
-      {/* Features Grid */}
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="relative">
-          {/* Grid lines decoration */}
-          <div className="absolute inset-0 pointer-events-none">
-            {/* Horizontal lines */}
-            <div className="absolute top-0 left-0 right-0 h-px bg-border/40" />
-            <div className="absolute top-1/2 left-0 right-0 h-px bg-border/40 hidden lg:block" />
-            <div className="absolute bottom-0 left-0 right-0 h-px bg-border/40" />
-            {/* Vertical lines */}
-            <div className="absolute top-0 bottom-0 left-0 w-px bg-border/40" />
-            <div className="absolute top-0 bottom-0 left-1/2 w-px bg-border/40 hidden sm:block" />
-            <div className="absolute top-0 bottom-0 left-1/4 w-px bg-border/40 hidden lg:block" />
-            <div className="absolute top-0 bottom-0 left-3/4 w-px bg-border/40 hidden lg:block" />
-            <div className="absolute top-0 bottom-0 right-0 w-px bg-border/40" />
-          </div>
-
-          {/* Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 relative">
-            {features.map((feature, index) => (
-              <FeatureCard
-                key={feature.title}
-                icon={feature.icon}
-                title={feature.title}
-                description={feature.description}
-                index={index}
-                accentColor={feature.accentColor}
-                className={cn(
-                  // Add bottom border for all except last row
-                  index < 4 && "lg:border-b lg:border-border/40",
-                  index < 6 && "sm:border-b sm:border-border/40 lg:border-b-0",
-                  index < 7 && "border-b border-border/40 sm:border-b-0",
-                  // Add right border for grid effect
-                  "sm:border-r sm:border-border/40 sm:last:border-r-0",
-                  "lg:border-r lg:border-border/40",
-                  // Remove right border from last column
-                  (index + 1) % 4 === 0 && "lg:border-r-0",
-                  (index + 1) % 2 === 0 && "sm:border-r-0 lg:border-r lg:border-border/40",
-                  index === 7 && "lg:border-r-0",
-                )}
-              />
-            ))}
-          </div>
+      {/* Features Grid - Mobile optimized */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {features.map((feature, index) => (
+            <FeatureCard
+              key={feature.title}
+              icon={feature.icon}
+              title={feature.title}
+              description={feature.description}
+              index={index}
+              accentColor={feature.accentColor}
+            />
+          ))}
         </div>
       </div>
+
+      {/* Mobile scroll hint */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1 }}
+        className="mt-8 text-center sm:hidden"
+      >
+        <p className="text-xs text-muted-foreground/60">
+          Swipe up to see more
+        </p>
+      </motion.div>
     </section>
   );
 };

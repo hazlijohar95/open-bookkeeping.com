@@ -281,3 +281,131 @@ export const tw = {
   center: "flex items-center justify-center",
   centerColumn: "flex flex-col items-center justify-center",
 } as const;
+
+// ============================================================================
+// MOBILE-SPECIFIC TOKENS
+// Native-feel mobile experience constants
+// ============================================================================
+export const mobile = {
+  // Touch Targets (Apple HIG: 44pt minimum)
+  touch: {
+    min: "44px",
+    comfortable: "48px",
+    large: "56px",
+  },
+
+  // Safe Areas
+  safeArea: {
+    top: "env(safe-area-inset-top, 0px)",
+    bottom: "env(safe-area-inset-bottom, 0px)",
+    left: "env(safe-area-inset-left, 0px)",
+    right: "env(safe-area-inset-right, 0px)",
+  },
+
+  // Card Dimensions
+  card: {
+    minHeight: "72px",
+    padding: "16px",
+    gap: "12px",
+    avatarSize: "40px",
+    swipeThreshold: 80,
+  },
+
+  // Bottom Sheet
+  sheet: {
+    handleHeight: "4px",
+    handleWidth: "32px",
+    headerHeight: "56px",
+    maxHeight: "85vh",
+    snapPoints: [0.5, 0.85, 1],
+  },
+
+  // Input Optimization
+  input: {
+    height: "48px",
+    fontSize: "16px",
+    padding: "12px 16px",
+  },
+
+  // Gesture Springs (Framer Motion)
+  gesture: {
+    swipe: { stiffness: 300, damping: 30, mass: 0.8 },
+    snap: { stiffness: 400, damping: 40 },
+    bounce: { stiffness: 500, damping: 25 },
+  },
+
+  // Breakpoints
+  breakpoint: {
+    mobile: 640,
+    tablet: 768,
+    desktop: 1024,
+  },
+} as const;
+
+// ============================================================================
+// MOBILE MOTION VARIANTS
+// Animation variants for mobile interactions
+// ============================================================================
+export const mobileMotion = {
+  // Card tap feedback
+  cardTap: {
+    scale: 0.98,
+    transition: { duration: 0.1 },
+  },
+
+  // Swipe reveal
+  swipeReveal: {
+    x: 0,
+    transition: { type: "spring", stiffness: 400, damping: 40 },
+  },
+
+  // List item stagger
+  listStagger: {
+    container: {
+      animate: { transition: { staggerChildren: 0.05 } },
+    },
+    item: {
+      initial: { opacity: 0, y: 20 },
+      animate: { opacity: 1, y: 0 },
+      transition: { duration: 0.2 },
+    },
+  },
+
+  // Bottom sheet
+  bottomSheet: {
+    initial: { y: "100%" },
+    animate: { y: 0 },
+    exit: { y: "100%" },
+    transition: { type: "spring", stiffness: 300, damping: 30, mass: 0.8 },
+  },
+
+  // Pull to refresh
+  pullRefresh: {
+    pulling: { scale: 1.1, rotate: 180 },
+    refreshing: { rotate: 360 },
+    transition: { duration: 0.3 },
+  },
+} as const;
+
+// ============================================================================
+// MOBILE TYPOGRAPHY
+// Typography scale optimized for mobile
+// ============================================================================
+export const mobileTypography = {
+  // Large display for amounts
+  amount: "text-2xl font-semibold tabular-nums tracking-tight",
+  amountSmall: "text-lg font-medium tabular-nums",
+
+  // Card content
+  cardTitle: "text-base font-medium leading-tight",
+  cardSubtitle: "text-sm text-muted-foreground",
+  cardMeta: "text-xs text-muted-foreground",
+
+  // Section headers
+  sectionTitle: "text-lg font-semibold",
+  sectionSubtitle: "text-sm text-muted-foreground",
+
+  // Input labels (larger for mobile)
+  inputLabel: "text-sm font-medium mb-2",
+  inputHelper: "text-xs text-muted-foreground mt-1",
+} as const;

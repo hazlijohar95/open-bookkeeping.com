@@ -30,6 +30,9 @@ import { toast } from "sonner";
 
 interface ViewInvoiceModalProps {
   invoice: Invoice;
+  // Controlled mode props (optional)
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 // Normalize invoice data to ensure all required fields exist for PDF generation
@@ -72,9 +75,14 @@ function normalizeInvoiceData(data: ZodCreateInvoiceSchema): ZodCreateInvoiceSch
   };
 }
 
-export default function ViewInvoiceModal({ invoice }: ViewInvoiceModalProps) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function ViewInvoiceModal({ invoice, open, onOpenChange }: ViewInvoiceModalProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+
+  // Support both controlled and uncontrolled modes
+  const isControlled = open !== undefined;
+  const isOpen = isControlled ? open : internalOpen;
+  const setIsOpen = isControlled ? (onOpenChange ?? (() => {})) : setInternalOpen;
 
   const invoiceData = normalizeInvoiceData(invoice.invoiceFields);
   const serialNumber = `${invoiceData.invoiceDetails.prefix}${invoiceData.invoiceDetails.serialNumber}`;
@@ -143,11 +151,14 @@ export default function ViewInvoiceModal({ invoice }: ViewInvoiceModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="secondary" size="xs">
-          View
-        </Button>
-      </DialogTrigger>
+      {/* Only show trigger in uncontrolled mode */}
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <Button variant="secondary" size="xs">
+            View
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeaderContainer>
           <DialogIcon>

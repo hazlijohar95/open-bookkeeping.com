@@ -19,6 +19,8 @@
 | Resource | Description |
 |----------|-------------|
 | [Features](#-features) | Platform capabilities |
+| [PWA](#-progressive-web-app) | Installable offline-first app |
+| [Mobile-First Design](#-mobile-first-design) | Responsive UI patterns |
 | [AI Agent](#-ai-agent) | Intelligent automation |
 | [API Reference](#-api-reference) | REST & tRPC endpoints |
 | [Development](#-development) | Setup & commands |
@@ -36,6 +38,8 @@
 | **Auth** | Supabase Auth + API Keys |
 | **Queue** | BullMQ + Redis |
 | **PDF** | @react-pdf/renderer |
+| **PWA** | vite-plugin-pwa, Workbox |
+| **Animation** | Motion (Framer Motion) |
 
 ---
 
@@ -73,6 +77,281 @@
 | Bank Feeds | Active | Transaction import & matching |
 | Document Vault | Active | Receipt & document storage |
 | Webhooks | Active | Real-time event notifications |
+
+---
+
+## Progressive Web App
+
+### Overview
+
+The application is a fully-featured Progressive Web App (PWA) built with `vite-plugin-pwa` and Workbox. It provides native app-like experience with offline support, installability, and automatic updates.
+
+```
++------------------------------------------------------------------------+
+|                         PWA Architecture                               |
++------------------------------------------------------------------------+
+|                                                                        |
+|   +-------------+    +----------------+    +------------------+        |
+|   |   Browser   |--->| Service Worker |--->|  Cache Storage   |        |
+|   |   (React)   |    |   (Workbox)    |    |  (Assets/API)    |        |
+|   +------+------+    +-------+--------+    +------------------+        |
+|          |                   |                                         |
+|          v                   v                                         |
+|   +-------------+    +----------------+                                |
+|   | Install     |    | Update         |                                |
+|   | Prompt UI   |    | Notification   |                                |
+|   +-------------+    +----------------+                                |
+|                                                                        |
++------------------------------------------------------------------------+
+```
+
+### PWA Features
+
+| Feature | Description |
+|---------|-------------|
+| **Installable** | Add to home screen on mobile/desktop |
+| **Offline Support** | Core functionality works without internet |
+| **Auto Updates** | Seamless background updates with user notification |
+| **Native Feel** | Standalone window, splash screen, app icons |
+| **iOS Support** | Apple-specific meta tags and splash screens |
+
+### Caching Strategies
+
+```typescript
+// Workbox runtime caching configuration
+runtimeCaching: [
+  {
+    // API calls - Network first, fallback to cache
+    urlPattern: /^https:\/\/api\./i,
+    handler: "NetworkFirst",
+    options: {
+      cacheName: "api-cache",
+      expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 },
+    },
+  },
+  {
+    // Static assets - Cache first
+    urlPattern: /\.(js|css|woff2?)$/i,
+    handler: "CacheFirst",
+    options: {
+      cacheName: "static-assets",
+      expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 },
+    },
+  },
+  {
+    // Images - Stale while revalidate
+    urlPattern: /\.(png|jpg|jpeg|svg|webp)$/i,
+    handler: "StaleWhileRevalidate",
+    options: {
+      cacheName: "image-cache",
+      expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 7 },
+    },
+  },
+]
+```
+
+### PWA Components
+
+| Component | Location | Description |
+|-----------|----------|-------------|
+| `usePWA` | `hooks/use-pwa.ts` | Core PWA hook for install/update/offline status |
+| `PWAProvider` | `components/pwa/pwa-provider.tsx` | Root provider integrating all PWA UI |
+| `PWAInstallPrompt` | `components/pwa/pwa-install-prompt.tsx` | Beautiful install modal |
+| `PWAUpdatePrompt` | `components/pwa/pwa-update-prompt.tsx` | Update notification toast |
+| `PWAOfflineIndicator` | `components/pwa/pwa-offline-indicator.tsx` | Online/offline status banner |
+
+### usePWA Hook
+
+```typescript
+import { usePWA } from "@/hooks/use-pwa";
+
+function MyComponent() {
+  const {
+    isOnline,           // Network connectivity status
+    isInstalled,        // App already installed
+    isStandalone,       // Running as standalone app
+    needRefresh,        // New version available
+    offlineReady,       // Service worker ready for offline
+    canInstall,         // Install prompt available
+    installApp,         // Trigger install prompt
+    updateApp,          // Apply pending update
+    dismissUpdate,      // Dismiss update notification
+  } = usePWA();
+}
+```
+
+### PWA Configuration
+
+```typescript
+// vite.config.ts
+import { VitePWA } from "vite-plugin-pwa";
+
+export default defineConfig({
+  plugins: [
+    VitePWA({
+      registerType: "prompt",         // Show update prompt
+      includeAssets: ["favicon.ico", "robots.txt", "icons/*.png"],
+      manifest: {
+        name: "Open Bookkeeping",
+        short_name: "Bookkeeping",
+        theme_color: "#0f172a",
+        background_color: "#0f172a",
+        display: "standalone",
+        start_url: "/",
+        icons: [
+          { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+          { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+          { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+        ],
+      },
+      workbox: {
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        navigateFallback: "/index.html",
+        navigateFallbackDenylist: [/^\/api/],
+      },
+    }),
+  ],
+});
+```
+
+---
+
+## Mobile-First Design
+
+### Design Philosophy
+
+The application follows a **mobile-first** approach with progressive enhancement for larger screens. All components are designed for touch interaction first, then enhanced for mouse/keyboard.
+
+```
++------------------+    +------------------+    +------------------+
+|     MOBILE       |    |     TABLET       |    |    DESKTOP       |
+|    (< 640px)     |    |   (640-1024px)   |    |    (> 1024px)    |
++------------------+    +------------------+    +------------------+
+| - Single column  |    | - 2 columns      |    | - Multi-column   |
+| - Larger touch   |    | - Medium touch   |    | - Hover states   |
+|   targets (48px) |    |   targets (44px) |    | - Keyboard nav   |
+| - Bottom sheets  |    | - Side panels    |    | - Dense layouts  |
+| - Full-width     |    | - Cards grid     |    | - Sidebar        |
+| - Swipe gestures |    | - Modal dialogs  |    | - Context menus  |
++------------------+    +------------------+    +------------------+
+```
+
+### Responsive Breakpoints
+
+| Breakpoint | Prefix | Usage |
+|------------|--------|-------|
+| `< 640px` | (default) | Mobile phones |
+| `>= 640px` | `sm:` | Large phones, small tablets |
+| `>= 768px` | `md:` | Tablets |
+| `>= 1024px` | `lg:` | Small laptops |
+| `>= 1280px` | `xl:` | Desktops |
+| `>= 1536px` | `2xl:` | Large monitors |
+
+### Touch Optimization Patterns
+
+```tsx
+// Larger touch targets on mobile
+<button className={cn(
+  "min-h-[48px] sm:min-h-[40px]",        // Larger on mobile
+  "py-3 sm:py-2",                         // More padding on mobile
+  "active:scale-[0.98] sm:active:scale-100", // Touch feedback
+  "active:bg-muted/30 sm:active:bg-transparent"
+)}>
+  Click me
+</button>
+
+// Touch-friendly spacing
+<div className="gap-4 sm:gap-3">          // More space on mobile
+  {items.map(item => (
+    <div className="py-4 sm:py-3">        // Larger tap areas
+      {item.name}
+    </div>
+  ))}
+</div>
+
+// Safe area support for notched devices
+<footer className="pb-[env(safe-area-inset-bottom)]">
+  {/* Footer content */}
+</footer>
+```
+
+### Animation Patterns
+
+```tsx
+import { motion, useInView, AnimatePresence } from "motion/react";
+
+// Scroll-triggered animations
+const ref = useRef(null);
+const isInView = useInView(ref, { once: true, margin: "-50px" });
+
+<motion.div
+  ref={ref}
+  initial={{ opacity: 0, y: 30 }}
+  animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
+  transition={{ duration: 0.5, ease: [0.25, 0.4, 0.25, 1] }}
+>
+  {/* Content appears on scroll */}
+</motion.div>
+
+// Staggered children animations
+{items.map((item, index) => (
+  <motion.div
+    key={item.id}
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay: index * 0.05 }}  // Stagger effect
+  >
+    {item.content}
+  </motion.div>
+))}
+```
+
+### Landing Page Components
+
+| Component | Location | Description |
+|-----------|----------|-------------|
+| `Hero` | `components/layout/landing/hero.tsx` | Hero section with mobile nav drawer |
+| `Features` | `components/layout/landing/features.tsx` | Feature cards grid (1→2→4 cols) |
+| `Showcase` | `components/layout/landing/showcase.tsx` | Bento grid product showcase |
+| `FAQ` | `components/layout/landing/faq.tsx` | Expandable FAQ accordion |
+| `Footer` | `components/layout/landing/footer.tsx` | Footer with link sections |
+
+### Mobile Navigation Pattern
+
+```tsx
+// Mobile drawer navigation in Hero component
+const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+// Toggle button with animated icon
+<button onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+  <AnimatePresence mode="wait">
+    {mobileMenuOpen ? (
+      <motion.div key="close" initial={{ rotate: -90 }} animate={{ rotate: 0 }}>
+        <XIcon />
+      </motion.div>
+    ) : (
+      <motion.div key="menu" initial={{ rotate: 90 }} animate={{ rotate: 0 }}>
+        <MenuIcon />
+      </motion.div>
+    )}
+  </AnimatePresence>
+</button>
+
+// Full-screen drawer with spring animation
+<AnimatePresence>
+  {mobileMenuOpen && (
+    <motion.div
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ type: "spring", damping: 25, stiffness: 300 }}
+      className="fixed inset-x-0 top-16 bottom-0 bg-background/98 backdrop-blur-xl"
+    >
+      {/* Navigation links */}
+    </motion.div>
+  )}
+</AnimatePresence>
+```
 
 ---
 
@@ -500,6 +779,10 @@ invoicely-v2/
 +-- apps/
 |   |
 |   +-- web/                    # React Frontend (port 5173)
+|   |   +-- public/
+|   |   |   +-- icons/          # PWA app icons (192, 512, maskable)
+|   |   |   +-- offline.html    # Offline fallback page
+|   |   |   +-- robots.txt      # SEO configuration
 |   |   +-- src/
 |   |       +-- api/            # React Query hooks (21 modules)
 |   |       +-- assets/         # Icons, images
@@ -507,13 +790,20 @@ invoicely-v2/
 |   |       |   +-- agent/      # AI Agent UI components
 |   |       |   +-- ui/         # Base UI (Radix)
 |   |       |   +-- pdf/        # PDF templates
+|   |       |   +-- pwa/        # PWA components (install, update, offline)
+|   |       |   +-- layout/
+|   |       |   |   +-- landing/  # Landing page (hero, features, etc.)
 |   |       |   +-- [feature]/  # Feature components
 |   |       +-- constants/      # Links, sidebar config
 |   |       +-- global/
 |   |       |   +-- atoms/      # Jotai state atoms
 |   |       |   +-- indexdb/    # Offline storage
+|   |       +-- hooks/          # Custom React hooks
+|   |       |   +-- use-pwa.ts  # PWA functionality hook
 |   |       +-- providers/      # React context providers
 |   |       +-- routes/         # Page components
+|   |       +-- types/          # TypeScript declarations
+|   |       |   +-- pwa.d.ts    # PWA virtual module types
 |   |       +-- zod-schemas/    # Validation schemas
 |   |
 |   +-- api/                    # Hono Backend (port 3001)

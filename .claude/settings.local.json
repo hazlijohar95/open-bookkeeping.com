@@ -29,7 +29,12 @@
       "Bash(yarn dev)",
       "Bash(cat package.json)",
       "Bash(echo:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(ls:*)",
+      "WebFetch(domain:x.com)",
+      "WebSearch",
+      "WebFetch(domain:vite-pwa-org.netlify.app)",
+      "Skill(frontend-design:frontend-design)"
     ],
     "deny": [],
     "ask": []

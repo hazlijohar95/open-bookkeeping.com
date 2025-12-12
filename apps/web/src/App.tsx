@@ -8,6 +8,7 @@ import { TRPCProvider } from "./trpc/provider";
 import { ThemeProvider } from "./providers/theme-provider";
 import { AuthProvider } from "./providers/auth-provider";
 import { PostHogProvider } from "./providers/posthog-provider";
+import { PWAProvider } from "./components/pwa";
 
 export function App() {
   return (
@@ -17,8 +18,15 @@ export function App() {
           <AuthProvider>
             <PostHogProvider>
               <ThemeProvider defaultTheme="light" storageKey="open-bookkeeping-theme">
-                <RouterProvider router={router} />
-                <Toaster richColors position="top-right" />
+                <PWAProvider
+                  showInstallPrompt={true}
+                  showUpdatePrompt={true}
+                  showOfflineIndicator={true}
+                  installPromptDelay={60000} // Show after 1 minute
+                >
+                  <RouterProvider router={router} />
+                  <Toaster richColors position="top-right" />
+                </PWAProvider>
               </ThemeProvider>
             </PostHogProvider>
           </AuthProvider>

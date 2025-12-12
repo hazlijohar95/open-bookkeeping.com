@@ -59,6 +59,7 @@ export {
   CaretUpDown as ChevronsUpDown,
   ArrowCounterClockwise as Undo2Icon,
   ArrowsClockwise as RefreshCw,
+  ArrowsClockwise as RefreshCwIcon,
 
   // Sorting
   SortDescending as ArrowDownZaIcon,
@@ -93,6 +94,7 @@ export {
   PaperPlaneTilt as Send,
   PaperPlaneTilt as SendIcon,
   Eye,
+  Eye as EyeIcon,
   ArrowSquareOut as ExternalLink,
   SignOut as LogOut,
   SignOut as LogOutIcon,
@@ -112,8 +114,10 @@ export {
   Circle as CircleIcon,
   Columns as ColumnsIcon,
   List as ListIcon,
+  ListDashes as LayoutListIcon,
   ClipboardText as ClipboardListIcon,
   SquaresFour as LayoutDashboardIcon,
+  GridFour as LayoutGridIcon,
   Wrench,
   Gear as Settings,
   Gear as SettingsIcon,
@@ -148,6 +152,7 @@ export {
   BookOpen,
   Robot as Bot,
   Sparkle as Sparkles,
+  Sparkle as SparklesIcon,
   Wallet,
   Database as DatabaseIcon,
   ChartBar as BarChartIcon,
@@ -184,7 +189,12 @@ export {
   Funnel as Filter,
   ClipboardText as ClipboardList,
   Lightning as Zap,
+  Lightning as ZapIcon,
   Brain,
+  WifiSlash as WifiOff,
+  WifiSlash as WifiOffIcon,
+  DeviceMobile as SmartphoneIcon,
+  Download as DownloadIcon,
 
   // Developer Portal
   Code as Code2,

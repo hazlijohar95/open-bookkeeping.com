@@ -1,0 +1,39 @@
+# robots.txt for Open Bookkeeping
+# https://open-bookkeeping.com
+
+User-agent: *
+Allow: /
+
+# Disallow API and authentication routes
+Disallow: /api/
+Disallow: /trpc/
+Disallow: /auth/
+Disallow: /callback
+
+# Disallow dynamic app routes that require authentication
+Disallow: /dashboard
+Disallow: /invoices
+Disallow: /quotations
+Disallow: /credit-notes
+Disallow: /debit-notes
+Disallow: /bills
+Disallow: /customers
+Disallow: /vendors
+Disallow: /accounts
+Disallow: /journal-entries
+Disallow: /reports
+Disallow: /settings
+Disallow: /agent
+Disallow: /create/
+
+# Allow static assets
+Allow: /favicon.svg
+Allow: /favicon.ico
+Allow: /apple-touch-icon.png
+Allow: /manifest.webmanifest
+
+# Sitemap
+Sitemap: https://open-bookkeeping.com/sitemap.xml
+
+# Crawl-delay (optional, respected by some crawlers)
+Crawl-delay: 1

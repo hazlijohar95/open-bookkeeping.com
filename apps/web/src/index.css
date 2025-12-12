@@ -311,3 +311,156 @@ li::marker {
     @apply bg-background text-foreground;
   }
 }
+
+/* ============================================================================
+   MOBILE UTILITIES
+   Native-feel mobile experience utilities
+   ============================================================================ */
+
+/* Mobile-specific states */
+:root {
+  /* Swipe action colors */
+  --swipe-edit: oklch(0.62 0.19 250);
+  --swipe-delete: oklch(0.577 0.245 27);
+  --swipe-success: oklch(0.72 0.19 142);
+  --swipe-warning: oklch(0.75 0.18 55);
+
+  /* Active touch state */
+  --touch-highlight: oklch(0 0 0 / 0.05);
+
+  /* Pull to refresh */
+  --refresh-indicator: var(--primary);
+}
+
+.dark {
+  --touch-highlight: oklch(1 0 0 / 0.05);
+}
+
+/* Safe area utilities */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-left {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+.safe-right {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+.safe-x {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+.safe-y {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-all {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Mobile card active state */
+.mobile-card-active {
+  background-color: var(--touch-highlight);
+  transform: scale(0.98);
+}
+
+/* Prevent text selection on swipe */
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Touch action utilities */
+.touch-pan-x {
+  touch-action: pan-x;
+}
+
+.touch-pan-y {
+  touch-action: pan-y;
+}
+
+.touch-none {
+  touch-action: none;
+}
+
+.touch-manipulation {
+  touch-action: manipulation;
+}
+
+/* Swipe action backgrounds */
+.swipe-bg-edit {
+  background-color: var(--swipe-edit);
+}
+
+.swipe-bg-delete {
+  background-color: var(--swipe-delete);
+}
+
+.swipe-bg-success {
+  background-color: var(--swipe-success);
+}
+
+.swipe-bg-warning {
+  background-color: var(--swipe-warning);
+}
+
+/* Mobile input optimization - prevents iOS zoom on focus */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="password"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Pull to refresh indicator */
+.pull-refresh-indicator {
+  color: var(--refresh-indicator);
+}
+
+/* Mobile card swipe transition */
+.swipe-transition {
+  transition: transform 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* Bounce animation for loading dots */
+@keyframes mobile-bounce {
+  0%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-6px);
+  }
+}
+
+.animate-mobile-bounce {
+  animation: mobile-bounce 1.4s ease-in-out infinite;
+}
+
+/* Mobile bottom navigation height */
+.mobile-bottom-nav-height {
+  height: calc(56px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Content padding for mobile bottom nav */
+.pb-mobile-nav {
+  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+}

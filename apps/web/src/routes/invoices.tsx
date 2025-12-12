@@ -1,5 +1,6 @@
 import { columns, columnConfig } from "@/components/table-columns/invoices";
-import { toInvoices } from "@/types/common/invoice";
+import { createInvoiceCardRenderer, invoiceKeyExtractor } from "@/components/table-columns/invoices/invoice-card";
+import { toInvoices, type Invoice } from "@/types/common/invoice";
 import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page-container";
@@ -11,9 +12,12 @@ import { Plus } from "@/components/ui/icons";
 import { useInvoices } from "@/api";
 import { useAuth } from "@/providers/auth-provider";
 import { Link } from "react-router-dom";
+import { useState } from "react";
+import ViewInvoiceModal from "@/components/table-columns/invoices/viewInvoiceModal";
 
 export function Invoices() {
   const { user, isLoading: isAuthLoading } = useAuth();
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
   const { data: invoicesData, isLoading } = useInvoices({
     enabled: !!user && !isAuthLoading,
@@ -21,6 +25,11 @@ export function Invoices() {
   const invoices = toInvoices(invoicesData as Parameters<typeof toInvoices>[0]);
 
   const showSkeleton = isLoading || isAuthLoading;
+
+  // Create card renderer with callbacks
+  const renderCard = createInvoiceCardRenderer({
+    onView: (invoice) => setSelectedInvoice(invoice),
+  });
 
   return (
     <PageContainer>
@@ -71,6 +80,17 @@ export function Invoices() {
           columnConfig={columnConfig}
           isLoading={false}
           defaultSorting={[{ id: "createdAt", desc: true }]}
+          renderCard={renderCard}
+          keyExtractor={invoiceKeyExtractor}
+        />
+      )}
+
+      {/* View Invoice Modal for mobile card taps */}
+      {selectedInvoice && (
+        <ViewInvoiceModal
+          invoice={selectedInvoice}
+          open={!!selectedInvoice}
+          onOpenChange={(open) => !open && setSelectedInvoice(null)}
         />
       )}
     </PageContainer>
