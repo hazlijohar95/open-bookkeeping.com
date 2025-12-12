@@ -23,6 +23,7 @@ export interface PWAProviderProps {
 // ============================================================================
 
 interface PWAContextValue {
+  isMobile: boolean;
   isOnline: boolean;
   isStandalone: boolean;
   isInstalled: boolean;
@@ -100,6 +101,7 @@ export function PWAProvider({
 
   // Context value
   const contextValue: PWAContextValue = {
+    isMobile: pwa.isMobile,
     isOnline: pwa.isOnline,
     isStandalone: pwa.isStandalone,
     isInstalled: pwa.isInstalled,
@@ -111,27 +113,32 @@ export function PWAProvider({
     <PWAContext.Provider value={contextValue}>
       {children}
 
-      {/* Offline Indicator */}
-      {enableOfflineIndicator && (
-        <PWAOfflineIndicator isOffline={!pwa.isOnline} />
-      )}
+      {/* PWA UI only shown on mobile devices */}
+      {pwa.isMobile && (
+        <>
+          {/* Offline Indicator */}
+          {enableOfflineIndicator && (
+            <PWAOfflineIndicator isOffline={!pwa.isOnline} />
+          )}
 
-      {/* Update Prompt */}
-      {enableUpdatePrompt && (
-        <PWAUpdatePrompt
-          open={pwa.needRefresh}
-          onUpdate={pwa.updateServiceWorker}
-          onDismiss={pwa.dismissUpdatePrompt}
-        />
-      )}
+          {/* Update Prompt */}
+          {enableUpdatePrompt && (
+            <PWAUpdatePrompt
+              open={pwa.needRefresh}
+              onUpdate={pwa.updateServiceWorker}
+              onDismiss={pwa.dismissUpdatePrompt}
+            />
+          )}
 
-      {/* Install Prompt */}
-      {enableInstallPrompt && (
-        <PWAInstallPrompt
-          open={showInstallModal}
-          onInstall={handleInstall}
-          onDismiss={handleInstallDismiss}
-        />
+          {/* Install Prompt */}
+          {enableInstallPrompt && (
+            <PWAInstallPrompt
+              open={showInstallModal}
+              onInstall={handleInstall}
+              onDismiss={handleInstallDismiss}
+            />
+          )}
+        </>
       )}
     </PWAContext.Provider>
   );

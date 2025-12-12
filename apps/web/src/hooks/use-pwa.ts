@@ -4,10 +4,31 @@ import { useState, useEffect, useCallback } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 
 // ============================================================================
+// MOBILE DETECTION
+// ============================================================================
+
+function isMobileDevice(): boolean {
+  if (typeof window === "undefined") return false;
+
+  // Check for mobile user agent
+  const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+  const isMobileUA = mobileRegex.test(navigator.userAgent);
+
+  // Check for touch capability + small screen (tablets with keyboard excluded)
+  const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+  const isSmallScreen = window.innerWidth <= 768;
+
+  return isMobileUA || (isTouchDevice && isSmallScreen);
+}
+
+// ============================================================================
 // TYPES
 // ============================================================================
 
 export interface PWAStatus {
+  // Device Status
+  isMobile: boolean;
+
   // Service Worker Status
   isOnline: boolean;
   isInstalled: boolean;
@@ -51,6 +72,9 @@ const STORAGE_KEYS = {
 // ============================================================================
 
 export function usePWA(): PWAStatus {
+  // Check if mobile device - PWA only enabled on mobile
+  const [isMobile] = useState(() => isMobileDevice());
+
   // Online/Offline status
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== "undefined" ? navigator.onLine : true
@@ -72,14 +96,34 @@ export function usePWA(): PWAStatus {
   const isInstalled =
     typeof navigator !== "undefined" && "serviceWorker" in navigator;
 
-  // Register service worker with vite-plugin-pwa
+  // Unregister service worker on desktop to prevent caching issues
+  useEffect(() => {
+    if (!isMobile && typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          registration.unregister();
+          console.log("[PWA] Service worker unregistered on desktop");
+        }
+      });
+    }
+  }, [isMobile]);
+
+  // Register service worker with vite-plugin-pwa (mobile only)
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     offlineReady: [offlineReady, _setOfflineReady],
     updateServiceWorker,
   } = useRegisterSW({
+    // Only register on mobile
+    immediate: isMobile,
     onRegisteredSW(swUrl, registration) {
-      // Check for updates every hour
+      if (!isMobile) {
+        // Unregister immediately on desktop
+        registration?.unregister();
+        return;
+      }
+
+      // Check for updates every hour (mobile only)
       if (registration) {
         setInterval(() => {
           registration.update();
@@ -199,13 +243,14 @@ export function usePWA(): PWAStatus {
   }, [updateServiceWorker]);
 
   return {
+    isMobile,
     isOnline,
     isInstalled,
     isStandalone,
-    needRefresh,
-    offlineReady,
-    canInstall,
-    installPromptEvent,
+    needRefresh: isMobile ? needRefresh : false,
+    offlineReady: isMobile ? offlineReady : false,
+    canInstall: isMobile ? canInstall : false,
+    installPromptEvent: isMobile ? installPromptEvent : null,
     updateServiceWorker: handleUpdate,
     installApp,
     dismissInstallPrompt,
