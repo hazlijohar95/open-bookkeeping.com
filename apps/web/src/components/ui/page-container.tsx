@@ -11,9 +11,17 @@ interface PageContainerProps {
 }
 
 export function PageContainer({ children, className, noAnimation = false }: PageContainerProps) {
+  const containerClasses = cn(
+    "flex flex-col",
+    // Responsive padding: smaller on mobile, larger on desktop
+    "px-4 py-4 gap-4",
+    "sm:px-6 sm:py-6 sm:gap-6",
+    className
+  );
+
   if (noAnimation) {
     return (
-      <div className={cn("flex flex-col gap-6 p-6", className)}>
+      <div className={containerClasses}>
         {children}
       </div>
     );
@@ -21,7 +29,7 @@ export function PageContainer({ children, className, noAnimation = false }: Page
 
   return (
     <motion.div
-      className={cn("flex flex-col gap-6 p-6", className)}
+      className={containerClasses}
       initial={motionVariants.pageEnter.initial}
       animate={motionVariants.pageEnter.animate}
       transition={motionVariants.pageEnter.transition}

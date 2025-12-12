@@ -204,8 +204,42 @@ button {
   @apply flex w-full flex-col;
 }
 
+/* Mobile: account for header (56px) and bottom nav (64px + safe area)
+   Desktop: account for header (48px) */
 .dash-layout-page-content-height {
-  @apply h-[calc(100svh-50px)] md:h-[calc(100svh-48px-18px)];
+  height: calc(100svh - 56px);
+}
+
+@media (min-width: 768px) {
+  .dash-layout-page-content-height {
+    height: calc(100svh - 48px - 18px);
+  }
+}
+
+/* Mobile touch target optimization */
+@media (max-width: 767px) {
+  /* Prevent text selection on interactive elements */
+  button,
+  [role="button"] {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* iOS-style momentum scrolling */
+.scroll-momentum {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Safe area padding utility classes */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
 }
 
 .scroll-bar-hidden::-webkit-scrollbar {
