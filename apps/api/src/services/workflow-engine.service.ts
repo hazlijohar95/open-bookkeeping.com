@@ -193,11 +193,11 @@ export const workflowEngineService = {
       description: t.description,
       category: t.category,
       // Map parameterSchema to parameters for custom templates from DB
-      steps: (t.steps || []).map((step) => ({
+      steps: (t.steps ?? []).map((step) => ({
         stepNumber: step.stepNumber,
         action: step.action as AgentActionType,
         description: step.description,
-        parameters: step.parameterSchema || {},
+        parameters: step.parameterSchema ?? {},
         dependsOn: step.dependsOn,
         requiresApproval: step.requiresApproval,
       })) as WorkflowStep[],
@@ -231,11 +231,11 @@ export const workflowEngineService = {
         description: custom.description,
         category: custom.category,
         // Map parameterSchema to parameters for custom templates from DB
-        steps: (custom.steps || []).map((step) => ({
+        steps: (custom.steps ?? []).map((step) => ({
           stepNumber: step.stepNumber,
           action: step.action as AgentActionType,
           description: step.description,
-          parameters: step.parameterSchema || {},
+          parameters: step.parameterSchema ?? {},
           dependsOn: step.dependsOn,
           requiresApproval: step.requiresApproval,
         })) as WorkflowStep[],
@@ -271,10 +271,10 @@ export const workflowEngineService = {
       .insert(agentWorkflows)
       .values({
         userId: input.userId,
-        sessionId: input.sessionId || null,
+        sessionId: input.sessionId ?? null,
         name: input.name,
-        description: input.description || null,
-        templateId: input.templateId || null,
+        description: input.description ?? null,
+        templateId: input.templateId ?? null,
         totalSteps: input.steps.length,
         completedSteps: 0,
         currentStep: 0,
@@ -290,7 +290,7 @@ export const workflowEngineService = {
         workflowId: workflow!.id,
         stepNumber: step.stepNumber,
         action: step.action,
-        description: step.description || null,
+        description: step.description ?? null,
         parameters: step.parameters,
         dependsOn: step.dependsOn ? step.dependsOn.map(String) : null,
         requiresApproval: step.requiresApproval ? "yes" : "no",
@@ -325,7 +325,7 @@ export const workflowEngineService = {
       userId,
       sessionId,
       name: overrides?.name || template.name,
-      description: overrides?.description || template.description || undefined,
+      description: (overrides?.description || template.description) ?? undefined,
       templateId,
       steps: overrides?.steps || template.steps,
     });
@@ -355,7 +355,7 @@ export const workflowEngineService = {
     userId: string,
     options?: { status?: string; limit?: number; offset?: number }
   ) => {
-    const { status, limit = 50, offset = 0 } = options || {};
+    const { status, limit = 50, offset = 0 } = options ?? {};
 
     const conditions = [eq(agentWorkflows.userId, userId)];
 
@@ -499,7 +499,7 @@ export const workflowEngineService = {
     if (!quotaCheck.allowed) {
       return {
         success: false,
-        error: quotaCheck.reason || "Quota exceeded",
+        error: quotaCheck.reason ?? "Quota exceeded",
       };
     }
 
@@ -610,7 +610,7 @@ export const workflowEngineService = {
 
       // Update workflow with error
       const workflow = await workflowEngineService.getWorkflow(workflowId, userId);
-      const retryCount = (workflow?.retryCount || 0) + 1;
+      const retryCount = (workflow?.retryCount ?? 0) + 1;
 
       if (retryCount >= (workflow?.maxRetries || 3)) {
         await db
@@ -718,7 +718,7 @@ export const workflowEngineService = {
       .update(agentWorkflows)
       .set({
         status: "cancelled",
-        lastError: reason || "Cancelled by user",
+        lastError: reason ?? "Cancelled by user",
         completedAt: new Date(),
         updatedAt: new Date(),
       })

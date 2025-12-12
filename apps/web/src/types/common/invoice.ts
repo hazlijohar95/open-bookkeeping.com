@@ -1,4 +1,4 @@
-import { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
+import type { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
 
 // Invoice type values (local or server storage)
 export const invoiceTypeValues = ["local", "server"] as const;

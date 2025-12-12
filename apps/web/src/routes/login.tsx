@@ -42,7 +42,7 @@ export function Login() {
 
   // If already logged in, redirect to dashboard
   if (user) {
-    navigate("/dashboard");
+    void navigate("/dashboard");
     return null;
   }
 

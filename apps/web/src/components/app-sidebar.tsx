@@ -124,7 +124,7 @@ const data = {
       icon: HelpCircleIcon,
     },
     {
-      title: "Search",
+      title: "SearchIcon",
       url: "#",
       icon: SearchIcon,
     },

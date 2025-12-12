@@ -75,7 +75,7 @@ export const billRepository = {
   },
 
   findMany: async (userId: string, options?: BillQueryOptions) => {
-    const { limit = 50, offset = 0, vendorId, status, startDate, endDate } = options || {};
+    const { limit = 50, offset = 0, vendorId, status, startDate, endDate } = options ?? {};
 
     const conditions = [
       eq(bills.userId, userId),
@@ -115,7 +115,7 @@ export const billRepository = {
    * Much faster than findMany for large bill counts.
    */
   findManyLight: async (userId: string, options?: BillQueryOptions): Promise<BillListItem[]> => {
-    const { limit = 50, offset = 0, vendorId, status, startDate, endDate } = options || {};
+    const { limit = 50, offset = 0, vendorId, status, startDate, endDate } = options ?? {};
 
     const conditions = [
       eq(bills.userId, userId),
@@ -169,14 +169,14 @@ export const billRepository = {
       billDate: bill.billDate,
       dueDate: bill.dueDate,
       paidAt: bill.paidAt,
-      total: Number(bill.total || 0),
+      total: Number(bill.total ?? 0),
       vendorId: bill.vendorId,
-      vendorName: bill.vendor?.name || null,
+      vendorName: bill.vendor?.name ?? null,
     }));
   },
 
   findByVendor: async (vendorId: string, userId: string, options?: { limit?: number; offset?: number }) => {
-    const { limit = 50, offset = 0 } = options || {};
+    const { limit = 50, offset = 0 } = options ?? {};
 
     return db.query.bills.findMany({
       where: and(
@@ -220,15 +220,15 @@ export const billRepository = {
         .insert(bills)
         .values({
           userId: input.userId,
-          vendorId: input.vendorId || null,
+          vendorId: input.vendorId ?? null,
           billNumber: input.billNumber,
-          description: input.description || null,
-          currency: input.currency || "MYR",
+          description: input.description ?? null,
+          currency: input.currency ?? "MYR",
           billDate: input.billDate,
-          dueDate: input.dueDate || null,
-          status: input.status || "pending",
-          notes: input.notes || null,
-          attachmentUrl: input.attachmentUrl || null,
+          dueDate: input.dueDate ?? null,
+          status: input.status ?? "pending",
+          notes: input.notes ?? null,
+          attachmentUrl: input.attachmentUrl ?? null,
         })
         .returning();
 

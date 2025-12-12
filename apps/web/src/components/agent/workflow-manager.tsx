@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback, memo } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
   useWorkflows,
@@ -32,34 +32,49 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Play,
+  PlayIcon,
   Pause,
-  StopCircle,
+  StopCircleIcon,
   RotateCcw,
   Plus,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  Loader2,
-  ChevronRight,
+  ClockIcon,
+  CheckCircle2Icon,
+  XCircleIcon,
+  AlertTriangleIcon,
+  Loader2Icon,
+  ChevronRightIcon,
   Zap,
 } from "@/components/ui/icons";
 import { toast } from "sonner";
 
-const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: typeof Play }> = {
-  pending: { label: "Pending", variant: "outline", icon: Clock },
-  running: { label: "Running", variant: "default", icon: Play },
+const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: typeof PlayIcon }> = {
+  pending: { label: "Pending", variant: "outline", icon: ClockIcon },
+  running: { label: "Running", variant: "default", icon: PlayIcon },
   paused: { label: "Paused", variant: "secondary", icon: Pause },
-  awaiting_approval: { label: "Awaiting Approval", variant: "secondary", icon: AlertTriangle },
-  completed: { label: "Completed", variant: "default", icon: CheckCircle2 },
-  failed: { label: "Failed", variant: "destructive", icon: XCircle },
-  cancelled: { label: "Cancelled", variant: "outline", icon: StopCircle },
+  awaiting_approval: { label: "Awaiting Approval", variant: "secondary", icon: AlertTriangleIcon },
+  completed: { label: "Completed", variant: "default", icon: CheckCircle2Icon },
+  failed: { label: "Failed", variant: "destructive", icon: XCircleIcon },
+  cancelled: { label: "Cancelled", variant: "outline", icon: StopCircleIcon },
 };
 
 const DEFAULT_STATUS_CONFIG = STATUS_CONFIG.pending!;
 
-function WorkflowCard({ workflow }: { workflow: Workflow }) {
+// TypeScript interfaces for component props
+interface WorkflowCardProps {
+  workflow: Workflow;
+}
+
+interface TemplateCardProps {
+  template: WorkflowTemplate;
+  onSelect: () => void;
+}
+
+interface CreateWorkflowDialogProps {
+  templates: WorkflowTemplate[];
+}
+
+// Extracted and memoized WorkflowCard component
+const WorkflowCard = memo<WorkflowCardProps>(({ workflow }) => {
   const startWorkflow = useStartWorkflow();
   const pauseWorkflow = usePauseWorkflow();
   const resumeWorkflow = useResumeWorkflow();
@@ -70,50 +85,50 @@ function WorkflowCard({ workflow }: { workflow: Workflow }) {
   const StatusIcon = statusConfig.icon;
   const progress = workflow.totalSteps > 0 ? (workflow.completedSteps / workflow.totalSteps) * 100 : 0;
 
-  const handleStart = async () => {
+  const handleStart = useCallback(async () => {
     try {
       await startWorkflow.mutateAsync(workflow.id);
       toast.success("Workflow started");
     } catch {
       toast.error("Failed to start workflow");
     }
-  };
+  }, [startWorkflow, workflow.id]);
 
-  const handlePause = async () => {
+  const handlePause = useCallback(async () => {
     try {
       await pauseWorkflow.mutateAsync(workflow.id);
       toast.success("Workflow paused");
     } catch {
       toast.error("Failed to pause workflow");
     }
-  };
+  }, [pauseWorkflow, workflow.id]);
 
-  const handleResume = async () => {
+  const handleResume = useCallback(async () => {
     try {
       await resumeWorkflow.mutateAsync(workflow.id);
       toast.success("Workflow resumed");
     } catch {
       toast.error("Failed to resume workflow");
     }
-  };
+  }, [resumeWorkflow, workflow.id]);
 
-  const handleCancel = async () => {
+  const handleCancel = useCallback(async () => {
     try {
       await cancelWorkflow.mutateAsync({ workflowId: workflow.id });
       toast.success("Workflow cancelled");
     } catch {
       toast.error("Failed to cancel workflow");
     }
-  };
+  }, [cancelWorkflow, workflow.id]);
 
-  const handleRetry = async () => {
+  const handleRetry = useCallback(async () => {
     try {
       await retryWorkflow.mutateAsync(workflow.id);
       toast.success("Workflow retrying");
     } catch {
       toast.error("Failed to retry workflow");
     }
-  };
+  }, [retryWorkflow, workflow.id]);
 
   const isLoading = startWorkflow.isPending || pauseWorkflow.isPending || resumeWorkflow.isPending || cancelWorkflow.isPending || retryWorkflow.isPending;
 
@@ -160,31 +175,31 @@ function WorkflowCard({ workflow }: { workflow: Workflow }) {
         <div className="flex items-center gap-2 pt-2">
           {workflow.status === "pending" && (
             <Button size="sm" onClick={handleStart} disabled={isLoading}>
-              {startWorkflow.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              {startWorkflow.isPending ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <PlayIcon className="h-4 w-4" />}
               <span className="ml-1">Start</span>
             </Button>
           )}
           {workflow.status === "running" && (
             <Button size="sm" variant="secondary" onClick={handlePause} disabled={isLoading}>
-              {pauseWorkflow.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pause className="h-4 w-4" />}
+              {pauseWorkflow.isPending ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <Pause className="h-4 w-4" />}
               <span className="ml-1">Pause</span>
             </Button>
           )}
           {workflow.status === "paused" && (
             <Button size="sm" onClick={handleResume} disabled={isLoading}>
-              {resumeWorkflow.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              {resumeWorkflow.isPending ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <PlayIcon className="h-4 w-4" />}
               <span className="ml-1">Resume</span>
             </Button>
           )}
           {workflow.status === "failed" && (
             <Button size="sm" onClick={handleRetry} disabled={isLoading}>
-              {retryWorkflow.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+              {retryWorkflow.isPending ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
               <span className="ml-1">Retry</span>
             </Button>
           )}
           {["pending", "running", "paused", "awaiting_approval"].includes(workflow.status) && (
             <Button size="sm" variant="destructive" onClick={handleCancel} disabled={isLoading}>
-              {cancelWorkflow.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <StopCircle className="h-4 w-4" />}
+              {cancelWorkflow.isPending ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <StopCircleIcon className="h-4 w-4" />}
               <span className="ml-1">Cancel</span>
             </Button>
           )}
@@ -192,9 +207,13 @@ function WorkflowCard({ workflow }: { workflow: Workflow }) {
       </CardContent>
     </Card>
   );
-}
+});
 
-function TemplateCard({ template, onSelect }: { template: WorkflowTemplate; onSelect: () => void }) {
+// Add display name for WorkflowCard
+WorkflowCard.displayName = "WorkflowCard";
+
+// Extracted and memoized TemplateCard component
+const TemplateCard = memo<TemplateCardProps>(({ template, onSelect }) => {
   return (
     <Card
       className="cursor-pointer transition-colors hover:bg-muted/50"
@@ -220,21 +239,24 @@ function TemplateCard({ template, onSelect }: { template: WorkflowTemplate; onSe
           </span>
           {template.estimatedDuration && (
             <span className="text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3" />
+              <ClockIcon className="h-3 w-3" />
               {template.estimatedDuration}
             </span>
           )}
         </div>
         <div className="mt-3 flex items-center text-sm text-primary">
           Use template
-          <ChevronRight className="h-4 w-4 ml-1" />
+          <ChevronRightIcon className="h-4 w-4 ml-1" />
         </div>
       </CardContent>
     </Card>
   );
-}
+});
 
-function CreateWorkflowDialog({ templates }: { templates: WorkflowTemplate[] }) {
+// Add display name for TemplateCard
+TemplateCard.displayName = "TemplateCard";
+
+const CreateWorkflowDialog = memo<CreateWorkflowDialogProps>(({ templates }) => {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<"select" | "configure">("select");
   const [selectedTemplate, setSelectedTemplate] = useState<WorkflowTemplate | null>(null);
@@ -243,20 +265,20 @@ function CreateWorkflowDialog({ templates }: { templates: WorkflowTemplate[] }) 
 
   const createWorkflow = useCreateWorkflow();
 
-  const handleSelectTemplate = (template: WorkflowTemplate) => {
+  const handleSelectTemplate = useCallback((template: WorkflowTemplate) => {
     setSelectedTemplate(template);
     setName(template.name);
-    setDescription(template.description || "");
+    setDescription(template.description ?? "");
     setStep("configure");
-  };
+  }, []);
 
-  const handleCreate = async () => {
+  const handleCreate = useCallback(async () => {
     if (!selectedTemplate) return;
 
     try {
       await createWorkflow.mutateAsync({
         name,
-        description: description || undefined,
+        description: description ?? undefined,
         templateId: selectedTemplate.id,
       });
       toast.success("Workflow created");
@@ -268,15 +290,27 @@ function CreateWorkflowDialog({ templates }: { templates: WorkflowTemplate[] }) 
     } catch {
       toast.error("Failed to create workflow");
     }
-  };
+  }, [selectedTemplate, name, description, createWorkflow]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setOpen(false);
     setStep("select");
     setSelectedTemplate(null);
     setName("");
     setDescription("");
-  };
+  }, []);
+
+  const handleBackToSelect = useCallback(() => {
+    setStep("select");
+  }, []);
+
+  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setName(e.target.value);
+  }, []);
+
+  const handleDescriptionChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setDescription(e.target.value);
+  }, []);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -315,7 +349,7 @@ function CreateWorkflowDialog({ templates }: { templates: WorkflowTemplate[] }) 
               <Input
                 id="workflowName"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={handleNameChange}
                 placeholder="Enter workflow name"
               />
             </div>
@@ -324,7 +358,7 @@ function CreateWorkflowDialog({ templates }: { templates: WorkflowTemplate[] }) 
               <Textarea
                 id="workflowDescription"
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={handleDescriptionChange}
                 placeholder="Optional description"
                 rows={3}
               />
@@ -358,7 +392,7 @@ function CreateWorkflowDialog({ templates }: { templates: WorkflowTemplate[] }) 
 
         <DialogFooter>
           {step === "configure" && (
-            <Button variant="outline" onClick={() => setStep("select")}>
+            <Button variant="outline" onClick={handleBackToSelect}>
               Back
             </Button>
           )}
@@ -367,7 +401,7 @@ function CreateWorkflowDialog({ templates }: { templates: WorkflowTemplate[] }) 
           </Button>
           {step === "configure" && (
             <Button onClick={handleCreate} disabled={!name || createWorkflow.isPending}>
-              {createWorkflow.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {createWorkflow.isPending && <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />}
               Create Workflow
             </Button>
           )}
@@ -375,7 +409,10 @@ function CreateWorkflowDialog({ templates }: { templates: WorkflowTemplate[] }) 
       </DialogContent>
     </Dialog>
   );
-}
+});
+
+// Add display name for CreateWorkflowDialog
+CreateWorkflowDialog.displayName = "CreateWorkflowDialog";
 
 export function WorkflowManager() {
   const { data: workflows, isLoading: loadingWorkflows } = useWorkflows();
@@ -384,16 +421,34 @@ export function WorkflowManager() {
 
   const isLoading = loadingWorkflows || loadingTemplates || loadingStats;
 
-  const activeWorkflows = workflows?.filter((w) =>
-    ["pending", "running", "paused", "awaiting_approval"].includes(w.status)
-  ) || [];
-  const completedWorkflows = workflows?.filter((w) => w.status === "completed") || [];
-  const failedWorkflows = workflows?.filter((w) => ["failed", "cancelled"].includes(w.status)) || [];
+  // Memoize workflows list conversion
+  const workflowsList = useMemo(
+    () => (Array.isArray(workflows) ? workflows : []),
+    [workflows]
+  );
+
+  // Memoize filtered workflows to avoid recomputing on every render
+  const activeWorkflows = useMemo(
+    () => workflowsList.filter((w) =>
+      ["pending", "running", "paused", "awaiting_approval"].includes(w.status)
+    ),
+    [workflowsList]
+  );
+
+  const completedWorkflows = useMemo(
+    () => workflowsList.filter((w) => w.status === "completed"),
+    [workflowsList]
+  );
+
+  const failedWorkflows = useMemo(
+    () => workflowsList.filter((w) => ["failed", "cancelled"].includes(w.status)),
+    [workflowsList]
+  );
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2Icon className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -421,7 +476,7 @@ export function WorkflowManager() {
                   <p className="text-sm text-muted-foreground">Completed</p>
                   <p className="text-2xl font-bold">{stats.completedWorkflows}</p>
                 </div>
-                <CheckCircle2 className="h-8 w-8 text-success" />
+                <CheckCircle2Icon className="h-8 w-8 text-success" />
               </div>
             </CardContent>
           </Card>
@@ -432,7 +487,7 @@ export function WorkflowManager() {
                   <p className="text-sm text-muted-foreground">Failed</p>
                   <p className="text-2xl font-bold">{stats.failedWorkflows}</p>
                 </div>
-                <XCircle className="h-8 w-8 text-destructive" />
+                <XCircleIcon className="h-8 w-8 text-destructive" />
               </div>
             </CardContent>
           </Card>
@@ -443,7 +498,7 @@ export function WorkflowManager() {
                   <p className="text-sm text-muted-foreground">Total</p>
                   <p className="text-2xl font-bold">{stats.totalWorkflows}</p>
                 </div>
-                <Clock className="h-8 w-8 text-muted-foreground" />
+                <ClockIcon className="h-8 w-8 text-muted-foreground" />
               </div>
             </CardContent>
           </Card>
@@ -458,7 +513,7 @@ export function WorkflowManager() {
               <CardTitle>Workflows</CardTitle>
               <CardDescription>Manage automated multi-step tasks</CardDescription>
             </div>
-            {templates && templates.length > 0 && (
+            {Array.isArray(templates) && templates.length > 0 && (
               <CreateWorkflowDialog templates={templates} />
             )}
           </div>
@@ -502,7 +557,7 @@ export function WorkflowManager() {
             <TabsContent value="completed" className="mt-4">
               {completedWorkflows.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <CheckCircle2 className="h-12 w-12 text-muted-foreground mb-3" />
+                  <CheckCircle2Icon className="h-12 w-12 text-muted-foreground mb-3" />
                   <p className="text-sm text-muted-foreground">No completed workflows</p>
                 </div>
               ) : (
@@ -519,7 +574,7 @@ export function WorkflowManager() {
             <TabsContent value="failed" className="mt-4">
               {failedWorkflows.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <XCircle className="h-12 w-12 text-muted-foreground mb-3" />
+                  <XCircleIcon className="h-12 w-12 text-muted-foreground mb-3" />
                   <p className="text-sm text-muted-foreground">No failed workflows</p>
                 </div>
               ) : (
@@ -534,14 +589,21 @@ export function WorkflowManager() {
             </TabsContent>
 
             <TabsContent value="templates" className="mt-4">
-              {!templates || templates.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <Clock className="h-12 w-12 text-muted-foreground mb-3" />
-                  <p className="text-sm text-muted-foreground">No templates available</p>
-                </div>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {templates.map((template) => (
+              {(() => {
+                const templatesList = Array.isArray(templates) ? templates : [];
+
+                if (templatesList.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <ClockIcon className="h-12 w-12 text-muted-foreground mb-3" />
+                      <p className="text-sm text-muted-foreground">No templates available</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {templatesList.map((template) => (
                     <Card key={template.id}>
                       <CardHeader className="pb-2">
                         <div className="flex items-start justify-between">
@@ -562,7 +624,7 @@ export function WorkflowManager() {
                             <span>{template.steps.length} steps</span>
                             {template.estimatedDuration && (
                               <span className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
+                                <ClockIcon className="h-3 w-3" />
                                 {template.estimatedDuration}
                               </span>
                             )}
@@ -584,7 +646,8 @@ export function WorkflowManager() {
                     </Card>
                   ))}
                 </div>
-              )}
+              );
+              })()}
             </TabsContent>
           </Tabs>
         </CardContent>

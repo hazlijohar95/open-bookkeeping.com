@@ -1,4 +1,4 @@
-import { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
+import type { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
 
 export const getQuotationSubTotalValue = (data: ZodCreateQuotationSchema) => {
   return data.items.reduce((acc, item) => acc + item.quantity * item.unitPrice, 0);

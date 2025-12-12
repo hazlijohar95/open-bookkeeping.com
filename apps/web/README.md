@@ -38,6 +38,10 @@ src/
 │   ├── pdf/             # PDF template components
 │   │   ├── templates/   # Invoice templates (Default, Cynco, Classic)
 │   │   └── shared/      # Shared PDF components (Header, Footer, etc.)
+│   ├── agent/           # AI Agent components
+│   │   ├── approval-queue.tsx    # Pending approvals UI
+│   │   ├── audit-logs.tsx        # Agent action history
+│   │   └── workflow-manager.tsx  # Workflow configuration
 │   ├── customers/       # Customer management components
 │   ├── vendors/         # Vendor management components
 │   └── layout/          # Layout components (Sidebar, Header, etc.)
@@ -473,6 +477,61 @@ The build is optimized with:
 
 ---
 
+## AI Agent Interface
+
+The AI Agent provides a chat-based interface for automating accounting tasks.
+
+### AI SDK Integration
+
+The agent uses the AI SDK v5 (`@ai-sdk/react`) for chat functionality:
+
+```typescript
+import { useChat } from "@ai-sdk/react";
+
+function AgentChat() {
+  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+    api: `${API_URL}/api/ai/chat`,
+    // Session persistence
+    fetch: customFetchWithSessionId,
+    // Handle tool invocations
+    maxSteps: 10,
+  });
+
+  return (
+    <div>
+      {messages.map((message) => (
+        <MessageBubble key={message.id} message={message} />
+      ))}
+      <form onSubmit={handleSubmit}>
+        <Input value={input} onChange={handleInputChange} />
+        <Button type="submit" disabled={isLoading}>Send</Button>
+      </form>
+    </div>
+  );
+}
+```
+
+### Agent Components
+
+| Component | Location | Description |
+|-----------|----------|-------------|
+| `agent.tsx` | `routes/` | Main agent page with chat interface |
+| `approval-queue.tsx` | `components/agent/` | Pending approvals list with approve/reject |
+| `audit-logs.tsx` | `components/agent/` | Action history with filtering and export |
+| `workflow-manager.tsx` | `components/agent/` | Workflow configuration UI |
+
+### Session Persistence
+
+Sessions are stored in localStorage and restored on page load:
+
+```typescript
+const [agentSessionId, setAgentSessionId] = useState<string | null>(() => {
+  return localStorage.getItem("agent_session_id");
+});
+```
+
+---
+
 ## Further Reading
 
 - [React 19 Documentation](https://react.dev/)
@@ -482,3 +541,4 @@ The build is optimized with:
 - [React Hook Form](https://react-hook-form.com/)
 - [Jotai](https://jotai.org/)
 - [React PDF](https://react-pdf.org/)
+- [AI SDK Documentation](https://ai-sdk.dev/)

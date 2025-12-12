@@ -1,7 +1,7 @@
-import { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
+import type { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
 import { FormSelect } from "@/components/ui/form/form-select";
 import { SelectItem } from "@/components/ui/select";
-import { UseFormReturn } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
 import { BoxIcon, SyncIcon, FileFeatherIcon } from "@/assets/icons";
 
 type PdfTemplateName = "default" | "cynco" | "classic" | undefined;

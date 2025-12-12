@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { Link } from "react-router-dom";
 import type { LucideIcon } from "@/components/ui/icons";
-import { ArrowRight, TrendingUp, TrendingDown, Minus } from "@/components/ui/icons";
+import { ArrowRightIcon, TrendingUp, TrendingDown, Minus } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -147,7 +147,7 @@ export const MetricCard = memo(function MetricCard({
           className="mt-auto pt-4 flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors group-hover:underline underline-offset-2"
         >
           {actionLabel}
-          <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
+          <ArrowRightIcon className="size-3 transition-transform group-hover:translate-x-0.5" />
         </Link>
       )}
     </div>

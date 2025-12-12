@@ -18,11 +18,11 @@ import {
 } from "@/components/ui/table";
 import {
   Building2,
-  CheckCircle,
-  XCircle,
-  Calendar,
+  CheckCircleIcon,
+  XCircleIcon,
+  CalendarIcon,
   Download,
-  ChevronRight,
+  ChevronRightIcon,
 } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
@@ -71,7 +71,7 @@ export function BalanceSheet() {
         action={
           <Link to="/profit-loss">
             <Button variant="outline">
-              <ChevronRight className="size-4" />
+              <ChevronRightIcon className="size-4" />
               Profit & Loss
             </Button>
           </Link>
@@ -81,7 +81,7 @@ export function BalanceSheet() {
       {/* Date Filter and Balance Status */}
       <div className="flex items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <Calendar className="size-4 text-muted-foreground" />
+          <CalendarIcon className="size-4 text-muted-foreground" />
           <span className="text-sm text-muted-foreground">As of:</span>
           <Input
             type="date"
@@ -104,12 +104,12 @@ export function BalanceSheet() {
             >
               {report.isBalanced ? (
                 <>
-                  <CheckCircle className="size-4" />
+                  <CheckCircleIcon className="size-4" />
                   <span>Balanced</span>
                 </>
               ) : (
                 <>
-                  <XCircle className="size-4" />
+                  <XCircleIcon className="size-4" />
                   <span>Unbalanced</span>
                 </>
               )}
@@ -414,7 +414,7 @@ export function BalanceSheet() {
       {report && !report.isBalanced && (
         <div className="mt-6 rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 p-4">
           <div className="flex items-center gap-2 text-red-800 dark:text-red-400">
-            <XCircle className="size-5" />
+            <XCircleIcon className="size-5" />
             <span className="font-semibold">Balance Sheet is not balanced</span>
           </div>
           <p className="text-sm text-red-700 dark:text-red-300 mt-1">

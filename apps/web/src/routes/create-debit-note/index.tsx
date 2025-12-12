@@ -4,7 +4,7 @@ import {
   type ZodCreateDebitNoteSchema,
 } from "@/zod-schemas/debit-note/create-debit-note";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { ImperativePanelHandle } from "react-resizable-panels";
+import type { ImperativePanelHandle } from "react-resizable-panels";
 import { debitNoteTabAtom, type DebitNoteTab } from "@/global/atoms/debit-note-atom";
 import { zodResolver } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";

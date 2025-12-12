@@ -4,7 +4,7 @@ import {
   type ZodCreateCreditNoteSchema,
 } from "@/zod-schemas/credit-note/create-credit-note";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { ImperativePanelHandle } from "react-resizable-panels";
+import type { ImperativePanelHandle } from "react-resizable-panels";
 import { creditNoteTabAtom, type CreditNoteTab } from "@/global/atoms/credit-note-atom";
 import { zodResolver } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";

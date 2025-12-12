@@ -77,7 +77,7 @@ export const vendorRouter = router({
   list: protectedProcedure
     .input(paginationSchema)
     .query(async ({ ctx, input }) => {
-      const { limit = 50, offset = 0 } = input || {};
+      const { limit = 50, offset = 0 } = input ?? {};
 
       const vendors = await vendorRepository.findMany(ctx.user.id, {
         limit,
@@ -112,20 +112,20 @@ export const vendorRouter = router({
       const vendor = await vendorRepository.create({
         userId: ctx.user.id,
         name: input.name,
-        email: input.email || null,
-        phone: input.phone || null,
-        address: input.address || null,
-        website: input.website || null,
-        bankName: input.bankName || null,
-        bankAccountNumber: input.bankAccountNumber || null,
-        bankRoutingNumber: input.bankRoutingNumber || null,
-        bankSwiftCode: input.bankSwiftCode || null,
-        taxId: input.taxId || null,
-        vatNumber: input.vatNumber || null,
-        registrationNumber: input.registrationNumber || null,
-        paymentTermsDays: input.paymentTermsDays || null,
-        preferredPaymentMethod: input.preferredPaymentMethod || null,
-        creditLimit: input.creditLimit || null,
+        email: input.email ?? null,
+        phone: input.phone ?? null,
+        address: input.address ?? null,
+        website: input.website ?? null,
+        bankName: input.bankName ?? null,
+        bankAccountNumber: input.bankAccountNumber ?? null,
+        bankRoutingNumber: input.bankRoutingNumber ?? null,
+        bankSwiftCode: input.bankSwiftCode ?? null,
+        taxId: input.taxId ?? null,
+        vatNumber: input.vatNumber ?? null,
+        registrationNumber: input.registrationNumber ?? null,
+        paymentTermsDays: input.paymentTermsDays ?? null,
+        preferredPaymentMethod: input.preferredPaymentMethod ?? null,
+        creditLimit: input.creditLimit ?? null,
         metadata: input.metadata,
       });
 
@@ -139,19 +139,19 @@ export const vendorRouter = router({
     .mutation(async ({ ctx, input }) => {
       const updated = await vendorRepository.update(input.id, ctx.user.id, {
         name: input.name,
-        email: input.email !== undefined ? (input.email || null) : undefined,
-        phone: input.phone !== undefined ? (input.phone || null) : undefined,
-        address: input.address !== undefined ? (input.address || null) : undefined,
-        website: input.website !== undefined ? (input.website || null) : undefined,
-        bankName: input.bankName !== undefined ? (input.bankName || null) : undefined,
-        bankAccountNumber: input.bankAccountNumber !== undefined ? (input.bankAccountNumber || null) : undefined,
-        bankRoutingNumber: input.bankRoutingNumber !== undefined ? (input.bankRoutingNumber || null) : undefined,
-        bankSwiftCode: input.bankSwiftCode !== undefined ? (input.bankSwiftCode || null) : undefined,
-        taxId: input.taxId !== undefined ? (input.taxId || null) : undefined,
-        vatNumber: input.vatNumber !== undefined ? (input.vatNumber || null) : undefined,
-        registrationNumber: input.registrationNumber !== undefined ? (input.registrationNumber || null) : undefined,
+        email: input.email !== undefined ? (input.email ?? null) : undefined,
+        phone: input.phone !== undefined ? (input.phone ?? null) : undefined,
+        address: input.address !== undefined ? (input.address ?? null) : undefined,
+        website: input.website !== undefined ? (input.website ?? null) : undefined,
+        bankName: input.bankName !== undefined ? (input.bankName ?? null) : undefined,
+        bankAccountNumber: input.bankAccountNumber !== undefined ? (input.bankAccountNumber ?? null) : undefined,
+        bankRoutingNumber: input.bankRoutingNumber !== undefined ? (input.bankRoutingNumber ?? null) : undefined,
+        bankSwiftCode: input.bankSwiftCode !== undefined ? (input.bankSwiftCode ?? null) : undefined,
+        taxId: input.taxId !== undefined ? (input.taxId ?? null) : undefined,
+        vatNumber: input.vatNumber !== undefined ? (input.vatNumber ?? null) : undefined,
+        registrationNumber: input.registrationNumber !== undefined ? (input.registrationNumber ?? null) : undefined,
         paymentTermsDays: input.paymentTermsDays !== undefined ? input.paymentTermsDays : undefined,
-        preferredPaymentMethod: input.preferredPaymentMethod !== undefined ? (input.preferredPaymentMethod || null) : undefined,
+        preferredPaymentMethod: input.preferredPaymentMethod !== undefined ? (input.preferredPaymentMethod ?? null) : undefined,
         creditLimit: input.creditLimit !== undefined ? input.creditLimit : undefined,
         metadata: input.metadata,
       });

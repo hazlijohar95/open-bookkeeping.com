@@ -53,9 +53,9 @@ function isValidIP(ip: string): boolean {
  */
 function getClientIP(c: Context): string {
   // Get the direct connection IP (from Hono's request info)
-  const directIP = c.req.header("cf-connecting-ip") // Cloudflare
-    || c.req.header("x-real-ip") // nginx
-    || "unknown";
+  const directIP = (c.req.header("cf-connecting-ip") // Cloudflare
+    || c.req.header("x-real-ip")) // nginx
+    ?? "unknown";
 
   // Only trust X-Forwarded-For if request comes from trusted proxy
   const forwarded = c.req.header("x-forwarded-for");

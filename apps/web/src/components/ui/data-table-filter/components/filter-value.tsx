@@ -23,7 +23,7 @@ import { useDebounceCallback } from "../hooks/use-debounce-callback";
 import { numberFilterOperators } from "../core/operators";
 import { DebouncedInput } from "../ui/debounced-input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar } from "@/components/ui/calendar";
+import { CalendarIcon as CalendarComponent } from "@/components/ui/calendar";
 import { createNumberRange } from "../lib/helpers";
 import type { DateRange } from "react-day-picker";
 import { Slider } from "@/components/ui/slider";
@@ -259,7 +259,7 @@ export function FilterValueTextDisplay<TData>({ filter }: FilterValueDisplayProp
 }
 
 export function FilterValueNumberDisplay<TData>({ filter, locale = "en" }: FilterValueDisplayProps<TData, "number">) {
-  if (!filter || !filter.values || filter.values.length === 0) return null;
+  if (!filter?.values || filter.values.length === 0) return null;
 
   if (filter.operator === "is between" || filter.operator === "is not between") {
     const minValue = filter.values[0];
@@ -533,7 +533,7 @@ export function FilterValueDateController<TData>({
 
   function changeDateRange(value: DateRange | undefined) {
     const start = value?.from;
-    const end = start && value && value.to && !isEqual(start, value.to) ? value.to : undefined;
+    const end = start && value?.to && !isEqual(start, value.to) ? value.to : undefined;
 
     setDate({ from: start, to: end });
 
@@ -548,8 +548,7 @@ export function FilterValueDateController<TData>({
       <CommandList className="max-h-fit">
         <CommandGroup>
           <div>
-            <Calendar
-              initialFocus
+            <CalendarComponent               initialFocus
               mode="range"
               defaultMonth={date?.from}
               selected={date}

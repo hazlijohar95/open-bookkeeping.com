@@ -284,7 +284,7 @@ export function useSaveReturnSubmission() {
     mutationFn: (input: SaveReturnInput) =>
       api.post<{ id: string; action: string }>("/sst/return-submission", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: sstKeys.returnSubmissions() });
+      void queryClient.invalidateQueries({ queryKey: sstKeys.returnSubmissions() });
     },
   });
 }
@@ -305,7 +305,7 @@ export function useUpdateComplianceSettings() {
     mutationFn: (input: ComplianceSettingsInput) =>
       api.patch<{ success: boolean }>("/sst/compliance-settings", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: sstKeys.complianceStatus() });
+      void queryClient.invalidateQueries({ queryKey: sstKeys.complianceStatus() });
     },
   });
 }

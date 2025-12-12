@@ -29,6 +29,17 @@ This package provides the API layer for Open Bookkeeping. Built with Hono and tR
 src/
 ├── index.ts              # Server entry point
 │
+├── routes/
+│   ├── ai.ts             # AI chat endpoint with ReAct framework
+│   └── v1/               # Public REST API (Hono)
+│
+├── services/             # Business logic services
+│   ├── approval.service.ts       # Approval workflow management
+│   ├── agent-audit.service.ts    # Agent action audit logging
+│   ├── agent-safety.service.ts   # Safety controls & quotas
+│   ├── agent-memory.service.ts   # Session & long-term memory
+│   └── workflow-engine.service.ts # Multi-step workflow execution
+│
 └── trpc/
     ├── trpc.ts           # tRPC initialization and procedures
     ├── context.ts        # Request context (auth, database)
@@ -39,8 +50,12 @@ src/
         ├── quotation.ts  # Quotation management
         ├── creditNote.ts # Credit note operations
         ├── debitNote.ts  # Debit note operations
+        ├── bill.ts       # Bill management
         ├── customer.ts   # Customer management
         ├── vendor.ts     # Vendor management
+        ├── account.ts    # Chart of accounts
+        ├── journalEntry.ts # Journal entries
+        ├── agent.ts      # AI agent operations
         ├── settings.ts   # User settings
         ├── dashboard.ts  # Dashboard statistics
         ├── statements.ts # Statement generation
@@ -555,9 +570,57 @@ import type { AppRouter } from '@open-bookkeeping/api';
 
 ---
 
+## AI Agent API
+
+The AI Agent is powered by the `/api/ai/chat` endpoint, implementing a ReAct (Reasoning + Acting) framework with memory systems.
+
+### Endpoint
+
+```
+POST /api/ai/chat
+Content-Type: application/json
+Authorization: Bearer <supabase_token>
+X-Session-Id: <optional_session_id>
+```
+
+### Request Body
+
+```typescript
+{
+  messages: Array<{
+    role: "user" | "assistant" | "system";
+    content: string;
+  }>;
+}
+```
+
+### Response
+
+The endpoint streams responses using AI SDK format with tool invocations included inline.
+
+### Session Management
+
+Sessions are automatically created and managed. The server returns `X-Session-Id` header which should be sent with subsequent requests to maintain conversation context.
+
+### Agent Services
+
+| Service | Description |
+|---------|-------------|
+| `agent-memory.service.ts` | Session persistence and long-term memory storage |
+| `approval.service.ts` | Approval workflow for high-value actions |
+| `agent-audit.service.ts` | Audit logging for all agent actions |
+| `agent-safety.service.ts` | Rate limiting, quotas, and emergency stop |
+
+### Available Tools
+
+The agent has access to 29+ tools for reading and writing accounting data. See the main CLAUDE.md for the full list.
+
+---
+
 ## Further Reading
 
 - [tRPC Documentation](https://trpc.io/)
 - [Hono Documentation](https://hono.dev/)
 - [Zod Documentation](https://zod.dev/)
 - [Drizzle ORM](https://orm.drizzle.team/)
+- [AI SDK Documentation](https://ai-sdk.dev/)

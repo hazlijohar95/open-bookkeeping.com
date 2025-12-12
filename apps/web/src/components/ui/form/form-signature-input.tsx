@@ -9,7 +9,7 @@ import {
   FormMessage,
   useFormField,
 } from "@/components/ui/form/form";
-import { ControllerRenderProps, FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
+import type { ControllerRenderProps, FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
 import SignatureInputModal from "../image/signature-input-modal";
 import { InfoIcon, TriangleAlertIcon } from "@/components/ui/icons";
 import { Badge } from "@/components/ui/badge";
@@ -54,7 +54,7 @@ function FormSignatureInputContent<
         <FormLabel className="flex items-center">
           <span className="text-xs capitalize">{props.label}</span>
           {isOptional ? (
-            <Badge size="xs" variant={Boolean(error) ? "destructive" : "secondary"}>
+            <Badge size="xs" variant={error ? "destructive" : "secondary"}>
               {props.sublabel ?? "Optional"}
             </Badge>
           ) : null}

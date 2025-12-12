@@ -87,7 +87,7 @@ export function useCreateVendor() {
     mutationFn: (input: CreateVendorInput) =>
       api.post<Vendor>("/vendors", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: vendorKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: vendorKeys.lists() });
     },
   });
 }
@@ -99,8 +99,8 @@ export function useUpdateVendor() {
     mutationFn: ({ id, ...data }: UpdateVendorInput) =>
       api.patch<Vendor>(`/vendors/${id}`, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: vendorKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: vendorKeys.detail(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: vendorKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: vendorKeys.detail(variables.id) });
     },
   });
 }
@@ -111,7 +111,7 @@ export function useDeleteVendor() {
   return useMutation({
     mutationFn: (id: string) => api.delete<{ success: boolean }>(`/vendors/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: vendorKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: vendorKeys.lists() });
     },
   });
 }

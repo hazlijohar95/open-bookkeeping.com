@@ -1,7 +1,7 @@
-import { IconProps } from "@/types";
+import type { IconProps } from "@/types";
 
 function SquareWandSparkle({ fill = "currentColor", secondaryfill, ...props }: IconProps) {
-  secondaryfill = secondaryfill || fill;
+  secondaryfill = secondaryfill ?? fill;
 
   return (
     <svg height="18" width="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" {...props}>

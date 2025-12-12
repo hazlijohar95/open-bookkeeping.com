@@ -125,7 +125,7 @@ export function useRebuildAggregations() {
     mutationFn: () => api.post<{ success: boolean }>("/dashboard/rebuild-aggregations"),
     onSuccess: () => {
       // Invalidate all dashboard queries
-      queryClient.invalidateQueries({ queryKey: dashboardKeys.all });
+      void queryClient.invalidateQueries({ queryKey: dashboardKeys.all });
     },
   });
 }

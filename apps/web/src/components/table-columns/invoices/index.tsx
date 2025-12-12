@@ -13,7 +13,7 @@ import {
   PriorityMediumIcon,
   SortNumDescendingIcon,
 } from "@/assets/icons";
-import { MoreVertical } from "@/components/ui/icons";
+import { MoreVerticalIcon } from "@/components/ui/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,14 +24,15 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { createColumnConfigHelper } from "@/components/ui/data-table-filter/core/filters";
 import { HeaderColumnButton, FormatTableDateObject } from "@/components/ui/data-table";
 import type { InvoiceStatusType } from "@/types/common/invoice";
-import { Badge, BadgeVariants } from "@/components/ui/badge";
+import type { BadgeVariants } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { createColumnHelper } from "@tanstack/react-table";
 import { getTotalValue } from "@/constants/pdf-helpers";
 import getSymbolFromCurrency from "currency-symbol-map";
 import ViewInvoiceModal from "./viewInvoiceModal";
 import DeleteInvoiceModal from "./deleteInvoiceModal";
 import UpdateStatusModal from "./updateStatusModal";
-import { Invoice } from "@/types/common/invoice";
+import type { Invoice } from "@/types/common/invoice";
 import { CalendarPenIcon } from "@/assets/icons";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
@@ -137,7 +138,7 @@ export const columns = [
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="xs" className="size-7 p-0">
-                <MoreVertical className="size-4" />
+                <MoreVerticalIcon className="size-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">

@@ -1,5 +1,5 @@
 import { CalendarPenIcon } from "@/assets/icons";
-import { User, Mail, Phone, MapPin, Eye, Pencil, Trash2 } from "@/components/ui/icons";
+import { UserIcon, MailIcon, Phone, MapPin, Eye, Pencil, Trash2Icon } from "@/components/ui/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +10,7 @@ import {
 import { createColumnConfigHelper } from "@/components/ui/data-table-filter/core/filters";
 import { HeaderColumnButton, FormatTableDateObject } from "@/components/ui/data-table";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Customer } from "@/types/common/customer";
+import type { Customer } from "@/types/common/customer";
 import { Button } from "@/components/ui/button";
 
 const columnHelper = createColumnHelper<Customer>();
@@ -107,7 +107,7 @@ export const createCustomerColumns = ({ onEdit, onDelete, onView }: CustomerColu
                 className="text-destructive focus:text-destructive"
                 onClick={() => onDelete(customer)}
               >
-                <Trash2 className="size-4" />
+                <Trash2Icon className="size-4" />
                 <span>Delete</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -125,7 +125,7 @@ export const customerColumnConfig = [
     .id("name")
     .displayName("Name")
     .accessor((row) => row.name)
-    .icon(User)
+    .icon(UserIcon)
     .build(),
 
   columnConfigHelper
@@ -133,7 +133,7 @@ export const customerColumnConfig = [
     .id("email")
     .displayName("Email")
     .accessor((row) => row.email ?? "")
-    .icon(Mail)
+    .icon(MailIcon)
     .build(),
 
   columnConfigHelper

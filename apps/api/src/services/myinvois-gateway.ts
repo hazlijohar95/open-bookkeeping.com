@@ -642,7 +642,7 @@ export function getGatewayClient(): MyInvoisGatewayClient {
 
     gatewayClient = new MyInvoisGatewayClient({
       gatewayUrl,
-      apiKey: apiKey || "",
+      apiKey: apiKey ?? "",
     });
   }
 

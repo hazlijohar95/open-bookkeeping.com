@@ -495,7 +495,7 @@ export class DocumentProcessorService {
         billNumber: extracted.invoiceNumber || `DOC-${Date.now()}`,
         billDate,
         dueDate,
-        currency: extracted.currency || "MYR",
+        currency: extracted.currency ?? "MYR",
         subtotal: extracted.subtotal ? String(extracted.subtotal) : null,
         taxRate: extracted.taxRate ? String(extracted.taxRate) : null,
         taxAmount: taxAmount ? String(taxAmount) : null,
@@ -548,7 +548,7 @@ export class DocumentProcessorService {
         taxRate: extracted.taxRate,
         taxAmount,
         total: extracted.total,
-        itemCount: extracted.lineItems?.length || 0,
+        itemCount: extracted.lineItems?.length ?? 0,
       },
       "Created bill from document"
     );
@@ -557,8 +557,8 @@ export class DocumentProcessorService {
       billId: bill.id,
       vendorId,
       vendorCreated,
-      total: extracted.total || 0,
-      currency: extracted.currency || "MYR",
+      total: extracted.total ?? 0,
+      currency: extracted.currency ?? "MYR",
     };
   }
 
@@ -629,7 +629,7 @@ export class DocumentProcessorService {
         extracted.transactions.map((tx) => {
           // Determine transaction type and amount
           const isDebit = tx.debit !== undefined && tx.debit > 0;
-          const amount = isDebit ? tx.debit! : tx.credit || 0;
+          const amount = isDebit ? tx.debit! : tx.credit ?? 0;
 
           return {
             userId,
@@ -771,8 +771,8 @@ export class DocumentProcessorService {
       suggestedVendorUpdates,
       suggestedCategory: this.mapDocumentTypeToCategory(documentType),
       confidenceScore: job.confidenceScore ? parseFloat(job.confidenceScore) : undefined,
-      durationMs: job.processingDurationMs || 0,
-      error: job.errorMessage || undefined,
+      durationMs: job.processingDurationMs ?? 0,
+      error: job.errorMessage ?? undefined,
     };
   }
 

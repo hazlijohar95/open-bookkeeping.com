@@ -1,5 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
-
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { CreatePngFromBase64 } from "@/lib/invoice/create-png-from-base64";
 import { AlertCircleIcon, LoaderCircleIcon, XIcon, MoonIcon, SunIcon, Undo2Icon } from "@/components/ui/icons";
@@ -60,7 +58,7 @@ export default function SignatureInputModal({
 
       // if signature change is not provided, return
       if (onSignatureChange) {
-        onSignatureChange(files[0].preview || "");
+        onSignatureChange(files[0].preview ?? "");
       }
 
       // if base64 change is not provided, return
@@ -75,14 +73,14 @@ export default function SignatureInputModal({
     },
   });
 
-  const previewUrl = defaultUrl || "";
+  const previewUrl = defaultUrl ?? "";
 
   // Handle Clear signature
   const handleClear = () => {
     signaturePadRef.current?.clear();
   };
 
-  // Handle and Save signature
+  // Handle and SaveIcon signature
   const handleSave = () => {
     if (type !== "signature") return;
     //   get the signature canvas
@@ -182,7 +180,7 @@ export default function SignatureInputModal({
                 onDragLeave={handleDragLeave}
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
-                data-dragging={isDragging || undefined}
+                data-dragging={isDragging ?? undefined}
                 className="hover:bg-accent/50 data-[dragging=true]:bg-accent/50 flex h-full flex-col items-center justify-center text-center"
               >
                 <input {...getInputProps()} className="sr-only" aria-label="Upload file" />
@@ -358,7 +356,7 @@ export default function SignatureInputModal({
               disabled={isSignatureEmpty}
               className="min-w-[80px]"
             >
-              Save
+              SaveIcon
             </Button>
           </div>
         </DialogContent>

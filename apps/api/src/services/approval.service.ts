@@ -216,12 +216,12 @@ export const approvalService = {
         userId: input.userId,
         actionType: input.actionType,
         actionPayload: input.actionPayload,
-        sessionId: input.sessionId || null,
-        reasoning: input.reasoning || null,
+        sessionId: input.sessionId ?? null,
+        reasoning: input.reasoning ?? null,
         confidence: input.confidence !== undefined ? String(input.confidence) : null,
         status: "pending",
-        estimatedImpact: input.estimatedImpact || null,
-        previewData: input.previewData || null,
+        estimatedImpact: input.estimatedImpact ?? null,
+        previewData: input.previewData ?? null,
         expiresAt,
       })
       .returning();
@@ -288,7 +288,7 @@ export const approvalService = {
         status: "approved",
         reviewedBy: userId,
         reviewedAt: new Date(),
-        reviewNotes: notes || null,
+        reviewNotes: notes ?? null,
       })
       .where(eq(agentPendingApprovals.id, approvalId))
       .returning();
@@ -327,7 +327,7 @@ export const approvalService = {
         status: "rejected",
         reviewedBy: userId,
         reviewedAt: new Date(),
-        reviewNotes: notes || null,
+        reviewNotes: notes ?? null,
       })
       .where(eq(agentPendingApprovals.id, approvalId))
       .returning();
@@ -356,7 +356,7 @@ export const approvalService = {
     userId: string,
     options?: { status?: string; limit?: number; offset?: number }
   ) => {
-    const { status, limit = 50, offset = 0 } = options || {};
+    const { status, limit = 50, offset = 0 } = options ?? {};
 
     const conditions = [eq(agentPendingApprovals.userId, userId)];
 

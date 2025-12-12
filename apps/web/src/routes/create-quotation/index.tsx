@@ -4,7 +4,7 @@ import {
   type ZodCreateQuotationSchema,
 } from "@/zod-schemas/quotation/create-quotation";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { ImperativePanelHandle } from "react-resizable-panels";
+import type { ImperativePanelHandle } from "react-resizable-panels";
 import { quotationTabAtom, type QuotationTab } from "@/global/atoms/quotation-atom";
 import { zodResolver } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";

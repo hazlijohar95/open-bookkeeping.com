@@ -1,4 +1,4 @@
-import { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
+import type { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
 
 export const getSubTotalValue = (data: ZodCreateInvoiceSchema) => {
   return data.items.reduce((acc, item) => acc + item.quantity * item.unitPrice, 0);

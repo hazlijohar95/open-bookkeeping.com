@@ -1,6 +1,6 @@
-import { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
+import type { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
 import { IDB_SCHEMA_CREDIT_NOTES } from "@/constants/indexed-db";
-import { IDBCreditNote } from "@/types/indexdb/credit-note";
+import type { IDBCreditNote } from "@/types/indexdb/credit-note";
 import { ERROR_MESSAGES } from "@/constants/issues";
 import { initIndexedDB } from "@/global/indexdb";
 import { v4 as uuidv4 } from "uuid";

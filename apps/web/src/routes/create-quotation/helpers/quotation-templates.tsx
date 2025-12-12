@@ -1,8 +1,8 @@
-import { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
-import { PdfTemplateName } from "@/lib/invoice/create-pdf-blob";
+import type { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
+import type { PdfTemplateName } from "@/lib/invoice/create-pdf-blob";
 import { FormSelect } from "@/components/ui/form/form-select";
 import { SelectItem } from "@/components/ui/select";
-import { UseFormReturn } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
 import { BoxIcon, SyncIcon, FileFeatherIcon } from "@/assets/icons";
 
 interface PdfTemplate {

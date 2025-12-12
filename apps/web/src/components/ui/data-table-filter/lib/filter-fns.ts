@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
+ 
 import { endOfDay, isAfter, isBefore, isSameDay, isWithinInterval, startOfDay } from "date-fns";
 import { dateFilterOperators } from "../core/operators";
 import type { FilterModel } from "../core/types";
@@ -105,7 +105,7 @@ export function textFilterFn(inputData: string, filterValue: FilterModel<"text">
 }
 
 export function numberFilterFn(inputData: number, filterValue: FilterModel<"number">) {
-  if (!filterValue || !filterValue.values || filterValue.values.length === 0) {
+  if (!filterValue?.values || filterValue.values.length === 0) {
     return true;
   }
 

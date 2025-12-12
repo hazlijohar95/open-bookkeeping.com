@@ -67,7 +67,7 @@ export const quotationRouter = router({
   list: protectedProcedure
     .input(paginationSchema)
     .query(async ({ ctx, input }) => {
-      const { limit = 50, offset = 0 } = input || {};
+      const { limit = 50, offset = 0 } = input ?? {};
 
       const quotations = await quotationRepository.findMany(ctx.user.id, {
         limit,

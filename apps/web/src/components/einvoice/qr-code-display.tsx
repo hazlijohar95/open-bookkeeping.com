@@ -22,7 +22,7 @@ export function QRCodeDisplay({
     if (longId && canvasRef.current) {
       const qrUrl = `https://myinvois.hasil.gov.my/${longId}`;
 
-      QRCode.toCanvas(canvasRef.current, qrUrl, {
+      void QRCode.toCanvas(canvasRef.current, qrUrl, {
         width: 150,
         margin: 2,
         color: {
@@ -43,7 +43,7 @@ export function QRCodeDisplay({
     if (!canvasRef.current) return;
 
     const link = document.createElement("a");
-    link.download = `einvoice-qr-${invoiceNumber || "code"}.png`;
+    link.download = `einvoice-qr-${invoiceNumber ?? "code"}.png`;
     link.href = canvasRef.current.toDataURL("image/png");
     link.click();
     toast.success("QR code downloaded");
@@ -96,7 +96,7 @@ export function QRCodeCanvas({
     if (canvasRef.current) {
       const qrUrl = `https://myinvois.hasil.gov.my/${longId}`;
 
-      QRCode.toCanvas(canvasRef.current, qrUrl, {
+      void QRCode.toCanvas(canvasRef.current, qrUrl, {
         width: size,
         margin: 1,
         color: {

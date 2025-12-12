@@ -1,19 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import {
+import type {
   SortingState,
-  flexRender,
   VisibilityState,
+  Column,
+  RowSelectionState,
+  DisplayColumnDef,
+  AccessorFnColumnDef} from "@tanstack/react-table";
+import {
+  flexRender,
   getCoreRowModel,
   useReactTable,
   getPaginationRowModel,
   getSortedRowModel,
-  getFilteredRowModel,
-  Column,
-  RowSelectionState,
-  DisplayColumnDef,
-  AccessorFnColumnDef,
+  getFilteredRowModel
 } from "@tanstack/react-table";
 import { createTSTColumns, createTSTFilters } from "@/components/ui/data-table-filter/integrations/tanstack-table";
 import type { ColumnConfig, ColumnDataType, FiltersState } from "@/components/ui/data-table-filter/core/types";
@@ -31,7 +32,7 @@ import { cn } from "@/lib/utils";
 interface DataTableProps<TData, TValue> {
   columns: (DisplayColumnDef<TData, any> | AccessorFnColumnDef<TData, TValue>)[];
   data: TData[];
-  columnConfig: ColumnConfig<TData, ColumnDataType, any, string>[];
+  columnConfig: ColumnConfig<TData, ColumnDataType, any>[];
   isLoading?: boolean;
   defaultSorting?: SortingState;
   onRowClick?: (row: TData) => void;
@@ -180,7 +181,7 @@ export function HeaderColumnButton<TData>({
   children,
   disableChevron = true,
 }: {
-  column: Column<TData, unknown>;
+  column: Column<TData>;
   children: React.ReactNode;
   disableChevron?: boolean;
 }) {

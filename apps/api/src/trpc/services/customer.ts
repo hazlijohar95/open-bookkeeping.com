@@ -37,7 +37,7 @@ export const customerRouter = router({
   list: protectedProcedure
     .input(paginationSchema)
     .query(async ({ ctx, input }) => {
-      const { limit = 50, offset = 0 } = input || {};
+      const { limit = 50, offset = 0 } = input ?? {};
 
       const customers = await customerRepository.findMany(ctx.user.id, {
         limit,
@@ -79,9 +79,9 @@ export const customerRouter = router({
       const customer = await customerRepository.create({
         userId: ctx.user.id,
         name: input.name,
-        email: input.email || null,
-        phone: input.phone || null,
-        address: input.address || null,
+        email: input.email ?? null,
+        phone: input.phone ?? null,
+        address: input.address ?? null,
         metadata: input.metadata,
       });
 
@@ -95,9 +95,9 @@ export const customerRouter = router({
     .mutation(async ({ ctx, input }) => {
       const updated = await customerRepository.update(input.id, ctx.user.id, {
         name: input.name,
-        email: input.email !== undefined ? (input.email || null) : undefined,
-        phone: input.phone !== undefined ? (input.phone || null) : undefined,
-        address: input.address !== undefined ? (input.address || null) : undefined,
+        email: input.email !== undefined ? (input.email ?? null) : undefined,
+        phone: input.phone !== undefined ? (input.phone ?? null) : undefined,
+        address: input.address !== undefined ? (input.address ?? null) : undefined,
         metadata: input.metadata,
       });
 

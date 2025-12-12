@@ -74,8 +74,8 @@ export const journalEntryRepository = {
     let totalCredit = 0;
 
     for (const line of input.lines) {
-      totalDebit += parseFloat(line.debitAmount || "0");
-      totalCredit += parseFloat(line.creditAmount || "0");
+      totalDebit += parseFloat(line.debitAmount ?? "0");
+      totalCredit += parseFloat(line.creditAmount ?? "0");
     }
 
     if (Math.abs(totalDebit - totalCredit) > 0.001) {
@@ -118,10 +118,10 @@ export const journalEntryRepository = {
         entryNumber,
         entryDate: input.entryDate,
         description: input.description,
-        reference: input.reference || null,
+        reference: input.reference ?? null,
         status: "draft",
-        sourceType: input.sourceType || null,
-        sourceId: input.sourceId || null,
+        sourceType: input.sourceType ?? null,
+        sourceId: input.sourceId ?? null,
         totalDebit: totalDebit.toFixed(2),
         totalCredit: totalCredit.toFixed(2),
       })
@@ -137,11 +137,11 @@ export const journalEntryRepository = {
         journalEntryId: entry.id,
         accountId: line.accountId,
         lineNumber: i + 1,
-        debitAmount: line.debitAmount || "0",
-        creditAmount: line.creditAmount || "0",
-        sstTaxCode: line.sstTaxCode || null,
-        taxAmount: line.taxAmount || null,
-        description: line.description || null,
+        debitAmount: line.debitAmount ?? "0",
+        creditAmount: line.creditAmount ?? "0",
+        sstTaxCode: line.sstTaxCode ?? null,
+        taxAmount: line.taxAmount ?? null,
+        description: line.description ?? null,
       });
     }
 
@@ -170,7 +170,7 @@ export const journalEntryRepository = {
     options?: JournalEntryQueryOptions
   ) => {
     const { status, startDate, endDate, sourceType, limit = 50, offset = 0 } =
-      options || {};
+      options ?? {};
 
     const conditions = [eq(journalEntries.userId, userId)];
 
@@ -431,12 +431,12 @@ export const journalEntryRepository = {
       },
     });
 
-    let totalDebit = parseFloat(account.openingBalance || "0");
+    let totalDebit = parseFloat(account.openingBalance ?? "0");
     let totalCredit = 0;
 
     // If account has credit normal balance, swap
     if (account.normalBalance === "credit") {
-      totalCredit = parseFloat(account.openingBalance || "0");
+      totalCredit = parseFloat(account.openingBalance ?? "0");
       totalDebit = 0;
     }
 

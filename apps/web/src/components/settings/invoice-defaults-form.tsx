@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ReceiptIcon } from "@/assets/icons";
-import { Loader2 } from "@/components/ui/icons";
+import { Loader2Icon } from "@/components/ui/icons";
 import { toast } from "sonner";
 import { CURRENCIES } from "@/constants/currency";
 
@@ -47,13 +47,13 @@ export function InvoiceDefaultsForm({
   const form = useForm<InvoiceDefaultsFormData>({
     resolver: zodResolver(invoiceDefaultsSchema),
     defaultValues: {
-      defaultCurrency: defaultValues?.defaultCurrency || "MYR",
-      defaultPaymentTerms: defaultValues?.defaultPaymentTerms || "",
-      defaultTaxRate: defaultValues?.defaultTaxRate || 0,
-      invoicePrefix: defaultValues?.invoicePrefix || "INV",
-      quotationPrefix: defaultValues?.quotationPrefix || "QT",
-      invoiceNotes: defaultValues?.invoiceNotes || "",
-      invoiceTerms: defaultValues?.invoiceTerms || "",
+      defaultCurrency: defaultValues?.defaultCurrency ?? "MYR",
+      defaultPaymentTerms: defaultValues?.defaultPaymentTerms ?? "",
+      defaultTaxRate: defaultValues?.defaultTaxRate ?? 0,
+      invoicePrefix: defaultValues?.invoicePrefix ?? "INV",
+      quotationPrefix: defaultValues?.quotationPrefix ?? "QT",
+      invoiceNotes: defaultValues?.invoiceNotes ?? "",
+      invoiceTerms: defaultValues?.invoiceTerms ?? "",
     },
   });
 
@@ -102,7 +102,7 @@ export function InvoiceDefaultsForm({
             <div className="space-y-2">
               <Label htmlFor="defaultCurrency">Default Currency</Label>
               <Select
-                value={form.watch("defaultCurrency") || "MYR"}
+                value={form.watch("defaultCurrency") ?? "MYR"}
                 onValueChange={(v) => form.setValue("defaultCurrency", v)}
               >
                 <SelectTrigger id="defaultCurrency">
@@ -180,8 +180,8 @@ export function InvoiceDefaultsForm({
 
           <div className="flex justify-end">
             <Button type="submit" disabled={isSaving}>
-              {isSaving && <Loader2 className="mr-2 size-4 animate-spin" />}
-              Save Changes
+              {isSaving && <Loader2Icon className="mr-2 size-4 animate-spin" />}
+              SaveIcon Changes
             </Button>
           </div>
         </form>

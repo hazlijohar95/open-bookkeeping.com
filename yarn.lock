@@ -1689,6 +1689,7 @@ __metadata:
     "@types/react": "npm:^19.1.8"
     "@types/react-dom": "npm:^19.1.6"
     "@types/react-signature-canvas": "npm:^1.0.5"
+    "@types/react-window": "npm:^2.0.0"
     "@types/uuid": "npm:^10.0.0"
     "@vitejs/plugin-react": "npm:^5.1.1"
     ai: "npm:^5.0.106"
@@ -1721,12 +1722,15 @@ __metadata:
     react-dom: "npm:^19.1.0"
     react-dropzone: "npm:^14.3.8"
     react-hook-form: "npm:^7.54.0"
+    react-markdown: "npm:^10.1.0"
     react-pdf: "npm:^10.2.0"
     react-pdf-tailwind: "npm:^3.0.0"
     react-resizable-panels: "npm:^2.1.7"
     react-router-dom: "npm:^7.1.1"
     react-signature-canvas: "npm:^1.0.6"
+    react-window: "npm:^2.2.3"
     recharts: "npm:2.15.4"
+    remark-gfm: "npm:^4.0.1"
     sonner: "npm:^2.0.7"
     superjson: "npm:^2.2.1"
     tailwind-merge: "npm:^2.5.4"
@@ -4654,6 +4658,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/react-window@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "@types/react-window@npm:2.0.0"
+  dependencies:
+    react-window: "npm:*"
+  checksum: 10c0/4de05bf54c3947a68878f1ddcc019db27811d2390aae2e4eb1ab83bff134d6a2f20318555e06b891234df946528470d7c01e43dff759209ec75c54cbda034acf
+  languageName: node
+  linkType: hard
+
 "@types/react@npm:*, @types/react@npm:^19.1.8":
   version: 19.2.7
   resolution: "@types/react@npm:19.2.7"
@@ -7179,7 +7192,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"hast-util-to-jsx-runtime@npm:^2.3.6":
+"hast-util-to-jsx-runtime@npm:^2.0.0, hast-util-to-jsx-runtime@npm:^2.3.6":
   version: 2.3.6
   resolution: "hast-util-to-jsx-runtime@npm:2.3.6"
   dependencies:
@@ -7272,6 +7285,13 @@ __metadata:
   version: 2.0.2
   resolution: "html-escaper@npm:2.0.2"
   checksum: 10c0/208e8a12de1a6569edbb14544f4567e6ce8ecc30b9394fcaa4e7bb1e60c12a7c9a1ed27e31290817157e8626f3a4f29e76c8747030822eb84a6abb15c255f0a0
+  languageName: node
+  linkType: hard
+
+"html-url-attributes@npm:^3.0.0":
+  version: 3.0.1
+  resolution: "html-url-attributes@npm:3.0.1"
+  checksum: 10c0/496e4908aa8b77665f348b4b03521901794f648b8ac34a581022cd6f2c97934d5c910cd91bc6593bbf2994687549037bc2520fcdc769b31484f29ffdd402acd0
   languageName: node
   linkType: hard
 
@@ -9786,6 +9806,28 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-markdown@npm:^10.1.0":
+  version: 10.1.0
+  resolution: "react-markdown@npm:10.1.0"
+  dependencies:
+    "@types/hast": "npm:^3.0.0"
+    "@types/mdast": "npm:^4.0.0"
+    devlop: "npm:^1.0.0"
+    hast-util-to-jsx-runtime: "npm:^2.0.0"
+    html-url-attributes: "npm:^3.0.0"
+    mdast-util-to-hast: "npm:^13.0.0"
+    remark-parse: "npm:^11.0.0"
+    remark-rehype: "npm:^11.0.0"
+    unified: "npm:^11.0.0"
+    unist-util-visit: "npm:^5.0.0"
+    vfile: "npm:^6.0.0"
+  peerDependencies:
+    "@types/react": ">=18"
+    react: ">=18"
+  checksum: 10c0/4a5dc7d15ca6d05e9ee95318c1904f83b111a76f7588c44f50f1d54d4c97193b84e4f64c4b592057c989228238a2590306cedd0c4d398e75da49262b2b5ae1bf
+  languageName: node
+  linkType: hard
+
 "react-medium-image-zoom@npm:^5.4.0":
   version: 5.4.0
   resolution: "react-medium-image-zoom@npm:5.4.0"
@@ -9969,6 +10011,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-window@npm:*, react-window@npm:^2.2.3":
+  version: 2.2.3
+  resolution: "react-window@npm:2.2.3"
+  peerDependencies:
+    react: ^18.0.0 || ^19.0.0
+    react-dom: ^18.0.0 || ^19.0.0
+  checksum: 10c0/7e97381b269560038c4c76c4ae17121d87efb628fce840fe382e73ae0e9816d4b68384a402340b0a08f9e4a47d8bd7328ae8502fd26b0d9399339a20e1c550be
+  languageName: node
+  linkType: hard
+
 "react@npm:^19.1.0":
   version: 19.2.0
   resolution: "react@npm:19.2.0"
@@ -10095,7 +10147,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"remark-rehype@npm:^11.1.2":
+"remark-rehype@npm:^11.0.0, remark-rehype@npm:^11.1.2":
   version: 11.1.2
   resolution: "remark-rehype@npm:11.1.2"
   dependencies:

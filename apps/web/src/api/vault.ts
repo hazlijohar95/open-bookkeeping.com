@@ -159,8 +159,8 @@ export function useUploadDocument() {
     mutationFn: (input: UploadDocumentInput) =>
       api.post<VaultDocument>("/vault", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: vaultKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: vaultKeys.counts() });
+      void queryClient.invalidateQueries({ queryKey: vaultKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: vaultKeys.counts() });
     },
   });
 }
@@ -172,8 +172,8 @@ export function useRenameDocument() {
     mutationFn: ({ id, displayName }: { id: string; displayName: string }) =>
       api.patch<VaultDocument>(`/vault/${id}/rename`, { displayName }),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: vaultKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: vaultKeys.detail(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: vaultKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: vaultKeys.detail(variables.id) });
     },
   });
 }
@@ -185,8 +185,8 @@ export function useUpdateDocumentTags() {
     mutationFn: ({ id, tags }: { id: string; tags: string[] }) =>
       api.patch<{ success: boolean }>(`/vault/${id}/tags`, { tags }),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: vaultKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: vaultKeys.detail(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: vaultKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: vaultKeys.detail(variables.id) });
     },
   });
 }
@@ -198,9 +198,9 @@ export function useChangeDocumentCategory() {
     mutationFn: ({ id, category }: { id: string; category: DocumentCategory }) =>
       api.patch<VaultDocument>(`/vault/${id}/category`, { category }),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: vaultKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: vaultKeys.detail(variables.id) });
-      queryClient.invalidateQueries({ queryKey: vaultKeys.counts() });
+      void queryClient.invalidateQueries({ queryKey: vaultKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: vaultKeys.detail(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: vaultKeys.counts() });
     },
   });
 }
@@ -211,8 +211,8 @@ export function useDeleteDocument() {
   return useMutation({
     mutationFn: (id: string) => api.delete<{ success: boolean }>(`/vault/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: vaultKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: vaultKeys.counts() });
+      void queryClient.invalidateQueries({ queryKey: vaultKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: vaultKeys.counts() });
     },
   });
 }
@@ -233,8 +233,8 @@ export function useProcessDocument() {
     mutationFn: (documentId: string) =>
       api.post<{ jobId: string; status: string; message: string }>(`/vault/${documentId}/process`),
     onSuccess: (_, documentId) => {
-      queryClient.invalidateQueries({ queryKey: vaultKeys.processingResult(documentId) });
-      queryClient.invalidateQueries({ queryKey: vaultKeys.processingHistory(documentId) });
+      void queryClient.invalidateQueries({ queryKey: vaultKeys.processingResult(documentId) });
+      void queryClient.invalidateQueries({ queryKey: vaultKeys.processingHistory(documentId) });
     },
   });
 }
@@ -275,8 +275,8 @@ export function useCreateBillFromDocument() {
         createVendorIfNotFound,
       }),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: vaultKeys.processingResult(variables.documentId) });
-      queryClient.invalidateQueries({ queryKey: ["bills"] }); // Invalidate bills list
+      void queryClient.invalidateQueries({ queryKey: vaultKeys.processingResult(variables.documentId) });
+      void queryClient.invalidateQueries({ queryKey: ["bills"] }); // Invalidate bills list
     },
   });
 }

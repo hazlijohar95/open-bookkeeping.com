@@ -12,7 +12,7 @@ export const trpc = createTRPCReact<AppRouter>();
 function getBaseUrl() {
   if (typeof window !== "undefined") {
     // Browser should use current origin
-    return import.meta.env.VITE_API_URL || "";
+    return import.meta.env.VITE_API_URL ?? "";
   }
   return "";
 }

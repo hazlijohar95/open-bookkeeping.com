@@ -19,14 +19,14 @@ async function check() {
   for (const job of jobs) {
     console.log("---");
     console.log("Status:", job.status);
-    console.log("Error:", job.errorMessage || "none");
+    console.log("Error:", job.errorMessage ?? "none");
     console.log("Created:", job.createdAt);
     const hasData = job.extractedData ? true : false;
     console.log("Has extracted data:", hasData);
     if (job.extractedData) {
       const data = JSON.parse(job.extractedData);
-      console.log("Extracted vendor:", data?.vendor?.name || "none");
-      console.log("Extracted total:", data?.total || "none");
+      console.log("Extracted vendor:", data?.vendor?.name ?? "none");
+      console.log("Extracted total:", data?.total ?? "none");
     }
   }
   process.exit(0);

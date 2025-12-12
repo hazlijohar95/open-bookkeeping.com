@@ -5,12 +5,12 @@ import { getImagesWithKey } from "@/lib/manage-assets/getImagesWithKey";
 import SignatureInputModal from "@/components/ui/image/signature-input-modal";
 import { uploadImage } from "@/lib/indexdb-queries/uploadImage";
 import ImageInput from "@/components/ui/image/image-input";
-import { InvoiceImageType } from "@/types/common/invoice";
-import { IDBImage } from "@/types/indexdb/invoice";
+import type { InvoiceImageType } from "@/types/common/invoice";
+import type { IDBImage } from "@/types/indexdb/invoice";
 import { useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { R2_PUBLIC_URL } from "@/constants";
-import { User } from "@supabase/supabase-js";
+import type { User } from "@supabase/supabase-js";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -60,7 +60,7 @@ export const InvoiceImageSelectorSheet = ({
 
     setIsUploading(true);
     try {
-      // Save to IndexedDB
+      // SaveIcon to IndexedDB
       await uploadImage(base64, "logo");
 
       // Invalidate the query to refresh the images list
@@ -89,7 +89,7 @@ export const InvoiceImageSelectorSheet = ({
 
     setIsUploading(true);
     try {
-      // Save to IndexedDB
+      // SaveIcon to IndexedDB
       await uploadImage(base64, "signature");
 
       // Invalidate the query to refresh the images list

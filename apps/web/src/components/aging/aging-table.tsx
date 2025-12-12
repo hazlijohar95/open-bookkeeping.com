@@ -108,7 +108,7 @@ export function AgingTable({ invoices, type, emptyMessage }: AgingTableProps) {
               Total ({invoices.length} {invoices.length === 1 ? documentLabel.toLowerCase() : `${documentLabel.toLowerCase()}s`})
             </td>
             <td className="py-2.5 px-3 text-right font-semibold">
-              {invoices[0]?.currency || "MYR"}{" "}
+              {invoices[0]?.currency ?? "MYR"}{" "}
               {invoices
                 .reduce((sum, inv) => sum + inv.total, 0)
                 .toLocaleString("en-MY", { minimumFractionDigits: 2 })}
@@ -124,8 +124,8 @@ export function AgingTable({ invoices, type, emptyMessage }: AgingTableProps) {
 // Helper to calculate invoice total from items
 export function calculateInvoiceTotal(items: Array<{ quantity: number; unitPrice: string | number }>): number {
   return items.reduce((sum, item) => {
-    const qty = new Decimal(item.quantity || 0);
-    const price = new Decimal(item.unitPrice || 0);
+    const qty = new Decimal(item.quantity ?? 0);
+    const price = new Decimal(item.unitPrice ?? 0);
     return sum + qty.times(price).toNumber();
   }, 0);
 }

@@ -26,3 +26,4 @@ export * from "./agentAuditLogs";
 export * from "./agentApprovals";
 export * from "./agentQuotas";
 export * from "./agentWorkflows";
+export * from "./agentMemory";

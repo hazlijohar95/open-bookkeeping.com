@@ -10,7 +10,7 @@ const logger = createLogger("reducto-service");
 
 // Environment configuration
 const REDUCTO_API_KEY = process.env.REDUCTO_API_KEY;
-const REDUCTO_BASE_URL = process.env.REDUCTO_BASE_URL || "https://platform.reducto.ai";
+const REDUCTO_BASE_URL = process.env.REDUCTO_BASE_URL ?? "https://platform.reducto.ai";
 
 /**
  * Document types supported for extraction
@@ -142,8 +142,8 @@ export class ReductoService {
   private readonly baseUrl: string;
 
   constructor(config?: { apiKey?: string; baseUrl?: string }) {
-    this.apiKey = config?.apiKey || REDUCTO_API_KEY || "";
-    this.baseUrl = config?.baseUrl || REDUCTO_BASE_URL;
+    this.apiKey = config?.apiKey ?? REDUCTO_API_KEY ?? "";
+    this.baseUrl = config?.baseUrl ?? REDUCTO_BASE_URL;
 
     if (!this.apiKey) {
       logger.warn("REDUCTO_API_KEY not configured - document processing will fail");
@@ -340,14 +340,14 @@ export class ReductoService {
       // If result is an array, take the first element
       if (Array.isArray(extractedData)) {
         logger.info({ arrayLength: extractedData.length }, "Reducto returned array, extracting first element");
-        extractedData = extractedData[0] || {};
+        extractedData = extractedData[0] ?? {};
       }
 
       logger.info(
         {
           vendorName: extractedData?.vendor?.name,
           total: extractedData?.total,
-          lineItems: extractedData?.lineItems?.length || 0,
+          lineItems: extractedData?.lineItems?.length ?? 0,
           durationMs: duration,
         },
         "Invoice data extracted successfully"
@@ -443,10 +443,10 @@ export class ReductoService {
       // Extract from result property (can be array for multi-page)
       let extractedData = result.result || result;
       if (Array.isArray(extractedData)) {
-        extractedData = extractedData[0] || {};
+        extractedData = extractedData[0] ?? {};
       }
 
-      const docType = (extractedData?.documentType || "other").toLowerCase();
+      const docType = (extractedData?.documentType ?? "other").toLowerCase();
 
       // Map to our categories
       const categoryMap: Record<string, typeof suggestedCategory> = {
@@ -475,7 +475,7 @@ export class ReductoService {
         | "tax_documents"
         | "other";
 
-      const suggestedCategory: CategoryType = categoryMap[docType] || "other";
+      const suggestedCategory: CategoryType = categoryMap[docType] ?? "other";
 
       logger.info(
         { documentType: docType, suggestedCategory, confidence: extractedData?.confidence },
@@ -484,7 +484,7 @@ export class ReductoService {
 
       return {
         category: docType,
-        confidence: extractedData?.confidence || 0.5,
+        confidence: extractedData?.confidence ?? 0.5,
         suggestedCategory,
       };
     } catch (error) {
@@ -580,7 +580,7 @@ export class ReductoService {
 
       let extractedData = result.result || result;
       if (Array.isArray(extractedData)) {
-        extractedData = extractedData[0] || {};
+        extractedData = extractedData[0] ?? {};
       }
 
       // Ensure documentType is set
@@ -589,7 +589,7 @@ export class ReductoService {
       logger.info(
         {
           bankName: extractedData?.bankName,
-          transactionCount: extractedData?.transactions?.length || 0,
+          transactionCount: extractedData?.transactions?.length ?? 0,
           durationMs: duration,
         },
         "Bank statement data extracted successfully"
@@ -687,7 +687,7 @@ export class ReductoService {
 
       let extractedData = result.result || result;
       if (Array.isArray(extractedData)) {
-        extractedData = extractedData[0] || {};
+        extractedData = extractedData[0] ?? {};
       }
 
       // Ensure documentType is set
@@ -697,7 +697,7 @@ export class ReductoService {
         {
           vendorName: extractedData?.vendor?.name,
           total: extractedData?.total,
-          itemCount: extractedData?.items?.length || 0,
+          itemCount: extractedData?.items?.length ?? 0,
           durationMs: duration,
         },
         "Receipt data extracted successfully"

@@ -1,4 +1,4 @@
-import { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
+import type { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
 import { createBlobUrl, revokeBlobUrl } from "@/lib/invoice/create-blob-url";
 import { generateInvoiceName } from "@/lib/invoice/generate-invoice-name";
 import { createPdfToImage } from "@/lib/invoice/create-pdf-to-image";

@@ -130,7 +130,7 @@ export function useUpdateSettings() {
     mutationFn: (input: Partial<UserSettings>) =>
       api.put<UserSettings>("/settings", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all });
+      void queryClient.invalidateQueries({ queryKey: settingsKeys.all });
     },
   });
 }
@@ -142,7 +142,7 @@ export function useUpdateCompanyProfile() {
     mutationFn: (input: CompanyProfileInput) =>
       api.patch<UserSettings>("/settings/company-profile", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all });
+      void queryClient.invalidateQueries({ queryKey: settingsKeys.all });
     },
   });
 }
@@ -154,7 +154,7 @@ export function useUpdateInvoiceDefaults() {
     mutationFn: (input: InvoiceDefaultsInput) =>
       api.patch<UserSettings>("/settings/invoice-defaults", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all });
+      void queryClient.invalidateQueries({ queryKey: settingsKeys.all });
     },
   });
 }
@@ -166,7 +166,7 @@ export function useUpdateNotificationSettings() {
     mutationFn: (input: NotificationSettingsInput) =>
       api.patch<UserSettings>("/settings/notifications", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all });
+      void queryClient.invalidateQueries({ queryKey: settingsKeys.all });
     },
   });
 }
@@ -178,7 +178,7 @@ export function useUpdateAppearanceSettings() {
     mutationFn: (input: AppearanceSettingsInput) =>
       api.patch<UserSettings>("/settings/appearance", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all });
+      void queryClient.invalidateQueries({ queryKey: settingsKeys.all });
     },
   });
 }

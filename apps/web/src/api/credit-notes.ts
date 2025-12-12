@@ -121,7 +121,7 @@ export function useCreateCreditNote() {
     mutationFn: (input: CreateCreditNoteInput) =>
       api.post<CreditNote>("/credit-notes", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: creditNoteKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: creditNoteKeys.lists() });
     },
   });
 }
@@ -133,8 +133,8 @@ export function useUpdateCreditNoteStatus() {
     mutationFn: ({ id, status }: UpdateCreditNoteStatusInput) =>
       api.patch<CreditNote>(`/credit-notes/${id}/status`, { status }),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: creditNoteKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: creditNoteKeys.detail(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: creditNoteKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: creditNoteKeys.detail(variables.id) });
     },
   });
 }
@@ -146,7 +146,7 @@ export function useDeleteCreditNote() {
     mutationFn: ({ id }: { id: string }) =>
       api.delete<{ success: boolean }>(`/credit-notes/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: creditNoteKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: creditNoteKeys.lists() });
     },
   });
 }

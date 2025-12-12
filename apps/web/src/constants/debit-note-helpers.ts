@@ -1,4 +1,4 @@
-import { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
+import type { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
 
 /**
  * Calculate the subtotal of all items in a debit note

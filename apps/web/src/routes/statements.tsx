@@ -6,14 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Calendar } from "@/components/ui/calendar";
+import { CalendarIcon as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageContainer } from "@/components/ui/page-container";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ReceiptIcon, UsersIcon, TruckIcon } from "@/assets/icons";
-import { CalendarIcon, Download, Loader2 } from "@/components/ui/icons";
+import { Download, Loader2Icon } from "@/components/ui/icons";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { downloadStatementPdf } from "@/lib/statement/create-statement-pdf-blob";
@@ -83,8 +83,8 @@ export function Statements() {
           address: customerStatement.customer.address,
         },
         period: {
-          startDate: dateRange.from?.toISOString() || null,
-          endDate: dateRange.to?.toISOString() || null,
+          startDate: dateRange.from?.toISOString() ?? null,
+          endDate: dateRange.to?.toISOString() ?? null,
         },
         entries: customerStatement.entries.map((e, i) => ({
           id: e.id || `entry-${i}`,
@@ -126,8 +126,8 @@ export function Statements() {
           address: vendorStatement.vendor.address,
         },
         period: {
-          startDate: dateRange.from?.toISOString() || null,
-          endDate: dateRange.to?.toISOString() || null,
+          startDate: dateRange.from?.toISOString() ?? null,
+          endDate: dateRange.to?.toISOString() ?? null,
         },
         entries: vendorStatement.entries.map((e, i) => ({
           id: e.id || `entry-${i}`,
@@ -188,7 +188,7 @@ export function Statements() {
                 <div className="sm:col-span-2">
                   <Label className="mb-2 block text-sm">Customer</Label>
                   <CustomerSelector
-                    customers={customers?.items || []}
+                    customers={customers?.items ?? []}
                     selectedId={selectedCustomerId}
                     onSelect={setSelectedCustomerId}
                     isLoading={customersLoading}
@@ -206,13 +206,12 @@ export function Statements() {
                           !dateRange.from && "text-muted-foreground"
                         )}
                       >
-                        <CalendarIcon className="mr-2 size-4" />
+                        <CalendarComponent className="mr-2 size-4" />
                         {dateRange.from ? format(dateRange.from, "PPP") : "Pick a date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
+                      <CalendarComponent                         mode="single"
                         selected={dateRange.from}
                         onSelect={(date) => setDateRange({ ...dateRange, from: date })}
                         initialFocus
@@ -231,13 +230,12 @@ export function Statements() {
                           !dateRange.to && "text-muted-foreground"
                         )}
                       >
-                        <CalendarIcon className="mr-2 size-4" />
+                        <CalendarComponent className="mr-2 size-4" />
                         {dateRange.to ? format(dateRange.to, "PPP") : "Pick a date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
+                      <CalendarComponent                         mode="single"
                         selected={dateRange.to}
                         onSelect={(date) => setDateRange({ ...dateRange, to: date })}
                         initialFocus
@@ -274,7 +272,7 @@ export function Statements() {
                           disabled={isExporting || !customerStatement}
                         >
                           {isExporting ? (
-                            <Loader2 className="mr-2 size-4 animate-spin" />
+                            <Loader2Icon className="mr-2 size-4 animate-spin" />
                           ) : (
                             <Download className="mr-2 size-4" />
                           )}
@@ -288,22 +286,22 @@ export function Statements() {
               <div className="grid gap-4 lg:grid-cols-3">
                 <div className="lg:col-span-2">
                   <StatementTable
-                    entries={customerStatement?.entries || []}
-                    currency={customerStatement?.currency || "MYR"}
+                    entries={customerStatement?.entries ?? []}
+                    currency={customerStatement?.currency ?? "MYR"}
                     isLoading={customerStatementLoading}
                   />
                 </div>
                 <div>
                   <StatementSummary
                     summary={
-                      customerStatement?.summary || {
+                      customerStatement?.summary ?? {
                         openingBalance: 0,
                         totalDebits: 0,
                         totalCredits: 0,
                         closingBalance: 0,
                       }
                     }
-                    currency={customerStatement?.currency || "MYR"}
+                    currency={customerStatement?.currency ?? "MYR"}
                     isLoading={customerStatementLoading}
                     variant="customer"
                   />
@@ -382,7 +380,7 @@ export function Statements() {
                 <div className="sm:col-span-2">
                   <Label className="mb-2 block text-sm">Vendor</Label>
                   <CustomerSelector
-                    customers={vendors?.items || []}
+                    customers={vendors?.items ?? []}
                     selectedId={selectedVendorId}
                     onSelect={setSelectedVendorId}
                     isLoading={vendorsLoading}
@@ -400,13 +398,12 @@ export function Statements() {
                           !dateRange.from && "text-muted-foreground"
                         )}
                       >
-                        <CalendarIcon className="mr-2 size-4" />
+                        <CalendarComponent className="mr-2 size-4" />
                         {dateRange.from ? format(dateRange.from, "PPP") : "Pick a date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
+                      <CalendarComponent                         mode="single"
                         selected={dateRange.from}
                         onSelect={(date) => setDateRange({ ...dateRange, from: date })}
                         initialFocus
@@ -425,13 +422,12 @@ export function Statements() {
                           !dateRange.to && "text-muted-foreground"
                         )}
                       >
-                        <CalendarIcon className="mr-2 size-4" />
+                        <CalendarComponent className="mr-2 size-4" />
                         {dateRange.to ? format(dateRange.to, "PPP") : "Pick a date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
+                      <CalendarComponent                         mode="single"
                         selected={dateRange.to}
                         onSelect={(date) => setDateRange({ ...dateRange, to: date })}
                         initialFocus
@@ -468,7 +464,7 @@ export function Statements() {
                           disabled={isExporting || !vendorStatement}
                         >
                           {isExporting ? (
-                            <Loader2 className="mr-2 size-4 animate-spin" />
+                            <Loader2Icon className="mr-2 size-4 animate-spin" />
                           ) : (
                             <Download className="mr-2 size-4" />
                           )}
@@ -482,22 +478,22 @@ export function Statements() {
               <div className="grid gap-4 lg:grid-cols-3">
                 <div className="lg:col-span-2">
                   <StatementTable
-                    entries={vendorStatement?.entries || []}
-                    currency={vendorStatement?.currency || "MYR"}
+                    entries={vendorStatement?.entries ?? []}
+                    currency={vendorStatement?.currency ?? "MYR"}
                     isLoading={vendorStatementLoading}
                   />
                 </div>
                 <div>
                   <StatementSummary
                     summary={
-                      vendorStatement?.summary || {
+                      vendorStatement?.summary ?? {
                         openingBalance: 0,
                         totalDebits: 0,
                         totalCredits: 0,
                         closingBalance: 0,
                       }
                     }
-                    currency={vendorStatement?.currency || "MYR"}
+                    currency={vendorStatement?.currency ?? "MYR"}
                     isLoading={vendorStatementLoading}
                     variant="vendor"
                   />

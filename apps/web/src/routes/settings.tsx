@@ -108,11 +108,11 @@ export function Settings() {
             defaultValues={{
               enabled: einvoiceSettings?.enabled ?? false,
               autoSubmit: einvoiceSettings?.autoSubmit ?? false,
-              tin: einvoiceSettings?.tin || "",
-              brn: einvoiceSettings?.brn || "",
-              identificationScheme: einvoiceSettings?.identificationScheme || undefined,
-              msicCode: einvoiceSettings?.msicCode || "",
-              msicDescription: einvoiceSettings?.msicDescription || "",
+              tin: einvoiceSettings?.tin ?? "",
+              brn: einvoiceSettings?.brn ?? "",
+              identificationScheme: einvoiceSettings?.identificationScheme ?? undefined,
+              msicCode: einvoiceSettings?.msicCode ?? "",
+              msicDescription: einvoiceSettings?.msicDescription ?? "",
               sstRegistration: einvoiceSettings?.sstRegistration,
               tourismTaxRegistration: einvoiceSettings?.tourismTaxRegistration,
             }}

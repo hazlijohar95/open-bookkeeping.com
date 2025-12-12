@@ -57,7 +57,7 @@ const DeleteInvoiceModal = ({ invoiceId, type }: DeleteInvoiceModalProps) => {
       toast.success("Invoice deleted successfully!", {
         description: "The invoice has been deleted from local storage.",
       });
-      queryClient.invalidateQueries({ queryKey: ["idb-invoices"] });
+      void queryClient.invalidateQueries({ queryKey: ["idb-invoices"] });
     },
     onError: (error) => {
       toast.error("Failed to delete invoice!", {

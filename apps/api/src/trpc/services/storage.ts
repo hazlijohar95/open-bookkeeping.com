@@ -22,7 +22,7 @@ export const storageRouter = router({
       });
     }
 
-    return (data || []).map((file) => {
+    return (data ?? []).map((file) => {
       const path = `${ctx.user.id}/${file.name}`;
       const {
         data: { publicUrl },
@@ -74,7 +74,7 @@ export const storageRouter = router({
       }
 
       // Generate unique filename
-      const ext = input.fileName.split(".").pop() || "png";
+      const ext = input.fileName.split(".").pop() ?? "png";
       const uniqueName = `${input.type}_${Date.now()}.${ext}`;
       const path = `${ctx.user.id}/${input.type}/${uniqueName}`;
 

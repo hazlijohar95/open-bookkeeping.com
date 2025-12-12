@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@/test/test-utils";
 import { StatCard } from "./stat-card";
-import { DollarSign } from "@/components/ui/icons";
+import { CurrencyDollarIcon } from "@/components/ui/icons";
 
 describe("StatCard", () => {
   it("renders label and value", () => {
@@ -28,7 +28,7 @@ describe("StatCard", () => {
       <StatCard
         label="Total Revenue"
         value="$10,000"
-        icon={<DollarSign data-testid="icon" />}
+        icon={<CurrencyDollarIcon data-testid="icon" />}
       />
     );
 

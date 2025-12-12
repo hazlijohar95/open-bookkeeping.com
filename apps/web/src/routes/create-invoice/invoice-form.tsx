@@ -3,7 +3,7 @@ import InvoiceFieldKeyNumberValuesSection from "./helpers/invoice-field-key-numb
 import { Accordion, AccordionItem, AccordionContent, AccordionTrigger } from "@/components/ui/accordion";
 import SheetImageSelectorTrigger from "@/components/ui/image/sheet-image-selector-trigger";
 import { InvoiceImageSelectorSheet } from "./helpers/invoice-image-selector-sheet";
-import { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
+import type { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
 import { FormCustomerSelector } from "@/components/ui/form/form-customer-selector";
 import { InvoiceTemplateSelector } from "./helpers/invoice-templates";
 import { FormColorPicker } from "@/components/ui/form/form-color-picker";
@@ -18,7 +18,7 @@ import FormRow from "@/components/ui/form/form-row";
 import { SelectItem } from "@/components/ui/select";
 import { Form } from "@/components/ui/form/form";
 import { useQuery } from "@tanstack/react-query";
-import { UseFormReturn } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/providers";
 import { cn } from "@/lib/utils";
@@ -31,7 +31,7 @@ interface InvoiceFormProps {
 }
 
 const InvoiceForm: React.FC<InvoiceFormProps> = ({ form }) => {
-  const { ref: containerRef, width: containerWidth } = useContainerWidth<HTMLDivElement>();
+  const { ref: containerRef, width: containerWidth } = useContainerWidth();
   const { user } = useAuth();
 
   // fetching images from indexedDB
@@ -48,7 +48,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ form }) => {
     (customer: { id: string; name: string; email: string | null; phone: string | null; address: string | null } | null) => {
       if (customer) {
         form.setValue("clientDetails.name", customer.name);
-        form.setValue("clientDetails.address", customer.address || "");
+        form.setValue("clientDetails.address", customer.address ?? "");
         // Build metadata from customer info
         const metadata: { label: string; value: string }[] = [];
         if (customer.email) {
@@ -79,9 +79,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ form }) => {
       const netMatch = lowerTerms.match(/net\s*(\d+)/);
       const daysMatch = lowerTerms.match(/(\d+)\s*days?/);
 
-      if (netMatch && netMatch[1]) {
+      if (netMatch?.[1]) {
         days = parseInt(netMatch[1], 10);
-      } else if (daysMatch && daysMatch[1]) {
+      } else if (daysMatch?.[1]) {
         days = parseInt(daysMatch[1], 10);
       }
 
@@ -114,7 +114,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ form }) => {
                   <InvoiceImageSelectorSheet
                     type="logo"
                     isLoading={idbImages.isLoading}
-                    idbImages={idbImages.data || []}
+                    idbImages={idbImages.data ?? []}
                     serverImages={serverImages}
                     user={user}
                     onUrlChange={(url) => {
@@ -137,7 +137,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ form }) => {
                   <InvoiceImageSelectorSheet
                     type="signature"
                     isLoading={idbImages.isLoading}
-                    idbImages={idbImages.data || []}
+                    idbImages={idbImages.data ?? []}
                     serverImages={serverImages}
                     user={user}
                     onUrlChange={(url) => {

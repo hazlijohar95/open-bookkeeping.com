@@ -114,7 +114,7 @@ export const einvoiceRouter = router({
   getSettings: protectedProcedure.query(async ({ ctx }) => {
     const settings = await einvoiceRepository.getSettings(ctx.user.id);
 
-    return settings || {
+    return settings ?? {
       enabled: false,
       autoSubmit: false,
       tin: null,
@@ -160,11 +160,11 @@ export const einvoiceRouter = router({
     }
 
     return validateEInvoiceSettings({
-      tin: settings.tin || undefined,
-      brn: settings.brn || undefined,
-      identificationScheme: settings.identificationScheme || undefined,
-      msicCode: settings.msicCode || undefined,
-      msicDescription: settings.msicDescription || undefined,
+      tin: settings.tin ?? undefined,
+      brn: settings.brn ?? undefined,
+      identificationScheme: settings.identificationScheme ?? undefined,
+      msicCode: settings.msicCode ?? undefined,
+      msicDescription: settings.msicDescription ?? undefined,
     });
   }),
 
@@ -187,11 +187,11 @@ export const einvoiceRouter = router({
 
       // Validate settings
       const settingsValidation = validateEInvoiceSettings({
-        tin: settings.tin || undefined,
-        brn: settings.brn || undefined,
-        identificationScheme: settings.identificationScheme || undefined,
-        msicCode: settings.msicCode || undefined,
-        msicDescription: settings.msicDescription || undefined,
+        tin: settings.tin ?? undefined,
+        brn: settings.brn ?? undefined,
+        identificationScheme: settings.identificationScheme ?? undefined,
+        msicCode: settings.msicCode ?? undefined,
+        msicDescription: settings.msicDescription ?? undefined,
       });
 
       if (!settingsValidation.valid) {

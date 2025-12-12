@@ -2,10 +2,10 @@
 
 import {
   Wallet,
-  Clock,
-  DollarSign,
-  FileText,
-  Users,
+  ClockIcon,
+  CurrencyDollarIcon,
+  FileTextIcon,
+  UsersIcon,
   TrendingUp,
 } from "@/components/ui/icons";
 import { MetricCard } from "./metric-card";
@@ -46,7 +46,7 @@ export function MetricsGrid({
   isLoading = false,
   className,
 }: MetricsGridProps) {
-  const currency = stats?.currency || "MYR";
+  const currency = stats?.currency ?? "MYR";
   const topCustomer = topCustomers?.[0];
 
   // Calculate growth rate (mock for now - would need historical data)
@@ -66,27 +66,27 @@ export function MetricsGrid({
         icon={Wallet}
         label="Cash Runway"
         description="Your cash runway in months"
-        value={`${stats?.totalInvoices || 0} months`}
+        value={`${stats?.totalInvoices ?? 0} months`}
         actionLabel="View runway"
         actionHref="/analytics"
         isLoading={isLoading}
       />
 
       <MetricCard
-        icon={DollarSign}
+        icon={CurrencyDollarIcon}
         label="Cash Flow"
         description={`Net cash position - 1 year`}
-        value={formatCurrency(stats?.totalRevenue || 0, currency)}
+        value={formatCurrency(stats?.totalRevenue ?? 0, currency)}
         actionLabel="View cash flow analysis"
         actionHref="/analytics"
         isLoading={isLoading}
       />
 
       <MetricCard
-        icon={Clock}
+        icon={ClockIcon}
         label="Outstanding"
         description="Invoices awaiting payment"
-        value={formatCurrency(stats?.pendingAmount || 0, currency)}
+        value={formatCurrency(stats?.pendingAmount ?? 0, currency)}
         actionLabel="View pending"
         actionHref="/invoices?status=pending"
         isLoading={isLoading}
@@ -96,7 +96,7 @@ export function MetricsGrid({
         icon={TrendingUp}
         label="Profit & Loss"
         description={`${currency} - 1 year - Net`}
-        value={formatCurrency(stats?.totalRevenue || 0, currency)}
+        value={formatCurrency(stats?.totalRevenue ?? 0, currency)}
         actionLabel="See detailed analysis"
         actionHref="/reports"
         isLoading={isLoading}
@@ -104,15 +104,15 @@ export function MetricsGrid({
 
       {/* Row 2 */}
       <MetricCard
-        icon={FileText}
+        icon={FileTextIcon}
         label="Forecast"
         description="Revenue projection"
-        value={formatCurrency(stats?.pendingAmount || 0, currency)}
+        value={formatCurrency(stats?.pendingAmount ?? 0, currency)}
         subValue="projected"
         details={[
           {
             label: "Next month projection",
-            value: formatCurrency((stats?.revenueThisMonth || 0) * 1.1, currency),
+            value: formatCurrency((stats?.revenueThisMonth ?? 0) * 1.1, currency),
           },
         ]}
         actionLabel="View forecast details"
@@ -121,10 +121,10 @@ export function MetricsGrid({
       />
 
       <MetricCard
-        icon={DollarSign}
+        icon={CurrencyDollarIcon}
         label="Revenue Summary"
         description={`Net revenue - 1 year`}
-        value={formatCurrency(stats?.revenueThisMonth || 0, currency)}
+        value={formatCurrency(stats?.revenueThisMonth ?? 0, currency)}
         trend={
           stats?.revenueThisMonth
             ? { value: growthRate, direction: growthRate > 0 ? "up" : "neutral" }
@@ -151,7 +151,7 @@ export function MetricsGrid({
       />
 
       <MetricCard
-        icon={Users}
+        icon={UsersIcon}
         label="Customer Lifetime Value"
         description="avg. CLV"
         value={
@@ -161,8 +161,8 @@ export function MetricsGrid({
         }
         subValue="avg. CLV"
         details={[
-          { label: "Total customers", value: topCustomers?.length || 0 },
-          { label: "Active (30d)", value: `${topCustomers?.length || 0} (${topCustomers?.length || 0}%)` },
+          { label: "Total customers", value: topCustomers?.length ?? 0 },
+          { label: "Active (30d)", value: `${topCustomers?.length ?? 0} (${topCustomers?.length ?? 0}%)` },
           { label: "Avg. lifespan", value: "0 days" },
         ]}
         actionLabel="View all customers"

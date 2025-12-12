@@ -1,7 +1,7 @@
-import { IconProps } from "@/types";
+import type { IconProps } from "@/types";
 
-function Trash2({ fill = "currentColor", secondaryfill, ...props }: IconProps) {
-  secondaryfill = secondaryfill || fill;
+function Trash2Icon({ fill = "currentColor", secondaryfill, ...props }: IconProps) {
+  secondaryfill = secondaryfill ?? fill;
 
   return (
     <svg height="18" width="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" {...props}>
@@ -32,4 +32,4 @@ function Trash2({ fill = "currentColor", secondaryfill, ...props }: IconProps) {
   );
 }
 
-export default Trash2;
+export default Trash2Icon;

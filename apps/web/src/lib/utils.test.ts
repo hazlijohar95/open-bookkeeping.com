@@ -209,7 +209,7 @@ describe("Utility Functions", () => {
     });
 
     it("should return valid Tailwind classes", () => {
-      const result = getAvatarColor("Test User");
+      const result = getAvatarColor("Test UserIcon");
       // Should match pattern like "bg-primary/10 text-primary"
       expect(result).toMatch(/bg-[\w-]+\/?\d*/);
     });

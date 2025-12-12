@@ -21,7 +21,7 @@ const calculateItemsSubtotal = (items: Array<{ quantity: number; unitPrice: stri
   return items?.reduce(
     (sum, item) => sum + Number(item.quantity) * Number(item.unitPrice),
     0
-  ) || 0;
+  ) ?? 0;
 };
 
 // Helper to calculate total including billing details (taxes, discounts)
@@ -56,7 +56,7 @@ export const statementsRouter = router({
     .input(paginationBaseSchema.optional())
     .query(async ({ ctx, input }) => {
       const userId = ctx.user.id;
-      const { limit = 100, offset = 0 } = input || {};
+      const { limit = 100, offset = 0 } = input ?? {};
 
       const [customerList, totalResult] = await Promise.all([
         db.query.customers.findMany({
@@ -86,7 +86,7 @@ export const statementsRouter = router({
     .input(paginationBaseSchema.optional())
     .query(async ({ ctx, input }) => {
       const userId = ctx.user.id;
-      const { limit = 100, offset = 0 } = input || {};
+      const { limit = 100, offset = 0 } = input ?? {};
 
       const [vendorList, totalResult] = await Promise.all([
         db.query.vendors.findMany({
@@ -276,7 +276,7 @@ export const statementsRouter = router({
         );
         const serialNumber =
           creditNote.creditNoteFields?.creditNoteDetails?.serialNumber || creditNote.id;
-        const prefix = creditNote.creditNoteFields?.creditNoteDetails?.prefix || "CN-";
+        const prefix = creditNote.creditNoteFields?.creditNoteDetails?.prefix ?? "CN-";
         const reference = `${prefix}${serialNumber}`;
 
         entries.push({
@@ -298,7 +298,7 @@ export const statementsRouter = router({
         );
         const serialNumber =
           debitNote.debitNoteFields?.debitNoteDetails?.serialNumber || debitNote.id;
-        const prefix = debitNote.debitNoteFields?.debitNoteDetails?.prefix || "DN-";
+        const prefix = debitNote.debitNoteFields?.debitNoteDetails?.prefix ?? "DN-";
         const reference = `${prefix}${serialNumber}`;
 
         entries.push({
@@ -341,8 +341,8 @@ export const statementsRouter = router({
           address: customer.address,
         },
         period: {
-          startDate: startDate || null,
-          endDate: endDate || null,
+          startDate: startDate ?? null,
+          endDate: endDate ?? null,
         },
         entries,
         summary: {
@@ -521,7 +521,7 @@ export const statementsRouter = router({
         );
         const serialNumber =
           creditNote.creditNoteFields?.creditNoteDetails?.serialNumber || creditNote.id;
-        const prefix = creditNote.creditNoteFields?.creditNoteDetails?.prefix || "CN-";
+        const prefix = creditNote.creditNoteFields?.creditNoteDetails?.prefix ?? "CN-";
         const reference = `${prefix}${serialNumber}`;
 
         entries.push({
@@ -543,7 +543,7 @@ export const statementsRouter = router({
         );
         const serialNumber =
           debitNote.debitNoteFields?.debitNoteDetails?.serialNumber || debitNote.id;
-        const prefix = debitNote.debitNoteFields?.debitNoteDetails?.prefix || "DN-";
+        const prefix = debitNote.debitNoteFields?.debitNoteDetails?.prefix ?? "DN-";
         const reference = `${prefix}${serialNumber}`;
 
         entries.push({
@@ -586,8 +586,8 @@ export const statementsRouter = router({
           address: vendor.address,
         },
         period: {
-          startDate: startDate || null,
-          endDate: endDate || null,
+          startDate: startDate ?? null,
+          endDate: endDate ?? null,
         },
         entries,
         summary: {
@@ -606,7 +606,7 @@ export const statementsRouter = router({
     .input(paginationBaseSchema.optional())
     .query(async ({ ctx, input }) => {
       const userId = ctx.user.id;
-      const { limit = 50, offset = 0 } = input || {};
+      const { limit = 50, offset = 0 } = input ?? {};
 
       // Get paginated customer list and total count
       const [customerList, totalResult] = await Promise.all([

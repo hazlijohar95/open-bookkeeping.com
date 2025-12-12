@@ -28,7 +28,7 @@ import {
   Receipt,
   TrendingUp,
   TrendingDown,
-  FileText,
+  FileTextIcon,
   Building2,
   ShieldCheck,
 } from "@/components/ui/icons";
@@ -66,7 +66,7 @@ export function SST() {
   const queryEnabled = !!user && !isAuthLoading;
 
   // Handle tab from URL
-  const activeTab = (searchParams.get("tab") as TabValue) || "overview";
+  const activeTab = (searchParams.get("tab") as TabValue) ?? "overview";
   const handleTabChange = (value: string) => {
     setSearchParams({ tab: value });
   };
@@ -119,10 +119,10 @@ export function SST() {
   // Sync compliance form state when data loads
   useEffect(() => {
     if (complianceStatus && !isComplianceDirty) {
-      setComplianceBusinessCategory(complianceStatus.businessCategory || "other_services");
-      setComplianceManualRevenue(complianceStatus.manualRevenue?.toString() || "");
+      setComplianceBusinessCategory(complianceStatus.businessCategory ?? "other_services");
+      setComplianceManualRevenue(complianceStatus.manualRevenue?.toString() ?? "");
       setComplianceUseManualRevenue(complianceStatus.useManualRevenue || false);
-      setComplianceRegistrationNumber(complianceStatus.registrationNumber || "");
+      setComplianceRegistrationNumber(complianceStatus.registrationNumber ?? "");
     }
   }, [complianceStatus, isComplianceDirty]);
 
@@ -132,11 +132,11 @@ export function SST() {
         businessCategory: complianceBusinessCategory,
         manualRevenue: complianceManualRevenue ? parseFloat(complianceManualRevenue) : undefined,
         useManualRevenue: complianceUseManualRevenue,
-        registrationNumber: complianceRegistrationNumber || null,
+        registrationNumber: complianceRegistrationNumber ?? null,
       },
       {
         onSuccess: () => {
-          refetchCompliance();
+          void refetchCompliance();
           setIsComplianceDirty(false);
         },
       }
@@ -146,7 +146,7 @@ export function SST() {
   // Set default period
   useMemo(() => {
     if (availablePeriods?.length && !selectedReturnPeriod) {
-      setSelectedReturnPeriod(availablePeriods[0] || "");
+      setSelectedReturnPeriod(availablePeriods[0] ?? "");
     }
   }, [availablePeriods, selectedReturnPeriod]);
 
@@ -177,7 +177,7 @@ export function SST() {
         <StatCard
           label="Total Output Tax"
           value={summary ? formatCurrency(summary.totalOutputTax, currency) : "-"}
-          description={`${summary?.transactionCount || 0} transactions`}
+          description={`${summary?.transactionCount ?? 0} transactions`}
           icon={<Receipt className="size-4" />}
           trend={
             summary
@@ -200,7 +200,7 @@ export function SST() {
           label="Service Tax"
           value={summary ? formatCurrency(summary.totalServiceTax, currency) : "-"}
           description="Tax collected on services"
-          icon={<FileText className="size-4" />}
+          icon={<FileTextIcon className="size-4" />}
           isLoading={summaryLoading}
         />
         <StatCard

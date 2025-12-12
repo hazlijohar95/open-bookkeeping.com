@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Bot, User } from "@/components/ui/icons";
+import { Bot, UserIcon } from "@/components/ui/icons";
 
 interface ChatMessageProps {
   role: "user" | "assistant";
@@ -33,7 +33,7 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
       </div>
       {isUser && (
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary">
-          <User className="h-4 w-4 text-primary-foreground" />
+          <UserIcon className="h-4 w-4 text-primary-foreground" />
         </div>
       )}
     </div>

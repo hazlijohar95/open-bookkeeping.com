@@ -1,4 +1,4 @@
-import { SVGProps } from "react";
+import type { SVGProps } from "react";
 import { cn } from "@/lib/utils";
 
 type IconProps = SVGProps<SVGSVGElement> & {
@@ -8,7 +8,7 @@ type IconProps = SVGProps<SVGSVGElement> & {
 };
 
 function Versions2({ fill = "currentColor", secondaryfill, className, ...props }: IconProps) {
-  secondaryfill = secondaryfill || fill;
+  secondaryfill = secondaryfill ?? fill;
 
   return (
     <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" className={cn("size-[18px]", className)} {...props}>

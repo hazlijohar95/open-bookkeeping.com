@@ -141,8 +141,8 @@ export function useUpdateEInvoiceSettings() {
     mutationFn: (input: EInvoiceSettingsInput) =>
       api.put<EInvoiceSettings>("/einvoice/settings", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: einvoiceKeys.settings() });
-      queryClient.invalidateQueries({ queryKey: einvoiceKeys.settingsValidation() });
+      void queryClient.invalidateQueries({ queryKey: einvoiceKeys.settings() });
+      void queryClient.invalidateQueries({ queryKey: einvoiceKeys.settingsValidation() });
     },
   });
 }
@@ -161,8 +161,8 @@ export function useSubmitInvoice() {
     mutationFn: (input: SubmitInvoiceInput) =>
       api.post<SubmissionResult>("/einvoice/submit", input),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: einvoiceKeys.history(variables.invoiceId) });
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(variables.invoiceId) });
+      void queryClient.invalidateQueries({ queryKey: einvoiceKeys.history(variables.invoiceId) });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(variables.invoiceId) });
     },
   });
 }
@@ -174,7 +174,7 @@ export function useSubmitCreditNote() {
     mutationFn: (input: SubmitCreditNoteInput) =>
       api.post<SubmissionResult>("/einvoice/submit-credit-note", input),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: einvoiceKeys.history(variables.invoiceId) });
+      void queryClient.invalidateQueries({ queryKey: einvoiceKeys.history(variables.invoiceId) });
     },
   });
 }
@@ -186,7 +186,7 @@ export function useSubmitDebitNote() {
     mutationFn: (input: SubmitDebitNoteInput) =>
       api.post<SubmissionResult>("/einvoice/submit-debit-note", input),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: einvoiceKeys.history(variables.invoiceId) });
+      void queryClient.invalidateQueries({ queryKey: einvoiceKeys.history(variables.invoiceId) });
     },
   });
 }
@@ -198,7 +198,7 @@ export function useBulkSubmit() {
     mutationFn: (input: BulkSubmitInput) =>
       api.post<BulkSubmitResult>("/einvoice/bulk-submit", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
     },
   });
 }
@@ -210,8 +210,8 @@ export function useCancelDocument() {
     mutationFn: (input: { invoiceId: string; reason: string }) =>
       api.post<{ success: boolean }>("/einvoice/cancel", input),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: einvoiceKeys.history(variables.invoiceId) });
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(variables.invoiceId) });
+      void queryClient.invalidateQueries({ queryKey: einvoiceKeys.history(variables.invoiceId) });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(variables.invoiceId) });
     },
   });
 }

@@ -10,13 +10,14 @@ import {
   DialogIcon,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { createCustomerSchema, CreateCustomerSchema } from "@/zod-schemas/customer";
+import type { CreateCustomerSchema } from "@/zod-schemas/customer";
+import { createCustomerSchema } from "@/zod-schemas/customer";
 import { useFieldArray, useForm } from "react-hook-form";
 import { UsersIcon, FilePenIcon, TrashIcon } from "@/assets/icons";
 import { FormInput } from "@/components/ui/form/form-input";
 import { zodResolver } from "@/lib/utils";
 import { Form } from "@/components/ui/form/form";
-import { Customer } from "@/types/common/customer";
+import type { Customer } from "@/types/common/customer";
 import { Button } from "@/components/ui/button";
 import { useCreateCustomer, useUpdateCustomer } from "@/api";
 import { toast } from "sonner";
@@ -42,10 +43,10 @@ function CustomerFormContent({
     defaultValues: customer
       ? {
           name: customer.name,
-          email: customer.email || "",
-          phone: customer.phone || "",
-          address: customer.address || "",
-          metadata: customer.metadata?.map((m) => ({ label: m.label, value: m.value })) || [],
+          email: customer.email ?? "",
+          phone: customer.phone ?? "",
+          address: customer.address ?? "",
+          metadata: customer.metadata?.map((m) => ({ label: m.label, value: m.value })) ?? [],
         }
       : {
           name: "",
@@ -202,7 +203,7 @@ function CustomerFormContent({
                 </Button>
               </DialogClose>
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Saving..." : isEditing ? "Save Changes" : "Add Customer"}
+                {isLoading ? "Saving..." : isEditing ? "SaveIcon Changes" : "Add Customer"}
               </Button>
             </DialogFooter>
           </form>

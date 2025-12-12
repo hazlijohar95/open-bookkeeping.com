@@ -134,7 +134,7 @@ export const quotationRepository = {
   },
 
   findMany: async (userId: string, options?: QuotationQueryOptions) => {
-    const { limit = 50, offset = 0 } = options || {};
+    const { limit = 50, offset = 0 } = options ?? {};
 
     const userQuotations = await db.query.quotations.findMany({
       where: and(
@@ -177,7 +177,7 @@ export const quotationRepository = {
    * Much faster than findMany for large quotation counts.
    */
   findManyLight: async (userId: string, options?: QuotationQueryOptions): Promise<QuotationListItem[]> => {
-    const { limit = 50, offset = 0 } = options || {};
+    const { limit = 50, offset = 0 } = options ?? {};
 
     const userQuotations = await db.query.quotations.findMany({
       where: and(
@@ -216,7 +216,7 @@ export const quotationRepository = {
       const amount = quotation.quotationFields?.items?.reduce(
         (sum, item) => sum + Number(item.quantity) * Number(item.unitPrice),
         0
-      ) || 0;
+      ) ?? 0;
 
       return {
         id: quotation.id,
@@ -224,12 +224,12 @@ export const quotationRepository = {
         createdAt: quotation.createdAt,
         acceptedAt: quotation.acceptedAt,
         customerId: quotation.customerId,
-        serialNumber: quotation.quotationFields?.quotationDetails?.serialNumber || null,
-        prefix: quotation.quotationFields?.quotationDetails?.prefix || null,
-        clientName: quotation.quotationFields?.clientDetails?.name || null,
+        serialNumber: quotation.quotationFields?.quotationDetails?.serialNumber ?? null,
+        prefix: quotation.quotationFields?.quotationDetails?.prefix ?? null,
+        clientName: quotation.quotationFields?.clientDetails?.name ?? null,
         amount,
-        currency: quotation.quotationFields?.quotationDetails?.currency || null,
-        validUntil: quotation.quotationFields?.quotationDetails?.validUntil || null,
+        currency: quotation.quotationFields?.quotationDetails?.currency ?? null,
+        validUntil: quotation.quotationFields?.quotationDetails?.validUntil ?? null,
       };
     });
   },

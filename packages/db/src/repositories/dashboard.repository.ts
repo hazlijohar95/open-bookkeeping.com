@@ -41,7 +41,7 @@ export const dashboardRepository = {
    */
   getStats: async (userId: string): Promise<DashboardStats> => {
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
     // Use a single SQL query with conditional aggregation
     const result = await db.execute<{
@@ -193,6 +193,9 @@ export const dashboardRepository = {
   ): Promise<Array<{ date: string; revenue: number }>> => {
     // Use separate queries for each groupBy to avoid SQL injection
     // DATE_TRUNC requires a literal string, not a parameterized value
+    // Convert dates to ISO strings for postgres compatibility
+    const startDateStr = startDate.toISOString();
+    const endDateStr = endDate.toISOString();
     let query;
 
     switch (groupBy) {
@@ -207,8 +210,8 @@ export const dashboardRepository = {
           WHERE i.user_id = ${userId}
             AND i.deleted_at IS NULL
             AND i.status = 'success'
-            AND i.paid_at >= ${startDate}
-            AND i.paid_at <= ${endDate}
+            AND i.paid_at >= ${startDateStr}
+            AND i.paid_at <= ${endDateStr}
           GROUP BY DATE_TRUNC('day', i.paid_at)
           ORDER BY period ASC
         `;
@@ -224,8 +227,8 @@ export const dashboardRepository = {
           WHERE i.user_id = ${userId}
             AND i.deleted_at IS NULL
             AND i.status = 'success'
-            AND i.paid_at >= ${startDate}
-            AND i.paid_at <= ${endDate}
+            AND i.paid_at >= ${startDateStr}
+            AND i.paid_at <= ${endDateStr}
           GROUP BY DATE_TRUNC('week', i.paid_at)
           ORDER BY period ASC
         `;
@@ -241,8 +244,8 @@ export const dashboardRepository = {
           WHERE i.user_id = ${userId}
             AND i.deleted_at IS NULL
             AND i.status = 'success'
-            AND i.paid_at >= ${startDate}
-            AND i.paid_at <= ${endDate}
+            AND i.paid_at >= ${startDateStr}
+            AND i.paid_at <= ${endDateStr}
           GROUP BY DATE_TRUNC('month', i.paid_at)
           ORDER BY period ASC
         `;
@@ -279,7 +282,7 @@ export const dashboardRepository = {
       SELECT
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE status = 'converted') as converted,
-        COUNT(*) FILTER (WHERE status = 'pending') as pending,
+        COUNT(*) FILTER (WHERE status = 'sent') as pending,
         COUNT(*) FILTER (WHERE status = 'expired') as expired
       FROM quotations
       WHERE user_id = ${userId}

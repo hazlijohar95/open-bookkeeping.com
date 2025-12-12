@@ -1,5 +1,5 @@
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Calendar } from "@/components/ui/icons";
+import { ArrowLeft, CalendarIcon } from "@/components/ui/icons";
 import { useBlog } from "@/api/blogs";
 import DOMPurify from "dompurify";
 
@@ -50,7 +50,7 @@ export function BlogPost() {
       <main className="container mx-auto px-4 py-12">
         <article className="max-w-3xl mx-auto">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-            <Calendar className="h-4 w-4" />
+            <CalendarIcon className="h-4 w-4" />
             <time>{blog.date}</time>
           </div>
 

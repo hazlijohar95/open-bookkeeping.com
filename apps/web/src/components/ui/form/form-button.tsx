@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { LoaderCircleIcon } from "@/components/ui/icons";
 import { useFormState } from "react-hook-form";
 import { useFormStatus } from "react-dom";
-import { ComponentProps } from "react";
+import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
 export const useAnyStatusError = () => {

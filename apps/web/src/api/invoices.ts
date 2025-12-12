@@ -257,8 +257,8 @@ export function useCreateInvoice() {
     mutationFn: (input: CreateInvoiceInput) =>
       api.post<Invoice>("/invoices", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.listLight() });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.listLight() });
     },
   });
 }
@@ -270,9 +270,9 @@ export function useUpdateInvoiceStatus() {
     mutationFn: ({ id, ...data }: UpdateInvoiceStatusInput) =>
       api.patch<Invoice>(`/invoices/${id}/status`, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.listLight() });
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.listLight() });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(variables.id) });
     },
   });
 }
@@ -283,8 +283,8 @@ export function useDeleteInvoice() {
   return useMutation({
     mutationFn: (id: string) => api.delete<{ success: boolean }>(`/invoices/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.listLight() });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.listLight() });
     },
   });
 }

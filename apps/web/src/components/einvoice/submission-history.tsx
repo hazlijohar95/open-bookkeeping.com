@@ -106,7 +106,7 @@ function SubmissionDetails({ submission }: SubmissionDetailsProps) {
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const copyToClipboard = (text: string, field: string) => {
-    navigator.clipboard.writeText(text);
+    void navigator.clipboard.writeText(text);
     setCopiedField(field);
     toast.success("Copied to clipboard");
     setTimeout(() => setCopiedField(null), 2000);

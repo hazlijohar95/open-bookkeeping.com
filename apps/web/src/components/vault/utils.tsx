@@ -6,16 +6,16 @@ import {
   BoxIcon,
 } from "@/assets/icons";
 import {
-  Loader2,
-  AlertCircle,
-  CheckCircle2,
-  Clock,
+  Loader2Icon,
+  AlertCircleIcon,
+  CheckCircle2Icon,
+  ClockIcon,
   Brain,
   TrendingUp,
   TrendingDown,
-  ChevronRight,
+  ChevronRightIcon,
 } from "@/components/ui/icons";
-import { ProcessingStatus } from "@/types/common/vault";
+import type { ProcessingStatus } from "@/types/common/vault";
 
 /**
  * Format file size from bytes to human readable
@@ -120,7 +120,7 @@ export function ProcessingStatusIndicator({ status, className }: { status: Proce
     case "queued":
       return (
         <div className={cn("flex items-center gap-1.5 text-warning", className)}>
-          <Clock className="size-3.5 animate-pulse" />
+          <ClockIcon className="size-3.5 animate-pulse" />
           <span className="text-xs font-medium">Queued</span>
         </div>
       );
@@ -137,14 +137,14 @@ export function ProcessingStatusIndicator({ status, className }: { status: Proce
     case "processed":
       return (
         <div className={cn("flex items-center gap-1.5 text-success", className)}>
-          <CheckCircle2 className="size-3.5" />
+          <CheckCircle2Icon className="size-3.5" />
           <span className="text-xs font-medium">Processed</span>
         </div>
       );
     case "failed":
       return (
         <div className={cn("flex items-center gap-1.5 text-destructive", className)}>
-          <AlertCircle className="size-3.5" />
+          <AlertCircleIcon className="size-3.5" />
           <span className="text-xs font-medium">Failed</span>
         </div>
       );
@@ -201,9 +201,9 @@ export function ActionButton({ onClick, icon, label, variant = "default", disabl
         variants[variant]
       )}
     >
-      {loading ? <Loader2 className="size-4 animate-spin" /> : icon}
+      {loading ? <Loader2Icon className="size-4 animate-spin" /> : icon}
       <span>{label}</span>
-      {!loading && <ChevronRight className="size-4 opacity-50" />}
+      {!loading && <ChevronRightIcon className="size-4 opacity-50" />}
     </button>
   );
 }

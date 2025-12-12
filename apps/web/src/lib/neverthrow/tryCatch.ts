@@ -1,4 +1,4 @@
-import { CustomResult } from "@/types/neverthrow";
+import type { CustomResult } from "@/types/neverthrow";
 
 interface TryCatchOptions {
   errorMessage?: string;

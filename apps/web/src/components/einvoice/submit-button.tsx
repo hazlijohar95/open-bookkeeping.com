@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FileCheckIcon, TriangleWarningIcon } from "@/assets/icons";
-import { Loader2, ChevronDown, RefreshCw, XCircle } from "@/components/ui/icons";
+import { Loader2Icon, ChevronDownIcon, RefreshCw, XCircleIcon } from "@/components/ui/icons";
 import {
   useEInvoiceSettings,
   useValidateInvoice,
@@ -74,7 +74,7 @@ export function EInvoiceSubmitButton({
       {
         onSuccess: () => {
           toast.success("Invoice submitted to MyInvois");
-          queryClient.invalidateQueries({ queryKey: einvoiceKeys.history(invoiceId) });
+          void queryClient.invalidateQueries({ queryKey: einvoiceKeys.history(invoiceId) });
           onSuccess?.();
         },
         onError: (error) => {
@@ -94,7 +94,7 @@ export function EInvoiceSubmitButton({
       {
         onSuccess: () => {
           toast.success("E-invoice cancelled successfully");
-          queryClient.invalidateQueries({ queryKey: einvoiceKeys.history(invoiceId) });
+          void queryClient.invalidateQueries({ queryKey: einvoiceKeys.history(invoiceId) });
           setShowCancelDialog(false);
           onSuccess?.();
         },
@@ -138,14 +138,14 @@ export function EInvoiceSubmitButton({
             >
               <FileCheckIcon className="size-4" />
               E-Invoice
-              <ChevronDown className="size-4" />
+              <ChevronDownIcon className="size-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {canRefresh && (
               <DropdownMenuItem
                 onClick={() => {
-                  queryClient.invalidateQueries({ queryKey: einvoiceKeys.history(invoiceId) });
+                  void queryClient.invalidateQueries({ queryKey: einvoiceKeys.history(invoiceId) });
                   toast.success("Refreshing submission status...");
                 }}
               >
@@ -160,7 +160,7 @@ export function EInvoiceSubmitButton({
                   className="text-destructive focus:text-destructive"
                   onClick={() => setShowCancelDialog(true)}
                 >
-                  <XCircle className="mr-2 size-4" />
+                  <XCircleIcon className="mr-2 size-4" />
                   Cancel E-Invoice
                 </DropdownMenuItem>
               </>
@@ -206,7 +206,7 @@ export function EInvoiceSubmitButton({
                 disabled={cancelMutation.isPending || !cancelReason.trim()}
               >
                 {cancelMutation.isPending && (
-                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  <Loader2Icon className="mr-2 size-4 animate-spin" />
                 )}
                 Cancel E-Invoice
               </Button>
@@ -229,7 +229,7 @@ export function EInvoiceSubmitButton({
             disabled={disabled || !canSubmit || submitMutation.isPending}
           >
             {submitMutation.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
+              <Loader2Icon className="size-4 animate-spin" />
             ) : (
               <FileCheckIcon className="size-4" />
             )}
@@ -267,7 +267,7 @@ export function EInvoiceSubmitButton({
               disabled={submitMutation.isPending || !validation?.valid}
             >
               {submitMutation.isPending && (
-                <Loader2 className="mr-2 size-4 animate-spin" />
+                <Loader2Icon className="mr-2 size-4 animate-spin" />
               )}
               Submit to MyInvois
             </Button>

@@ -32,15 +32,15 @@ import {
   InboxArrowDownIcon,
 } from "@/assets/icons";
 import {
-  MoreVertical,
-  Loader2,
+  MoreVerticalIcon,
+  Loader2Icon,
   Sparkles,
-  FileText,
+  FileTextIcon,
   Building2,
   Zap,
   Eye,
   RefreshCw,
-  CheckCircle2,
+  CheckCircle2Icon,
   Brain,
 } from "@/components/ui/icons";
 import {
@@ -59,7 +59,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { VaultCategory } from "@/types/common/vault";
+import type { VaultCategory } from "@/types/common/vault";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
@@ -70,7 +70,7 @@ import { DocumentDetailModal } from "@/components/vault/document-detail-modal";
 const CATEGORIES: { value: VaultCategory | "all"; label: string; icon: React.ReactNode }[] = [
   { value: "all", label: "All", icon: <FolderFeatherIcon className="size-4" /> },
   { value: "invoices", label: "Invoices", icon: <ReceiptIcon className="size-4" /> },
-  { value: "bills", label: "Bills", icon: <FileText className="size-4" /> },
+  { value: "bills", label: "Bills", icon: <FileTextIcon className="size-4" /> },
   { value: "statements", label: "Statements", icon: <Building2 className="size-4" /> },
   { value: "receipts", label: "Receipts", icon: <ReceiptIcon className="size-4" /> },
   { value: "contracts", label: "Contracts", icon: <FileFeatherIcon className="size-4" /> },
@@ -110,7 +110,7 @@ export function Vault() {
   const { data: processingAvailable } = useProcessingAvailable();
 
   const { data: rawProcessingResult, isLoading: isLoadingResult } = useProcessingResult(
-    detailModal.document?.id || ""
+    detailModal.document?.id ?? ""
   );
 
   // Normalize extracted data
@@ -127,7 +127,7 @@ export function Vault() {
   useEffect(() => {
     if (processingDocRef.current && documents) {
       const doc = documents.find(d => d.id === processingDocRef.current);
-      if (doc && doc.processingStatus === "processed") {
+      if (doc?.processingStatus === "processed") {
         setDetailModal({ open: true, document: doc });
         setShowExtractionAnimation(true);
         processingDocRef.current = null;
@@ -293,7 +293,7 @@ export function Vault() {
         {uploadMutation.isPending && (
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center">
             <div className="flex items-center gap-3">
-              <Loader2 className="size-5 animate-spin text-primary" />
+              <Loader2Icon className="size-5 animate-spin text-primary" />
               <span className="font-medium">Uploading...</span>
             </div>
           </div>
@@ -382,7 +382,7 @@ export function Vault() {
               Cancel
             </Button>
             <Button onClick={handleRename} disabled={renameMutation.isPending || !newName.trim()}>
-              {renameMutation.isPending ? "Saving..." : "Save"}
+              {renameMutation.isPending ? "Saving..." : "SaveIcon"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -545,7 +545,7 @@ function DocumentCard({
         {doc.processingStatus === "processed" && (
           <div className="absolute top-3 right-3">
             <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-success text-success-foreground text-xs font-medium backdrop-blur-sm">
-              <CheckCircle2 className="size-3" />
+              <CheckCircle2Icon className="size-3" />
               <span>AI Ready</span>
             </div>
           </div>
@@ -574,7 +574,7 @@ function DocumentCard({
                 className="size-8 opacity-0 group-hover:opacity-100 transition-opacity"
                 onClick={(e) => e.stopPropagation()}
               >
-                <MoreVertical className="size-4" />
+                <MoreVerticalIcon className="size-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>

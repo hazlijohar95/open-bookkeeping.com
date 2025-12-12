@@ -14,7 +14,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useLocation, Link } from "react-router-dom";
-import { ChevronRight } from "@/components/ui/icons";
+import { ChevronRightIcon } from "@/components/ui/icons";
 
 import { type ISidebarItem } from "@/types";
 
@@ -44,7 +44,7 @@ export function NavigationItem({ title, items }: { title: string; items: ISideba
                     <SidebarMenuButton isActive={isActive || isChildActive}>
                       <span className="flex items-center justify-center [&>svg]:size-4">{item.icon}</span>
                       <span className="text-[13px] font-medium tracking-tighter">{item.name}</span>
-                      <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                      <ChevronRightIcon className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent>

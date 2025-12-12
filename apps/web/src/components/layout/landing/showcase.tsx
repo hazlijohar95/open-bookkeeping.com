@@ -12,7 +12,7 @@ import {
   HourglassStartIcon,
   CircleCheckIcon,
 } from "@/assets/icons";
-import { TrendingUp, Clock, AlertTriangle, Send, Check } from "@/components/ui/icons";
+import { TrendingUp, ClockIcon, AlertTriangleIcon, SendIcon, Check } from "@/components/ui/icons";
 
 interface BentoCardProps {
   children: React.ReactNode;
@@ -137,14 +137,14 @@ const MetricsCardsMockup = () => {
       label: "Pending",
       value: "RM 3,200",
       sub: "Awaiting payment",
-      icon: Clock,
+      icon: ClockIcon,
       color: "blue",
     },
     {
       label: "Overdue",
       value: "2",
       sub: "RM 1,800",
-      icon: AlertTriangle,
+      icon: AlertTriangleIcon,
       color: "amber",
     },
   ];
@@ -253,7 +253,7 @@ const AIChatMockup = () => {
             inputValue ? "text-primary hover:bg-primary/10" : "text-muted-foreground/40"
           )}
         >
-          <Send className="size-3.5" />
+          <SendIcon className="size-3.5" />
         </button>
       </div>
     </div>

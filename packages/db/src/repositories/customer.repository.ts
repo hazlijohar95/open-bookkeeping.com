@@ -39,7 +39,7 @@ export const customerRepository = {
   },
 
   findMany: async (userId: string, options?: CustomerQueryOptions) => {
-    const { limit = 50, offset = 0 } = options || {};
+    const { limit = 50, offset = 0 } = options ?? {};
 
     return db.query.customers.findMany({
       where: and(
@@ -83,9 +83,9 @@ export const customerRepository = {
         .values({
           userId: input.userId,
           name: input.name,
-          email: input.email || null,
-          phone: input.phone || null,
-          address: input.address || null,
+          email: input.email ?? null,
+          phone: input.phone ?? null,
+          address: input.address ?? null,
         })
         .returning();
 

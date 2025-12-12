@@ -1,4 +1,4 @@
-import { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
+import type { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
 import { createQuotationPdfBlob } from "@/lib/quotation/create-quotation-pdf-blob";
 import { generateQuotationName } from "@/lib/quotation/generate-quotation-name";
 import { createBlobUrl, revokeBlobUrl } from "@/lib/invoice/create-blob-url";

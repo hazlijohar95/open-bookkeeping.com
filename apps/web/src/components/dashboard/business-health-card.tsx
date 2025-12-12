@@ -6,7 +6,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle, AlertTriangle, TrendingUp, ArrowRight } from "@/components/ui/icons";
+import { CheckCircleIcon, AlertTriangleIcon, TrendingUp, ArrowRightIcon } from "@/components/ui/icons";
 
 interface BusinessHealthCardProps {
   stats?: {
@@ -75,7 +75,7 @@ function getHealthStatus(stats: BusinessHealthCardProps["stats"]): {
 }
 
 const statusConfig: Record<HealthStatus, {
-  icon: typeof CheckCircle;
+  icon: typeof CheckCircleIcon;
   color: string;
   bgColor: string;
   label: string;
@@ -87,19 +87,19 @@ const statusConfig: Record<HealthStatus, {
     label: "Excellent",
   },
   good: {
-    icon: CheckCircle,
+    icon: CheckCircleIcon,
     color: "text-blue-600 dark:text-blue-400",
     bgColor: "bg-blue-100 dark:bg-blue-900/30",
     label: "Good",
   },
   attention: {
-    icon: AlertTriangle,
+    icon: AlertTriangleIcon,
     color: "text-amber-600 dark:text-amber-400",
     bgColor: "bg-amber-100 dark:bg-amber-900/30",
     label: "Needs Attention",
   },
   critical: {
-    icon: AlertTriangle,
+    icon: AlertTriangleIcon,
     color: "text-red-600 dark:text-red-400",
     bgColor: "bg-red-100 dark:bg-red-900/30",
     label: "Action Required",
@@ -161,7 +161,7 @@ export function BusinessHealthCard({ stats, isLoading, className }: BusinessHeal
               <Button variant="ghost" size="sm" asChild className="shrink-0">
                 <Link to={health.action.href}>
                   {health.action.label}
-                  <ArrowRight className="ml-1 size-3" />
+                  <ArrowRightIcon className="ml-1 size-3" />
                 </Link>
               </Button>
             )}

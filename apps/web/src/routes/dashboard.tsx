@@ -14,7 +14,6 @@ import {
   DashboardHeader,
   BusinessHealthCard,
   KeyMetrics,
-  DashboardChatInput,
   type TimeRange,
   type DashboardView,
   // Legacy Metrics view components
@@ -26,10 +25,10 @@ import {
   SstComplianceWidget,
 } from "@/components/dashboard";
 import {
-  DollarSign,
-  FileText,
-  Clock,
-  AlertTriangle,
+  CurrencyDollarIcon,
+  FileTextIcon,
+  ClockIcon,
+  AlertTriangleIcon,
   TrendingUp,
   Receipt,
 } from "@/components/ui/icons";
@@ -62,8 +61,8 @@ export function Dashboard() {
     enabled: queryEnabled && view === "metrics",
   });
 
-  const firstName = user?.user_metadata?.full_name?.split(" ")[0] || "there";
-  const currency = stats?.currency || "MYR";
+  const firstName = user?.user_metadata?.full_name?.split(" ")[0] ?? "there";
+  const currency = stats?.currency ?? "MYR";
 
   return (
     <PageContainer className="pb-8">
@@ -89,9 +88,6 @@ export function Dashboard() {
             stats={stats}
             isLoading={statsLoading}
           />
-
-          {/* AI Chat - Primary interaction */}
-          <DashboardChatInput />
         </div>
       ) : (
         <>
@@ -102,13 +98,13 @@ export function Dashboard() {
               label="Total Revenue"
               value={stats ? formatCurrency(stats.totalRevenue, currency) : "-"}
               description="Revenue from all paid invoices"
-              icon={<DollarSign className="size-4" />}
+              icon={<CurrencyDollarIcon className="size-4" />}
               isLoading={statsLoading}
             />
             <StatCard
               label="This Month"
               value={stats ? formatCurrency(stats.revenueThisMonth, currency) : "-"}
-              description={`${stats?.paidThisMonth || 0} invoices paid`}
+              description={`${stats?.paidThisMonth ?? 0} invoices paid`}
               subdescription="Revenue collected this month"
               icon={<TrendingUp className="size-4" />}
               isLoading={statsLoading}
@@ -117,18 +113,18 @@ export function Dashboard() {
               label="Pending"
               value={stats ? formatCurrency(stats.pendingAmount, currency) : "-"}
               description="Awaiting payment"
-              icon={<Clock className="size-4" />}
+              icon={<ClockIcon className="size-4" />}
               isLoading={statsLoading}
             />
             <StatCard
               label="Overdue"
-              value={stats?.overdueCount || 0}
+              value={stats?.overdueCount ?? 0}
               description={
                 stats
                   ? `${formatCurrency(stats.overdueAmount, currency)} outstanding`
                   : undefined
               }
-              icon={<AlertTriangle className="size-4" />}
+              icon={<AlertTriangleIcon className="size-4" />}
               isLoading={statsLoading}
             />
           </div>
@@ -137,22 +133,22 @@ export function Dashboard() {
           <div className="grid gap-4 sm:grid-cols-3 mb-4">
             <StatCard
               label="Total Invoices"
-              value={stats?.totalInvoices || 0}
+              value={stats?.totalInvoices ?? 0}
               description="All invoices created"
-              icon={<FileText className="size-4" />}
+              icon={<FileTextIcon className="size-4" />}
               isLoading={statsLoading}
             />
             <StatCard
               label="Total Quotations"
-              value={stats?.totalQuotations || 0}
+              value={stats?.totalQuotations ?? 0}
               description="All quotations created"
               icon={<Receipt className="size-4" />}
               isLoading={statsLoading}
             />
             <StatCard
               label="Conversion Rate"
-              value={`${stats?.conversionRate || 0}%`}
-              description={`${stats?.convertedQuotations || 0} converted to invoices`}
+              value={`${stats?.conversionRate ?? 0}%`}
+              description={`${stats?.convertedQuotations ?? 0} converted to invoices`}
               isLoading={statsLoading}
             />
           </div>
@@ -160,7 +156,7 @@ export function Dashboard() {
           {/* Charts Row */}
           <div className="grid gap-4 lg:grid-cols-3 mb-4">
             <RevenueChart
-              data={chartData || []}
+              data={chartData ?? []}
               currency={currency}
               period={chartPeriod}
               onPeriodChange={setChartPeriod}
@@ -169,7 +165,7 @@ export function Dashboard() {
             />
             <InvoiceStatusChart
               data={
-                statusBreakdown || {
+                statusBreakdown ?? {
                   pending: 0,
                   paid: 0,
                   overdue: 0,
@@ -184,11 +180,11 @@ export function Dashboard() {
           {/* Bottom Row */}
           <div className="grid gap-4 lg:grid-cols-2 mb-4">
             <RecentInvoices
-              invoices={recentInvoices || []}
+              invoices={recentInvoices ?? []}
               isLoading={invoicesLoading}
             />
             <TopCustomers
-              customers={topCustomers || []}
+              customers={topCustomers ?? []}
               currency={currency}
               isLoading={customersLoading}
             />

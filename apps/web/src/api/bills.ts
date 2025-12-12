@@ -169,7 +169,7 @@ export function useCreateBill() {
   return useMutation({
     mutationFn: (input: CreateBillInput) => api.post<Bill>("/bills", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: billKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: billKeys.lists() });
     },
   });
 }
@@ -181,8 +181,8 @@ export function useUpdateBill() {
     mutationFn: ({ id, ...data }: UpdateBillInput) =>
       api.patch<Bill>(`/bills/${id}`, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: billKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: billKeys.detail(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: billKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: billKeys.detail(variables.id) });
     },
   });
 }
@@ -194,8 +194,8 @@ export function useUpdateBillStatus() {
     mutationFn: ({ id, ...data }: UpdateBillStatusInput) =>
       api.patch<Bill>(`/bills/${id}/status`, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: billKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: billKeys.detail(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: billKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: billKeys.detail(variables.id) });
     },
   });
 }
@@ -206,7 +206,7 @@ export function useDeleteBill() {
   return useMutation({
     mutationFn: (id: string) => api.delete<{ success: boolean }>(`/bills/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: billKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: billKeys.lists() });
     },
   });
 }

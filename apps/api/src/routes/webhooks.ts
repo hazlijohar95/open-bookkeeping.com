@@ -96,7 +96,7 @@ webhookRoutes.get("/", async (c) => {
 
   try {
     const limit = Number(c.req.query("limit")) || 50;
-    const offset = Number(c.req.query("offset")) || 0;
+    const offset = Number(c.req.query("offset")) ?? 0;
     const includeInactive = c.req.query("include_inactive") === "true";
 
     const webhooks = await webhookRepository.findMany(user.id, {
@@ -204,7 +204,7 @@ webhookRoutes.get("/:id/deliveries", async (c) => {
     const id = c.req.param("id");
     const status = c.req.query("status") as any;
     const limit = Number(c.req.query("limit")) || 50;
-    const offset = Number(c.req.query("offset")) || 0;
+    const offset = Number(c.req.query("offset")) ?? 0;
 
     const deliveries = await webhookRepository.findDeliveries(id, user.id, {
       status,

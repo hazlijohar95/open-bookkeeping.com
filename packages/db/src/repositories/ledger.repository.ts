@@ -163,7 +163,7 @@ export const ledgerRepository = {
     userId: string,
     options?: GeneralLedgerOptions
   ): Promise<GeneralLedgerResult | null> => {
-    const { startDate, endDate, limit = 100, offset = 0 } = options || {};
+    const { startDate, endDate, limit = 100, offset = 0 } = options ?? {};
 
     // Get account info
     const account = await db.query.accounts.findFirst({
@@ -203,7 +203,7 @@ export const ledgerRepository = {
     });
 
     // Calculate opening balance (balance before the period)
-    let openingBalance = new Decimal(account.openingBalance || "0");
+    let openingBalance = new Decimal(account.openingBalance ?? "0");
     if (startDate) {
       const priorTransactions = await db.query.ledgerTransactions.findMany({
         where: and(
@@ -270,7 +270,7 @@ export const ledgerRepository = {
       totalDebits: totalDebits.toFixed(2),
       totalCredits: totalCredits.toFixed(2),
       period: {
-        startDate: startDate || "beginning",
+        startDate: startDate ?? "beginning",
         endDate: endDate || new Date().toISOString().split("T")[0]!,
       },
     };
@@ -308,7 +308,7 @@ export const ledgerRepository = {
         ),
       });
 
-      let balance = new Decimal(account.openingBalance || "0");
+      let balance = new Decimal(account.openingBalance ?? "0");
       for (const t of transactions) {
         if (account.normalBalance === "debit") {
           balance = balance.plus(t.debitAmount).minus(t.creditAmount);
@@ -555,7 +555,7 @@ export const ledgerRepository = {
         ),
       });
 
-      let balance = new Decimal(account.openingBalance || "0");
+      let balance = new Decimal(account.openingBalance ?? "0");
       for (const t of transactions) {
         if (account.normalBalance === "debit") {
           balance = balance.plus(t.debitAmount).minus(t.creditAmount);
@@ -796,7 +796,7 @@ export const ledgerRepository = {
         limit: 1,
       });
 
-      let runningBalance = new Decimal(account.openingBalance || "0");
+      let runningBalance = new Decimal(account.openingBalance ?? "0");
       if (priorTransactions.length > 0) {
         runningBalance = new Decimal(priorTransactions[0]!.runningBalance);
       }
@@ -884,7 +884,7 @@ export const ledgerRepository = {
         // Get or initialize running balance
         let runningBalance =
           accountBalancesMap.get(account.id) ||
-          new Decimal(account.openingBalance || "0");
+          new Decimal(account.openingBalance ?? "0");
 
         // Update running balance
         if (account.normalBalance === "debit") {

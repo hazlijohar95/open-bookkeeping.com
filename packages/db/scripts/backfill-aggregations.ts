@@ -113,7 +113,7 @@ async function updateInvoiceMonthlyTotals(
   const now = new Date();
 
   periodInvoices.forEach((invoice) => {
-    const items = invoice.invoiceFields?.items || [];
+    const items = invoice.invoiceFields?.items ?? [];
     const total = items.reduce(
       (sum, item) => sum + Number(item.quantity) * Number(item.unitPrice),
       0
@@ -197,8 +197,8 @@ async function updateSstMonthlyTotals(
   const transactionCount = transactions.length;
 
   transactions.forEach((tx) => {
-    taxableAmount += Number(tx.taxableAmount || 0);
-    const taxAmount = Number(tx.taxAmount || 0);
+    taxableAmount += Number(tx.taxableAmount ?? 0);
+    const taxAmount = Number(tx.taxAmount ?? 0);
 
     if (tx.taxType === "sales_tax") {
       salesTaxTotal += taxAmount;

@@ -1,7 +1,7 @@
-import { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
+import type { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
 import { FormSelect } from "@/components/ui/form/form-select";
 import { SelectItem } from "@/components/ui/select";
-import { UseFormReturn } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
 import { BoxIcon, SyncIcon, FileFeatherIcon } from "@/assets/icons";
 
 type PdfTemplateName = "default" | "cynco" | "classic" | undefined;

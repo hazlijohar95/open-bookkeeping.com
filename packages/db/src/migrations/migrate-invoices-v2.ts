@@ -21,7 +21,7 @@ import * as schema from "../schema";
 // Parse command line arguments
 const args = process.argv.slice(2);
 const isDryRun = args.includes("--dry-run");
-const batchSize = parseInt(args.find(a => a.startsWith("--batch-size="))?.split("=")[1] || "100");
+const batchSize = parseInt(args.find(a => a.startsWith("--batch-size="))?.split("=")[1] ?? "100");
 const shouldValidate = args.includes("--validate");
 
 // Database connection
@@ -115,8 +115,8 @@ async function migrateInvoice(invoice: NonNullable<Awaited<ReturnType<typeof fet
   try {
     // Build company details
     const companyDetails: schema.CompanyDetailsV2 = {
-      name: fields.companyDetails?.name || "Unknown",
-      address: fields.companyDetails?.address || "",
+      name: fields.companyDetails?.name ?? "Unknown",
+      address: fields.companyDetails?.address ?? "",
       logo: fields.companyDetails?.logo,
       signature: fields.companyDetails?.signature,
       metadata: fields.companyDetails?.metadata?.map(m => ({
@@ -127,8 +127,8 @@ async function migrateInvoice(invoice: NonNullable<Awaited<ReturnType<typeof fet
 
     // Build client details
     const clientDetails: schema.ClientDetailsV2 = {
-      name: fields.clientDetails?.name || "Unknown",
-      address: fields.clientDetails?.address || "",
+      name: fields.clientDetails?.name ?? "Unknown",
+      address: fields.clientDetails?.address ?? "",
       metadata: fields.clientDetails?.metadata?.map(m => ({
         label: m.label,
         value: m.value,
@@ -136,19 +136,19 @@ async function migrateInvoice(invoice: NonNullable<Awaited<ReturnType<typeof fet
     };
 
     // Build billing details
-    const billingDetails: schema.BillingDetailV2[] = (fields.invoiceDetails?.billingDetails || []).map(b => ({
+    const billingDetails: schema.BillingDetailV2[] = (fields.invoiceDetails?.billingDetails ?? []).map(b => ({
       label: b.label,
       type: b.type as "fixed" | "percentage",
       value: b.value,
-      isSstTax: b.isSstTax || undefined,
-      sstTaxType: b.sstTaxType || undefined,
-      sstRateCode: b.sstRateCode || undefined,
+      isSstTax: b.isSstTax ?? undefined,
+      sstTaxType: b.sstTaxType ?? undefined,
+      sstRateCode: b.sstRateCode ?? undefined,
     }));
 
     // Build metadata
     const metadata: schema.InvoiceMetadataV2 = {
-      notes: fields.metadata?.notes || undefined,
-      terms: fields.metadata?.terms || undefined,
+      notes: fields.metadata?.notes ?? undefined,
+      terms: fields.metadata?.terms ?? undefined,
       paymentInformation: fields.metadata?.paymentInformation?.map(p => ({
         label: p.label,
         value: p.value,
@@ -156,7 +156,7 @@ async function migrateInvoice(invoice: NonNullable<Awaited<ReturnType<typeof fet
     };
 
     // Calculate totals
-    const items = fields.items || [];
+    const items = fields.items ?? [];
     const totals = calculateTotals(items, billingDetails);
 
     // Prepare the new invoice record
@@ -168,9 +168,9 @@ async function migrateInvoice(invoice: NonNullable<Awaited<ReturnType<typeof fet
       type: invoice.type,
       status: invoice.status,
       einvoiceStatus: invoice.einvoiceStatus,
-      prefix: fields.invoiceDetails?.prefix || "INV",
-      serialNumber: fields.invoiceDetails?.serialNumber || "0",
-      currency: fields.invoiceDetails?.currency || "MYR",
+      prefix: fields.invoiceDetails?.prefix ?? "INV",
+      serialNumber: fields.invoiceDetails?.serialNumber ?? "0",
+      currency: fields.invoiceDetails?.currency ?? "MYR",
       invoiceDate: fields.invoiceDetails?.date || new Date(),
       dueDate: fields.invoiceDetails?.dueDate,
       paymentTerms: fields.invoiceDetails?.paymentTerms,

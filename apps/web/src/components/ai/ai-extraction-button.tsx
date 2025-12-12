@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Loader2 } from "@/components/ui/icons";
+import { Sparkles, Loader2Icon } from "@/components/ui/icons";
 import { useAuth } from "@/providers/auth-provider";
 
 interface ExtractedInvoice {
@@ -72,7 +72,7 @@ export function AIExtractionButton<T extends ExtractedData>({
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/ai/extract/${extractionType}`,
+        `${import.meta.env.VITE_API_URL ?? "http://localhost:3001"}/api/ai/extract/${extractionType}`,
         {
           method: "POST",
           headers: {
@@ -105,7 +105,7 @@ export function AIExtractionButton<T extends ExtractedData>({
       className={className}
     >
       {isLoading ? (
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
       ) : (
         <Sparkles className="mr-2 h-4 w-4" />
       )}

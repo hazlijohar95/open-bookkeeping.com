@@ -11,8 +11,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { createInvoiceItemSchema, ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
-import { useFieldArray, useForm, UseFormReturn } from "react-hook-form";
+import type { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
+import { createInvoiceItemSchema } from "@/zod-schemas/invoice/create-invoice";
+import type { UseFormReturn } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import { BoxPlusIcon, FilePenIcon, BoxIcon, TrashIcon } from "@/assets/icons";
 import { FormInput } from "@/components/ui/form/form-input";
 import { formatCurrencyText } from "@/constants/currency";
@@ -117,10 +119,10 @@ const HandleItemModal = ({ type, append, update, editingIndex, data, children }:
   const invoiceItemForm = useForm<InvoiceItem>({
     resolver: zodResolver(createInvoiceItemSchema),
     defaultValues: {
-      name: data?.name || "",
-      description: data?.description || "",
-      quantity: data?.quantity || 1,
-      unitPrice: data?.unitPrice || 1,
+      name: data?.name ?? "",
+      description: data?.description ?? "",
+      quantity: data?.quantity ?? 1,
+      unitPrice: data?.unitPrice ?? 1,
     },
   });
 
@@ -191,7 +193,7 @@ const HandleItemModal = ({ type, append, update, editingIndex, data, children }:
                 <Button type="button" variant="outline">Cancel</Button>
               </DialogClose>
               <Button type="submit">
-                {type === "add" ? "Add Item" : "Save Changes"}
+                {type === "add" ? "Add Item" : "SaveIcon Changes"}
               </Button>
             </DialogFooter>
           </form>

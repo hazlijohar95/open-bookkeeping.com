@@ -1,5 +1,3 @@
-/* eslint-disable jsx-a11y/alt-text */
-
 import { GEIST_MONO_FONT, GEIST_FONT } from "@/constants/pdf-fonts";
 import { Document, Page, Text, View, Font } from "@react-pdf/renderer";
 import { formatCurrencyText } from "@/constants/currency";
@@ -126,7 +124,7 @@ const StatementDefaultPDF: React.FC<{ data: StatementPDFData }> = ({ data }) => 
   return (
     <Document
       title={`Statement of Account - ${data.entity.name}`}
-      author={data.company?.name || "Open-Bookkeeping"}
+      author={data.company?.name ?? "Open-Bookkeeping"}
       producer="Open-Bookkeeping"
     >
       <Page size="A4" style={{ ...tw("p-10 bg-surface text-ink"), fontFamily: "Geist" }}>

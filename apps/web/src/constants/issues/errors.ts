@@ -5,7 +5,7 @@ export const enum ERROR_MESSAGES {
   FETCHING_ASSETS = "Error while fetching assets!",
   UPLOADING_IMAGE = "Failed to upload image",
   FAILED_TO_GENERATE_PDF = "Failed to generate PDF content",
-  INVALID_SEARCH_PARAMS = "Invalid Search Params! Please try again later.",
+  INVALID_SEARCH_PARAMS = "Invalid SearchIcon Params! Please try again later.",
   INVOICE_NOT_FOUND = "Invoice not found! Please try again later.",
   BLOB_NOT_INITIALIZED = "Blob not initialized. Initialize the InvoiceDownloadManager",
   INVOICE_DATA_NOT_INITIALIZED = "Invoice data not initialized. Initialize the InvoiceDownloadManager",

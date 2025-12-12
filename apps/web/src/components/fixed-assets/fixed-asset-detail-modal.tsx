@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
-import { Play, Ban, AlertCircle, CheckCircle2 } from "@/components/ui/icons";
+import { PlayIcon, Ban, AlertCircleIcon, CheckCircle2Icon } from "@/components/ui/icons";
 
 interface FixedAssetDetailModalProps {
   isOpen: boolean;
@@ -129,15 +129,15 @@ export function FixedAssetDetailModal({
                   </div>
                   <div>
                     <span className="text-muted-foreground">Serial Number:</span>{" "}
-                    {asset.serialNumber || "N/A"}
+                    {asset.serialNumber ?? "N/A"}
                   </div>
                   <div>
                     <span className="text-muted-foreground">Location:</span>{" "}
-                    {asset.location || "N/A"}
+                    {asset.location ?? "N/A"}
                   </div>
                   <div>
                     <span className="text-muted-foreground">Invoice Reference:</span>{" "}
-                    {asset.invoiceReference || "N/A"}
+                    {asset.invoiceReference ?? "N/A"}
                   </div>
                   <div>
                     <span className="text-muted-foreground">Warranty Expiry:</span>{" "}
@@ -207,11 +207,11 @@ export function FixedAssetDetailModal({
                       <div className="flex items-center gap-4">
                         <div className="flex size-10 items-center justify-center rounded-full bg-muted">
                           {item.status === "posted" ? (
-                            <CheckCircle2 className="size-5 text-green-600" />
+                            <CheckCircle2Icon className="size-5 text-green-600" />
                           ) : item.status === "skipped" ? (
                             <Ban className="size-5 text-muted-foreground" />
                           ) : (
-                            <AlertCircle className="size-5 text-amber-500" />
+                            <AlertCircleIcon className="size-5 text-amber-500" />
                           )}
                         </div>
                         <div>
@@ -241,7 +241,7 @@ export function FixedAssetDetailModal({
                               onClick={() => handleRunDepreciation(item.id)}
                               disabled={runDepreciation.isPending}
                             >
-                              <Play className="size-3 mr-1" />
+                              <PlayIcon className="size-3 mr-1" />
                               Post
                             </Button>
                           )}

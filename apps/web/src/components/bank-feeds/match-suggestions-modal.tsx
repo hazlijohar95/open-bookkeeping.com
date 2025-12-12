@@ -14,13 +14,13 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useState } from "react";
 import {
-  User,
+  UserIcon,
   Building2,
-  FileText,
+  FileTextIcon,
   Receipt,
-  CheckCircle2,
+  CheckCircle2Icon,
   Sparkles,
-  AlertCircle,
+  AlertCircleIcon,
 } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -45,9 +45,9 @@ interface Suggestion {
 }
 
 const suggestionIcons = {
-  customer: User,
+  customer: UserIcon,
   vendor: Building2,
-  invoice: FileText,
+  invoice: FileTextIcon,
   bill: Receipt,
 };
 
@@ -94,7 +94,7 @@ export function MatchSuggestionsModal({
 }: MatchSuggestionsModalProps) {
   const [selectedSuggestion, setSelectedSuggestion] = useState<Suggestion | null>(null);
 
-  const { data: suggestions, isLoading } = useMatchSuggestions(transactionId || "");
+  const { data: suggestions, isLoading } = useMatchSuggestions(transactionId ?? "");
 
   const applyMatchMutation = useApplyMatch();
 
@@ -206,7 +206,7 @@ export function MatchSuggestionsModal({
                             )}
                           </div>
                           {isSelected && (
-                            <CheckCircle2 className="size-4 text-primary shrink-0" />
+                            <CheckCircle2Icon className="size-4 text-primary shrink-0" />
                           )}
                         </div>
                       </button>
@@ -215,7 +215,7 @@ export function MatchSuggestionsModal({
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-                  <AlertCircle className="size-8 mb-2 text-muted-foreground/50" />
+                  <AlertCircleIcon className="size-8 mb-2 text-muted-foreground/50" />
                   <div className="text-sm">No match suggestions found</div>
                   <div className="text-xs mt-1">
                     Try manually matching to a customer or vendor

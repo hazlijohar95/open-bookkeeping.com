@@ -3,8 +3,8 @@
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage, useFormField } from "./form";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ControllerRenderProps, FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
-import { Check, ChevronsUpDown, InfoIcon, Loader2, Plus, TriangleAlertIcon, User } from "@/components/ui/icons";
+import type { ControllerRenderProps, FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
+import { Check, ChevronsUpDown, InfoIcon, Loader2Icon, Plus, TriangleAlertIcon, UserIcon } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCustomers } from "@/api/customers";
@@ -95,11 +95,11 @@ function FormCustomerSelectorContent<
             >
               {selectedCustomer ? (
                 <div className="flex items-center gap-2 truncate">
-                  <User className="size-4 shrink-0" />
+                  <UserIcon className="size-4 shrink-0" />
                   <span className="truncate">{selectedCustomer.name}</span>
                 </div>
               ) : (
-                <span>{props.placeholder || "Select a customer..."}</span>
+                <span>{props.placeholder ?? "Select a customer..."}</span>
               )}
               <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
             </Button>
@@ -108,7 +108,7 @@ function FormCustomerSelectorContent<
         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
           <Command shouldFilter={false}>
             <CommandInput
-              placeholder="Search customers..."
+              placeholder="SearchIcon customers..."
               value={searchQuery}
               onValueChange={setSearchQuery}
             />
@@ -127,7 +127,7 @@ function FormCustomerSelectorContent<
               <CommandSeparator />
               {isLoading ? (
                 <div className="flex items-center justify-center py-6">
-                  <Loader2 className="size-4 animate-spin" />
+                  <Loader2Icon className="size-4 animate-spin" />
                 </div>
               ) : filteredCustomers.length === 0 ? (
                 <CommandEmpty>
@@ -245,7 +245,7 @@ export const FormCustomerSelector = <
   const handleCloseCreateModal = useCallback(() => {
     setIsCreateModalOpen(false);
     // Refetch customers to include the newly created one
-    refetch();
+    void refetch();
   }, [refetch]);
 
   return (

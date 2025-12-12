@@ -8,12 +8,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Customer } from "@/types/common/customer";
+import type { Customer } from "@/types/common/customer";
 import { UsersIcon } from "@/assets/icons";
 import { useUnpaidInvoices } from "@/api/invoices";
 import { AgingChart, formatAgingBuckets } from "@/components/aging/aging-chart";
 import { AgingTable } from "@/components/aging/aging-table";
-import { User, FileText, TrendingUp, Mail, Phone, MapPin } from "@/components/ui/icons";
+import { UserIcon, FileTextIcon, TrendingUp, MailIcon, Phone, MapPin } from "@/components/ui/icons";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMemo } from "react";
@@ -29,12 +29,12 @@ function CustomerInfo({ customer }: { customer: Customer }) {
     <div className="space-y-4">
       <div className="rounded-lg border bg-card p-4">
         <h4 className="font-medium mb-3 flex items-center gap-2">
-          <User className="size-4" />
+          <UserIcon className="size-4" />
           Contact Information
         </h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex items-start gap-2">
-            <Mail className="size-4 mt-0.5 text-muted-foreground" />
+            <MailIcon className="size-4 mt-0.5 text-muted-foreground" />
             <div>
               <div className="text-xs text-muted-foreground">Email</div>
               <div className="text-sm">
@@ -103,9 +103,9 @@ function CustomerAging({ customerId }: { customerId: string }) {
     };
 
     const tableItems = invoices.map((inv) => {
-      const items = inv.invoiceFields?.items || [];
+      const items = inv.invoiceFields?.items ?? [];
       const total = items.reduce((sum, item) => {
-        const price = typeof item.unitPrice === "number" ? item.unitPrice : parseFloat(String(item.unitPrice || "0"));
+        const price = typeof item.unitPrice === "number" ? item.unitPrice : parseFloat(String(item.unitPrice ?? "0"));
         return sum + (item.quantity * price);
       }, 0);
       const dueDateStr = inv.invoiceFields?.invoiceDetails?.dueDate;
@@ -136,11 +136,11 @@ function CustomerAging({ customerId }: { customerId: string }) {
 
       return {
         id: inv.id,
-        serialNumber: `${inv.invoiceFields?.invoiceDetails?.prefix || "INV"}-${inv.invoiceFields?.invoiceDetails?.serialNumber || "000"}`,
+        serialNumber: `${inv.invoiceFields?.invoiceDetails?.prefix ?? "INV"}-${inv.invoiceFields?.invoiceDetails?.serialNumber ?? "000"}`,
         date: new Date(dateStr),
         dueDate,
         total,
-        currency: inv.invoiceFields?.invoiceDetails?.currency || "MYR",
+        currency: inv.invoiceFields?.invoiceDetails?.currency ?? "MYR",
         status: inv.status,
         daysOverdue,
       };
@@ -178,13 +178,13 @@ function CustomerAging({ customerId }: { customerId: string }) {
       {agingData && (
         <AgingChart
           buckets={agingData}
-          currency={invoices[0]?.invoiceFields?.invoiceDetails?.currency || "MYR"}
+          currency={invoices[0]?.invoiceFields?.invoiceDetails?.currency ?? "MYR"}
         />
       )}
 
       <div>
         <h4 className="font-medium mb-3 flex items-center gap-2">
-          <FileText className="size-4" />
+          <FileTextIcon className="size-4" />
           Outstanding Invoices
         </h4>
         <AgingTable invoices={tableData} type="ar" />
@@ -219,7 +219,7 @@ export function CustomerDetailModal({ isOpen, onClose, customer }: CustomerDetai
         <Tabs defaultValue="details" className="mt-4">
           <TabsList>
             <TabsTrigger value="details" className="gap-1.5">
-              <User className="size-3.5" />
+              <UserIcon className="size-3.5" />
               Details
             </TabsTrigger>
             <TabsTrigger value="aging" className="gap-1.5">

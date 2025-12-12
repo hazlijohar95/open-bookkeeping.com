@@ -63,7 +63,7 @@ export class AggregationService {
     const now = new Date();
 
     periodInvoices.forEach((invoice) => {
-      const items = invoice.invoiceFields?.items || [];
+      const items = invoice.invoiceFields?.items ?? [];
       const total = items.reduce(
         (sum, item) => sum.plus(new Decimal(item.unitPrice).times(item.quantity)),
         new Decimal(0)
@@ -143,8 +143,8 @@ export class AggregationService {
     const transactionCount = transactions.length;
 
     transactions.forEach((tx) => {
-      taxableAmount = taxableAmount.plus(new Decimal(tx.taxableAmount || 0));
-      const taxAmount = new Decimal(tx.taxAmount || 0);
+      taxableAmount = taxableAmount.plus(new Decimal(tx.taxableAmount ?? 0));
+      const taxAmount = new Decimal(tx.taxAmount ?? 0);
 
       if (tx.taxType === "sales_tax") {
         salesTaxTotal = salesTaxTotal.plus(taxAmount);
@@ -260,11 +260,11 @@ export class AggregationService {
       0
     );
     const totalInvoices = monthlyTotals.reduce(
-      (sum, m) => sum + (m.invoiceCount || 0),
+      (sum, m) => sum + (m.invoiceCount ?? 0),
       0
     );
     const paidCount = monthlyTotals.reduce(
-      (sum, m) => sum + (m.paidCount || 0),
+      (sum, m) => sum + (m.paidCount ?? 0),
       0
     );
 
@@ -272,10 +272,10 @@ export class AggregationService {
       totalRevenue,
       totalInvoices,
       paidCount,
-      pendingAmount: Number(currentMonthData?.pendingAmount || 0),
-      overdueCount: currentMonthData?.overdueCount || 0,
-      revenueThisMonth: Number(currentMonthData?.totalRevenue || 0),
-      paidThisMonth: currentMonthData?.paidCount || 0,
+      pendingAmount: Number(currentMonthData?.pendingAmount ?? 0),
+      overdueCount: currentMonthData?.overdueCount ?? 0,
+      revenueThisMonth: Number(currentMonthData?.totalRevenue ?? 0),
+      paidThisMonth: currentMonthData?.paidCount ?? 0,
     };
 
     // Cache the result
@@ -323,7 +323,7 @@ export class AggregationService {
       const key = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}`;
       data.push({
         date: key,
-        revenue: totalsMap.get(key) || 0,
+        revenue: totalsMap.get(key) ?? 0,
       });
       current.setMonth(current.getMonth() + 1);
     }

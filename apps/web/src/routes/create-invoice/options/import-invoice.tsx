@@ -1,6 +1,6 @@
-import { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
+import type { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
 import { Button } from "@/components/ui/button";
-import { UseFormReturn } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
 import * as React from "react";
 
 import {
@@ -17,7 +17,8 @@ import {
 import { importInvoiceColumnConfig, importInvoiceColumns } from "@/components/table-columns/invoices";
 import { getAllInvoices } from "@/lib/indexdb-queries/invoice";
 import { DataTable } from "@/components/ui/data-table";
-import { Invoice, toInvoices } from "@/types/common/invoice";
+import type { Invoice} from "@/types/common/invoice";
+import { toInvoices } from "@/types/common/invoice";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/providers";
 import { useInvoices } from "@/api/invoices";
@@ -53,11 +54,11 @@ const ImportInvoice = ({ form }: { form: UseFormReturn<ZodCreateInvoiceSchema> }
 
       // If logo is not a remote URL, use the base64 version
       if (invoiceFields.companyDetails.logo && !invoiceFields.companyDetails.logo.startsWith("https://")) {
-        invoiceFields.companyDetails.logo = imageBase64 || "";
+        invoiceFields.companyDetails.logo = imageBase64 ?? "";
       }
       // If signature is not a remote URL, use the base64 version
       if (invoiceFields.companyDetails.signature && !invoiceFields.companyDetails.signature.startsWith("https://")) {
-        invoiceFields.companyDetails.signature = sigBase64 || "";
+        invoiceFields.companyDetails.signature = sigBase64 ?? "";
       }
 
       // Reset form with the adjusted invoice fields

@@ -13,12 +13,12 @@ import {
   HardDriveIcon,
   DatabaseIcon,
 } from "@/assets/icons";
-import { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
+import type { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
 import { forceInsertCreditNote } from "@/lib/indexdb-queries/credit-note";
 import CreditNoteErrorsModal from "./credit-note-errors-modal";
 import CreditNoteTabSwitch from "./credit-note-tab-switch";
 import { Button } from "@/components/ui/button";
-import { UseFormReturn } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers";
 import { useCreateCreditNote } from "@/api/credit-notes";
@@ -49,15 +49,15 @@ const CreditNoteOptions = ({ form, onTabChange }: CreditNoteOptionsProps) => {
     switch (action) {
       case "view-pdf":
         await CreditNoteDownloadManagerInstance.initialize(formValues);
-        CreditNoteDownloadManagerInstance.previewPdf();
+        void CreditNoteDownloadManagerInstance.previewPdf();
         break;
       case "download-pdf":
         await CreditNoteDownloadManagerInstance.initialize(formValues);
-        CreditNoteDownloadManagerInstance.downloadPdf();
+        void CreditNoteDownloadManagerInstance.downloadPdf();
         break;
       case "download-png":
         await CreditNoteDownloadManagerInstance.initialize(formValues);
-        CreditNoteDownloadManagerInstance.downloadPng();
+        void CreditNoteDownloadManagerInstance.downloadPng();
         break;
       case "save-local":
         await handleSaveLocal(formValues);
@@ -74,7 +74,7 @@ const CreditNoteOptions = ({ form, onTabChange }: CreditNoteOptionsProps) => {
     setIsSaving(true);
     try {
       await forceInsertCreditNote(formValues);
-      queryClient.invalidateQueries({ queryKey: ["idb-credit-notes"] });
+      void queryClient.invalidateQueries({ queryKey: ["idb-credit-notes"] });
       toast.success("Credit Note saved locally!");
     } catch (error) {
       toast.error("Failed to save credit note locally");
@@ -111,7 +111,7 @@ const CreditNoteOptions = ({ form, onTabChange }: CreditNoteOptionsProps) => {
         },
         {
           onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["creditNote"] });
+            void queryClient.invalidateQueries({ queryKey: ["creditNote"] });
             toast.success("Credit Note saved to server successfully!");
           },
           onError: (error) => {
@@ -160,15 +160,15 @@ const CreditNoteOptions = ({ form, onTabChange }: CreditNoteOptionsProps) => {
 
             <DropdownMenuSeparator />
 
-            {/* Save Options */}
+            {/* SaveIcon Options */}
             <DropdownMenuItem onClick={() => handleDropDownAction("save-local")}>
               <HardDriveIcon className="size-4" />
-              <span>Save Locally</span>
+              <span>SaveIcon Locally</span>
             </DropdownMenuItem>
             {user && (
               <DropdownMenuItem onClick={() => handleDropDownAction("save-server")}>
                 <DatabaseIcon className="size-4" />
-                <span>Save to Server</span>
+                <span>SaveIcon to Server</span>
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>

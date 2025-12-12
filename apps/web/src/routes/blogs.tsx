@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowLeft, Calendar, ArrowRight } from "@/components/ui/icons";
+import { ArrowLeft, CalendarIcon, ArrowRightIcon } from "@/components/ui/icons";
 import { useBlogs } from "@/api/blogs";
 
 export function Blogs() {
@@ -44,7 +44,7 @@ export function Blogs() {
                 >
                   <Link to={`/blog/${blog.slug}`}>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-                      <Calendar className="h-4 w-4" />
+                      <CalendarIcon className="h-4 w-4" />
                       <time>{blog.date}</time>
                     </div>
                     <h2 className="text-xl font-semibold mb-2 group-hover:text-primary transition-colors">
@@ -55,7 +55,7 @@ export function Blogs() {
                     </p>
                     <span className="inline-flex items-center gap-1 text-sm font-medium text-primary">
                       Read more
-                      <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                      <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                     </span>
                   </Link>
                 </article>

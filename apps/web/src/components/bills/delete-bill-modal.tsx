@@ -9,7 +9,7 @@ import {
   DialogIcon,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Bill } from "@/types/common/bill";
+import type { Bill } from "@/types/common/bill";
 import { TrashIcon } from "@/assets/icons";
 import { Button } from "@/components/ui/button";
 import { useDeleteBill } from "@/api/bills";
@@ -32,7 +32,7 @@ export function DeleteBillModal({ isOpen, onClose, bill }: DeleteBillModalProps)
           onClose();
         },
         onError: (error) => {
-          toast.error(error.message || "Failed to delete bill");
+          toast.error(error.message ?? "Failed to delete bill");
         },
       });
     }

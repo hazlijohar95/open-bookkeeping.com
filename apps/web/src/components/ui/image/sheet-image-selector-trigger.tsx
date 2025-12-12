@@ -1,4 +1,4 @@
-import { InvoiceImageType } from "@/types/common/invoice";
+import type { InvoiceImageType } from "@/types/common/invoice";
 import { XIcon, ImageIcon, PenTool } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import { Label } from "../label";

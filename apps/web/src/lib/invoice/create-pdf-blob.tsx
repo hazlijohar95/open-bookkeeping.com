@@ -1,4 +1,4 @@
-import { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
+import type { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
 import { DefaultPDF, CyncoPDF, ClassicPDF, ZenPDF, ExecutivePDF } from "@/components/pdf";
 import { pdf } from "@react-pdf/renderer";
 

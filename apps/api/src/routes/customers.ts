@@ -56,7 +56,7 @@ customerRoutes.get("/search", async (c) => {
   const user = authResult;
 
   try {
-    const query = c.req.query("q") || "";
+    const query = c.req.query("q") ?? "";
     const customers = await customerRepository.search(user.id, query);
     return c.json(customers);
   } catch (error) {
@@ -105,9 +105,9 @@ customerRoutes.post("/", async (c) => {
     const customer = await customerRepository.create({
       userId: user.id,
       name: input.name,
-      email: input.email || null,
-      phone: input.phone || null,
-      address: input.address || null,
+      email: input.email ?? null,
+      phone: input.phone ?? null,
+      address: input.address ?? null,
       metadata: input.metadata,
     });
 
@@ -139,9 +139,9 @@ customerRoutes.patch("/:id", async (c) => {
     const input = parseResult.data;
     const customer = await customerRepository.update(id, user.id, {
       name: input.name,
-      email: input.email !== undefined ? (input.email || null) : undefined,
-      phone: input.phone !== undefined ? (input.phone || null) : undefined,
-      address: input.address !== undefined ? (input.address || null) : undefined,
+      email: input.email !== undefined ? (input.email ?? null) : undefined,
+      phone: input.phone !== undefined ? (input.phone ?? null) : undefined,
+      address: input.address !== undefined ? (input.address ?? null) : undefined,
       metadata: input.metadata,
     });
 

@@ -1,5 +1,5 @@
 import { CalendarPenIcon } from "@/assets/icons";
-import { FileText, Hash, DollarSign, Calendar, Building2, Eye } from "@/components/ui/icons";
+import { FileTextIcon, Hash, CurrencyDollarIcon, CalendarIcon, Building2, Eye } from "@/components/ui/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,9 +9,9 @@ import {
 import { createColumnConfigHelper } from "@/components/ui/data-table-filter/core/filters";
 import { HeaderColumnButton, FormatTableDateObject } from "@/components/ui/data-table";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Bill, BillStatus } from "@/types/common/bill";
+import type { Bill, BillStatus } from "@/types/common/bill";
 import { Button } from "@/components/ui/button";
-import { Pencil, Trash2 } from "@/components/ui/icons";
+import { Pencil, Trash2Icon } from "@/components/ui/icons";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import Decimal from "decimal.js";
@@ -36,8 +36,8 @@ const statusVariants: Record<BillStatus, { label: string; className: string }> =
 function calculateTotal(items: Bill["items"]): string {
   if (!items?.length) return "0.00";
   const total = items.reduce((sum, item) => {
-    const qty = new Decimal(item.quantity || "0");
-    const price = new Decimal(item.unitPrice || "0");
+    const qty = new Decimal(item.quantity ?? "0");
+    const price = new Decimal(item.unitPrice ?? "0");
     return sum.plus(qty.times(price));
   }, new Decimal(0));
   return total.toFixed(2);
@@ -149,7 +149,7 @@ export const createBillColumns = ({ onEdit, onDelete, onView }: BillColumnsProps
                 className="text-destructive focus:text-destructive"
                 onClick={() => onDelete(bill)}
               >
-                <Trash2 className="size-4" />
+                <Trash2Icon className="size-4" />
                 <span>Delete</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -190,7 +190,7 @@ export const billColumnConfig = [
       { value: "overdue", label: "Overdue" },
       { value: "cancelled", label: "Cancelled" },
     ])
-    .icon(FileText)
+    .icon(FileTextIcon)
     .build(),
 
   columnConfigHelper
@@ -198,7 +198,7 @@ export const billColumnConfig = [
     .id("amount")
     .displayName("Amount")
     .accessor((row) => parseFloat(calculateTotal(row.items)))
-    .icon(DollarSign)
+    .icon(CurrencyDollarIcon)
     .build(),
 
   columnConfigHelper
@@ -206,7 +206,7 @@ export const billColumnConfig = [
     .id("billDate")
     .displayName("Bill Date")
     .accessor((row) => row.billDate)
-    .icon(Calendar)
+    .icon(CalendarIcon)
     .build(),
 
   columnConfigHelper
@@ -214,7 +214,7 @@ export const billColumnConfig = [
     .id("dueDate")
     .displayName("Due Date")
     .accessor((row) => row.dueDate ?? new Date())
-    .icon(Calendar)
+    .icon(CalendarIcon)
     .build(),
 
   columnConfigHelper

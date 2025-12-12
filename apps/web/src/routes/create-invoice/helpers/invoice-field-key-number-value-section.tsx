@@ -1,11 +1,12 @@
-import { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
-import { useFieldArray, UseFormReturn } from "react-hook-form";
+import type { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
+import type { UseFormReturn } from "react-hook-form";
+import { useFieldArray } from "react-hook-form";
 import { FormSelect } from "@/components/ui/form/form-select";
 import { FormInput } from "@/components/ui/form/form-input";
 import { SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Trash2, Receipt } from "@/components/ui/icons";
+import { Trash2Icon, Receipt } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import React from "react";
 import type { SstTaxType } from "@/zod-schemas/common";
@@ -99,7 +100,7 @@ const InvoiceFieldKeyNumberValuesSection: React.FC<InvoiceFieldKeyNumberValuesSe
                 disabled={isSst}
               />
               <Button variant="destructive" size="icon" onClick={() => remove(index)} type="button">
-                <Trash2 className="size-4" />
+                <Trash2Icon className="size-4" />
               </Button>
             </div>
             {isSst && (

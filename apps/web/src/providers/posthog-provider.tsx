@@ -1,4 +1,5 @@
-import { useEffect, createContext, useContext, ReactNode } from "react";
+import type { ReactNode } from "react";
+import { useEffect, createContext, useContext } from "react";
 import posthog from "posthog-js";
 import { useAuth } from "./auth-provider";
 
@@ -8,7 +9,7 @@ const POSTHOG_HOST = import.meta.env.VITE_PUBLIC_POSTHOG_HOST;
 
 if (POSTHOG_KEY && typeof window !== "undefined") {
   posthog.init(POSTHOG_KEY, {
-    api_host: POSTHOG_HOST || "https://us.i.posthog.com",
+    api_host: POSTHOG_HOST ?? "https://us.i.posthog.com",
     person_profiles: "identified_only",
     capture_pageview: true,
     capture_pageleave: true,
@@ -40,7 +41,7 @@ export function PostHogProvider({ children }: { children: ReactNode }) {
     if (user) {
       posthog.identify(user.id, {
         email: user.email,
-        name: user.user_metadata?.full_name || user.user_metadata?.name,
+        name: user.user_metadata?.full_name ?? user.user_metadata?.name,
         avatar_url: user.user_metadata?.avatar_url,
         provider: user.app_metadata?.provider,
         created_at: user.created_at,

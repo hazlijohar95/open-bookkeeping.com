@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Filter, FileText } from "@/components/ui/icons";
+import { Filter, FileTextIcon } from "@/components/ui/icons";
 import type { TaxTypeFilter, DocumentTypeFilter } from "./types";
 
 interface SSTTransaction {
@@ -86,7 +86,7 @@ export function SSTTransactionsTab({
               </Select>
               <Select value={documentTypeFilter} onValueChange={(v) => setDocumentTypeFilter(v as DocumentTypeFilter)}>
                 <SelectTrigger className="w-[140px]">
-                  <FileText className="mr-2 size-4" />
+                  <FileTextIcon className="mr-2 size-4" />
                   <SelectValue placeholder="Document" />
                 </SelectTrigger>
                 <SelectContent>
@@ -136,7 +136,7 @@ export function SSTTransactionsTab({
                           <span className="text-sm">{t.documentNumber}</span>
                         </div>
                       </TableCell>
-                      <TableCell>{t.customerName || "-"}</TableCell>
+                      <TableCell>{t.customerName ?? "-"}</TableCell>
                       <TableCell>
                         <Badge variant={t.taxType === "sales_tax" ? "default" : "secondary"}>
                           {t.taxType === "sales_tax" ? "Sales" : "Service"}

@@ -1,4 +1,4 @@
-import { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
+import type { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
 import { format } from "date-fns";
 
 interface GenerateCreditNoteNameProps {
@@ -7,7 +7,7 @@ interface GenerateCreditNoteNameProps {
 }
 
 export const generateCreditNoteName = ({ creditNoteData, extension }: GenerateCreditNoteNameProps): string => {
-  const prefix = creditNoteData.creditNoteDetails.prefix || "CN-";
+  const prefix = creditNoteData.creditNoteDetails.prefix ?? "CN-";
   const serialNumber = creditNoteData.creditNoteDetails.serialNumber;
   const date = format(creditNoteData.creditNoteDetails.date, "yyyy-MM-dd");
 

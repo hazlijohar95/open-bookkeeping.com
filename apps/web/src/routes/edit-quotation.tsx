@@ -3,8 +3,8 @@ import { CreateQuotationPage } from "./create-quotation";
 import { getQuotationById } from "@/lib/indexdb-queries/quotation";
 import { useQuery } from "@tanstack/react-query";
 import { useQuotation } from "@/api/quotations";
-import { Loader2 } from "@/components/ui/icons";
-import { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
+import { Loader2Icon } from "@/components/ui/icons";
+import type { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
 
 export function EditQuotationPage() {
   const { type, id } = useParams<{ type: string; id: string }>();
@@ -30,7 +30,7 @@ export function EditQuotationPage() {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="size-8 animate-spin text-muted-foreground" />
+          <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Loading quotation...</p>
         </div>
       </div>
@@ -41,7 +41,7 @@ export function EditQuotationPage() {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="size-8 animate-spin text-muted-foreground" />
+          <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Loading quotation...</p>
         </div>
       </div>
@@ -103,7 +103,7 @@ export function EditQuotationPage() {
         paymentTerms: fields.quotationDetails.paymentTerms ?? "",
         billingDetails: (fields.quotationDetails.billingDetails ?? []).map((bd) => ({
           label: bd.label,
-          value: typeof bd.value === "string" ? parseFloat(bd.value) || 0 : bd.value,
+          value: typeof bd.value === "string" ? parseFloat(bd.value) ?? 0 : bd.value,
           type: ("type" in bd ? bd.type : "fixed") as "fixed" | "percentage",
         })),
       },
@@ -111,7 +111,7 @@ export function EditQuotationPage() {
         name: item.name,
         description: item.description ?? "",
         quantity: item.quantity,
-        unitPrice: typeof item.unitPrice === "string" ? parseFloat(item.unitPrice) || 0 : item.unitPrice,
+        unitPrice: typeof item.unitPrice === "string" ? parseFloat(item.unitPrice) ?? 0 : item.unitPrice,
       })),
       metadata: {
         notes: fields.metadata?.notes ?? "",

@@ -3,7 +3,7 @@ import DebitNoteFieldKeyNumberValuesSection from "./helpers/debit-note-field-key
 import { Accordion, AccordionItem, AccordionContent, AccordionTrigger } from "@/components/ui/accordion";
 import SheetImageSelectorTrigger from "@/components/ui/image/sheet-image-selector-trigger";
 import { DebitNoteImageSelectorSheet } from "./helpers/debit-note-image-selector-sheet";
-import { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
+import type { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
 import { FormCustomerSelector } from "@/components/ui/form/form-customer-selector";
 import { DebitNoteTemplateSelector } from "./helpers/debit-note-templates";
 import { FormColorPicker } from "@/components/ui/form/form-color-picker";
@@ -18,7 +18,7 @@ import FormRow from "@/components/ui/form/form-row";
 import { SelectItem } from "@/components/ui/select";
 import { Form } from "@/components/ui/form/form";
 import { useQuery } from "@tanstack/react-query";
-import { UseFormReturn } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/providers";
 import { cn } from "@/lib/utils";
@@ -61,7 +61,7 @@ const DebitNoteForm: React.FC<DebitNoteFormProps> = ({ form }) => {
     (customer: { id: string; name: string; email: string | null; phone: string | null; address: string | null } | null) => {
       if (customer) {
         form.setValue("clientDetails.name", customer.name);
-        form.setValue("clientDetails.address", customer.address || "");
+        form.setValue("clientDetails.address", customer.address ?? "");
         // Build metadata from customer info
         const metadata: { label: string; value: string }[] = [];
         if (customer.email) {
@@ -95,7 +95,7 @@ const DebitNoteForm: React.FC<DebitNoteFormProps> = ({ form }) => {
                   <DebitNoteImageSelectorSheet
                     type="logo"
                     isLoading={idbImages.isLoading}
-                    idbImages={idbImages.data || []}
+                    idbImages={idbImages.data ?? []}
                     serverImages={serverImages}
                     user={user}
                     onUrlChange={(url) => {
@@ -118,7 +118,7 @@ const DebitNoteForm: React.FC<DebitNoteFormProps> = ({ form }) => {
                   <DebitNoteImageSelectorSheet
                     type="signature"
                     isLoading={idbImages.isLoading}
-                    idbImages={idbImages.data || []}
+                    idbImages={idbImages.data ?? []}
                     serverImages={serverImages}
                     user={user}
                     onUrlChange={(url) => {

@@ -3,8 +3,8 @@ import { CreateCreditNotePage } from "./create-credit-note";
 import { getCreditNoteById } from "@/lib/indexdb-queries/credit-note";
 import { useQuery } from "@tanstack/react-query";
 import { useCreditNote } from "@/api/credit-notes";
-import { Loader2 } from "@/components/ui/icons";
-import { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
+import { Loader2Icon } from "@/components/ui/icons";
+import type { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
 
 export function EditCreditNotePage() {
   const { type, id } = useParams<{ type: string; id: string }>();
@@ -30,7 +30,7 @@ export function EditCreditNotePage() {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="size-8 animate-spin text-muted-foreground" />
+          <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Loading credit note...</p>
         </div>
       </div>
@@ -41,7 +41,7 @@ export function EditCreditNotePage() {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="size-8 animate-spin text-muted-foreground" />
+          <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Loading credit note...</p>
         </div>
       </div>
@@ -102,7 +102,7 @@ export function EditCreditNotePage() {
         originalInvoiceNumber: fields.creditNoteDetails.originalInvoiceNumber ?? undefined,
         billingDetails: (fields.creditNoteDetails.billingDetails ?? []).map((bd) => ({
           label: bd.label,
-          value: typeof bd.value === "string" ? parseFloat(bd.value) || 0 : bd.value,
+          value: typeof bd.value === "string" ? parseFloat(bd.value) ?? 0 : bd.value,
           type: ("type" in bd ? bd.type : "fixed") as "fixed" | "percentage",
         })),
       },
@@ -110,7 +110,7 @@ export function EditCreditNotePage() {
         name: item.name,
         description: item.description ?? "",
         quantity: item.quantity,
-        unitPrice: typeof item.unitPrice === "string" ? parseFloat(item.unitPrice) || 0 : item.unitPrice,
+        unitPrice: typeof item.unitPrice === "string" ? parseFloat(item.unitPrice) ?? 0 : item.unitPrice,
       })),
       metadata: {
         notes: fields.metadata?.notes ?? "",

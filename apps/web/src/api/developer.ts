@@ -184,7 +184,7 @@ export function useCreateApiKey() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: developerKeys.apiKeysList() });
+      void queryClient.invalidateQueries({ queryKey: developerKeys.apiKeysList() });
     },
   });
 }
@@ -197,8 +197,8 @@ export function useUpdateApiKey() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: developerKeys.apiKeysList() });
-      queryClient.invalidateQueries({ queryKey: developerKeys.apiKeyDetail(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: developerKeys.apiKeysList() });
+      void queryClient.invalidateQueries({ queryKey: developerKeys.apiKeyDetail(variables.id) });
     },
   });
 }
@@ -210,7 +210,7 @@ export function useRevokeApiKey() {
       await api.delete(`/api-keys/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: developerKeys.apiKeysList() });
+      void queryClient.invalidateQueries({ queryKey: developerKeys.apiKeysList() });
     },
   });
 }
@@ -223,8 +223,8 @@ export function useRegenerateApiKey() {
       return response.data;
     },
     onSuccess: (_, id) => {
-      queryClient.invalidateQueries({ queryKey: developerKeys.apiKeysList() });
-      queryClient.invalidateQueries({ queryKey: developerKeys.apiKeyDetail(id) });
+      void queryClient.invalidateQueries({ queryKey: developerKeys.apiKeysList() });
+      void queryClient.invalidateQueries({ queryKey: developerKeys.apiKeyDetail(id) });
     },
   });
 }
@@ -303,7 +303,7 @@ export function useCreateWebhook() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: developerKeys.webhooksList() });
+      void queryClient.invalidateQueries({ queryKey: developerKeys.webhooksList() });
     },
   });
 }
@@ -316,8 +316,8 @@ export function useUpdateWebhook() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: developerKeys.webhooksList() });
-      queryClient.invalidateQueries({ queryKey: developerKeys.webhookDetail(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: developerKeys.webhooksList() });
+      void queryClient.invalidateQueries({ queryKey: developerKeys.webhookDetail(variables.id) });
     },
   });
 }
@@ -329,7 +329,7 @@ export function useDeleteWebhook() {
       await api.delete(`/webhooks/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: developerKeys.webhooksList() });
+      void queryClient.invalidateQueries({ queryKey: developerKeys.webhooksList() });
     },
   });
 }
@@ -344,7 +344,7 @@ export function useRotateWebhookSecret() {
       return response.data;
     },
     onSuccess: (_, id) => {
-      queryClient.invalidateQueries({ queryKey: developerKeys.webhookDetail(id) });
+      void queryClient.invalidateQueries({ queryKey: developerKeys.webhookDetail(id) });
     },
   });
 }

@@ -263,7 +263,7 @@ accountsRouter.delete("/:id", async (c) => {
       if (result.error === "Account not found") {
         return notFound(c, "Account", id);
       }
-      return badRequest(c, result.error || "Cannot delete account");
+      return badRequest(c, result.error ?? "Cannot delete account");
     }
 
     logger.info({ userId, accountId: id }, "Account deleted via API");
@@ -355,8 +355,8 @@ accountsRouter.post("/journal-entries", async (c) => {
     const input = parseResult.data;
 
     // Validate debits = credits
-    const totalDebits = input.lines.reduce((sum, line) => sum + parseFloat(line.debitAmount || "0"), 0);
-    const totalCredits = input.lines.reduce((sum, line) => sum + parseFloat(line.creditAmount || "0"), 0);
+    const totalDebits = input.lines.reduce((sum, line) => sum + parseFloat(line.debitAmount ?? "0"), 0);
+    const totalCredits = input.lines.reduce((sum, line) => sum + parseFloat(line.creditAmount ?? "0"), 0);
 
     if (Math.abs(totalDebits - totalCredits) > 0.01) {
       return badRequest(c, "Journal entry must balance: total debits must equal total credits");

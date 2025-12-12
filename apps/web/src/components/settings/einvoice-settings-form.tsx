@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileCheckIcon, TriangleWarningIcon, CircleCheckIcon } from "@/assets/icons";
-import { Loader2, ExternalLink, Info } from "@/components/ui/icons";
+import { Loader2Icon, ExternalLink, Info } from "@/components/ui/icons";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -67,13 +67,13 @@ export function EInvoiceSettingsForm({
     defaultValues: {
       enabled: defaultValues?.enabled ?? false,
       autoSubmit: defaultValues?.autoSubmit ?? false,
-      tin: defaultValues?.tin || "",
-      brn: defaultValues?.brn || "",
-      identificationScheme: defaultValues?.identificationScheme || "BRN",
-      msicCode: defaultValues?.msicCode || "",
-      msicDescription: defaultValues?.msicDescription || "",
-      sstRegistration: defaultValues?.sstRegistration || "",
-      tourismTaxRegistration: defaultValues?.tourismTaxRegistration || "",
+      tin: defaultValues?.tin ?? "",
+      brn: defaultValues?.brn ?? "",
+      identificationScheme: defaultValues?.identificationScheme ?? "BRN",
+      msicCode: defaultValues?.msicCode ?? "",
+      msicDescription: defaultValues?.msicDescription ?? "",
+      sstRegistration: defaultValues?.sstRegistration ?? "",
+      tourismTaxRegistration: defaultValues?.tourismTaxRegistration ?? "",
     },
   });
 
@@ -84,8 +84,8 @@ export function EInvoiceSettingsForm({
     try {
       await onSubmit({
         ...data,
-        sstRegistration: data.sstRegistration || null,
-        tourismTaxRegistration: data.tourismTaxRegistration || null,
+        sstRegistration: data.sstRegistration ?? null,
+        tourismTaxRegistration: data.tourismTaxRegistration ?? null,
       });
       toast.success("E-Invoice settings updated");
     } catch {
@@ -358,8 +358,8 @@ export function EInvoiceSettingsForm({
 
               <div className="flex justify-end">
                 <Button type="submit" disabled={isSaving}>
-                  {isSaving && <Loader2 className="mr-2 size-4 animate-spin" />}
-                  Save Settings
+                  {isSaving && <Loader2Icon className="mr-2 size-4 animate-spin" />}
+                  SaveIcon Settings
                 </Button>
               </div>
             </form>

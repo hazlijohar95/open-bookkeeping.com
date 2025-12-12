@@ -1,6 +1,6 @@
 import * as React from "react";
 import { posthog } from "@/providers/posthog-provider";
-import { IAnalytics } from "@/types";
+import type { IAnalytics } from "@/types";
 
 interface PostHogAnalyticsProps extends React.HTMLAttributes<HTMLDivElement> {
   analytics?: IAnalytics;

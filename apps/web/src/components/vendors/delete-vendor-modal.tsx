@@ -9,7 +9,7 @@ import {
   DialogIcon,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Vendor } from "@/types/common/vendor";
+import type { Vendor } from "@/types/common/vendor";
 import { TrashIcon } from "@/assets/icons";
 import { Button } from "@/components/ui/button";
 import { useDeleteVendor } from "@/api";

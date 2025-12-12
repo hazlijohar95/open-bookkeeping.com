@@ -37,7 +37,7 @@ apiKeyRoutes.get("/", async (c) => {
 
   try {
     const limit = Number(c.req.query("limit")) || 50;
-    const offset = Number(c.req.query("offset")) || 0;
+    const offset = Number(c.req.query("offset")) ?? 0;
     const includeRevoked = c.req.query("include_revoked") === "true";
 
     const apiKeys = await apiKeyRepository.findMany(user.id, {
@@ -267,7 +267,7 @@ apiKeyRoutes.delete("/:id", async (c) => {
 
   try {
     const id = c.req.param("id");
-    const reason = c.req.query("reason") || "User revoked";
+    const reason = c.req.query("reason") ?? "User revoked";
 
     const revoked = await apiKeyRepository.revoke(id, user.id, reason);
 

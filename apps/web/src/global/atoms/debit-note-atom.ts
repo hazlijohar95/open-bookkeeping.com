@@ -1,4 +1,4 @@
-import { ZodError } from "zod";
+import type { ZodError } from "zod";
 import { atom } from "jotai";
 
 // Debit Note Form Error Issues For Error Modal

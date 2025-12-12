@@ -52,7 +52,7 @@ export async function requestLogger(c: Context, next: Next) {
   const duration = Date.now() - start;
   const status = c.res.status;
   // Get request ID from response header (set by securityHeaders middleware)
-  const requestId = c.res.headers.get("X-Request-Id") || "unknown";
+  const requestId = c.res.headers.get("X-Request-Id") ?? "unknown";
 
   // Log request details
   console.log(

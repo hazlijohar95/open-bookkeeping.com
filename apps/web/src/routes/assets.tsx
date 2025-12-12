@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Upload, Trash2, Plus } from "@/components/ui/icons";
+import { Upload, Trash2Icon, Plus } from "@/components/ui/icons";
 import { useStorageImages, useUploadImage, useDeleteImage } from "@/api/storage";
 import { Button } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page-container";
@@ -151,7 +151,7 @@ export function Assets() {
                       disabled={deleteImage.isPending}
                       aria-label="Delete image"
                     >
-                      <Trash2 className="size-4" />
+                      <Trash2Icon className="size-4" />
                     </Button>
                   </div>
                 </div>

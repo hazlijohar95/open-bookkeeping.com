@@ -291,7 +291,7 @@ const agentApi = {
   // Pending Approvals
   getPendingApprovals: (limit?: number) =>
     api.get<{ result: { data: PendingApproval[] } }>("/trpc/agent.getPendingApprovals", limit ? { limit } : undefined)
-      .then((r) => r.result?.data || []),
+      .then((r) => r.result?.data ?? []),
   getApprovalById: (approvalId: string) =>
     api.get<{ result: { data: PendingApproval } }>("/trpc/agent.getApprovalById", { approvalId })
       .then((r) => r.result?.data),
@@ -303,7 +303,7 @@ const agentApi = {
       .then((r) => r.result?.data),
   getApprovalHistory: (filters?: { status?: string; limit?: number; offset?: number }) =>
     api.get<{ result: { data: PendingApproval[] } }>("/trpc/agent.getApprovalHistory", filters)
-      .then((r) => r.result?.data || []),
+      .then((r) => r.result?.data ?? []),
 
   // Quotas & Safety
   getQuotas: () =>
@@ -317,7 +317,7 @@ const agentApi = {
       .then((r) => r.result?.data),
   getUsageHistory: (days?: number) =>
     api.get<{ result: { data: unknown[] } }>("/trpc/agent.getUsageHistory", days ? { days } : undefined)
-      .then((r) => r.result?.data || []),
+      .then((r) => r.result?.data ?? []),
   enableEmergencyStop: (reason?: string) =>
     api.post<{ result: { data: AgentQuotas } }>("/trpc/agent.enableEmergencyStop", { reason })
       .then((r) => r.result?.data),
@@ -328,13 +328,13 @@ const agentApi = {
   // Audit Logs
   getAuditLogs: (filters?: Record<string, unknown>) =>
     api.get<{ result: { data: AgentAuditLog[] } }>("/trpc/agent.getAuditLogs", filters as Record<string, string | number | boolean | undefined | null>)
-      .then((r) => r.result?.data || []),
+      .then((r) => r.result?.data ?? []),
   getAuditLogById: (auditLogId: string) =>
     api.get<{ result: { data: AgentAuditLog } }>("/trpc/agent.getAuditLogById", { auditLogId })
       .then((r) => r.result?.data),
   getAuditTrail: (resourceType: string, resourceId: string) =>
     api.get<{ result: { data: AgentAuditLog[] } }>("/trpc/agent.getAuditTrail", { resourceType, resourceId })
-      .then((r) => r.result?.data || []),
+      .then((r) => r.result?.data ?? []),
   getAuditStats: (filters?: { startDate?: string; endDate?: string }) =>
     api.get<{ result: { data: AuditStats } }>("/trpc/agent.getAuditStats", filters)
       .then((r) => r.result?.data),
@@ -345,7 +345,7 @@ const agentApi = {
   // Workflows
   getWorkflowTemplates: () =>
     api.get<{ result: { data: WorkflowTemplate[] } }>("/trpc/agent.getWorkflowTemplates")
-      .then((r) => r.result?.data || []),
+      .then((r) => r.result?.data ?? []),
   getWorkflowTemplate: (templateId: string) =>
     api.get<{ result: { data: WorkflowTemplate } }>("/trpc/agent.getWorkflowTemplate", { templateId })
       .then((r) => r.result?.data),
@@ -357,7 +357,7 @@ const agentApi = {
       .then((r) => r.result?.data),
   getWorkflows: (filters?: { status?: string; limit?: number; offset?: number }) =>
     api.get<{ result: { data: Workflow[] } }>("/trpc/agent.getWorkflows", filters)
-      .then((r) => r.result?.data || []),
+      .then((r) => r.result?.data ?? []),
   startWorkflow: (workflowId: string) =>
     api.post<{ result: { data: Workflow } }>("/trpc/agent.startWorkflow", { workflowId })
       .then((r) => r.result?.data),
@@ -393,7 +393,7 @@ export function useUpdateApprovalSettings() {
   return useMutation({
     mutationFn: agentApi.updateApprovalSettings,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.approvalSettings() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.approvalSettings() });
     },
   });
 }
@@ -421,7 +421,7 @@ export function useApproveAction() {
     mutationFn: ({ approvalId, notes }: { approvalId: string; notes?: string }) =>
       agentApi.approveAction(approvalId, notes),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.all });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.all });
     },
   });
 }
@@ -432,7 +432,7 @@ export function useRejectAction() {
     mutationFn: ({ approvalId, notes }: { approvalId: string; notes?: string }) =>
       agentApi.rejectAction(approvalId, notes),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.all });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.all });
     },
   });
 }
@@ -457,8 +457,8 @@ export function useUpdateQuotas() {
   return useMutation({
     mutationFn: agentApi.updateQuotas,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.quotas() });
-      queryClient.invalidateQueries({ queryKey: agentKeys.usageSummary() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.quotas() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.usageSummary() });
     },
   });
 }
@@ -483,8 +483,8 @@ export function useEnableEmergencyStop() {
   return useMutation({
     mutationFn: (reason?: string) => agentApi.enableEmergencyStop(reason),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.quotas() });
-      queryClient.invalidateQueries({ queryKey: agentKeys.usageSummary() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.quotas() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.usageSummary() });
     },
   });
 }
@@ -494,8 +494,8 @@ export function useDisableEmergencyStop() {
   return useMutation({
     mutationFn: agentApi.disableEmergencyStop,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.quotas() });
-      queryClient.invalidateQueries({ queryKey: agentKeys.usageSummary() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.quotas() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.usageSummary() });
     },
   });
 }
@@ -558,8 +558,8 @@ export function useCreateWorkflow() {
   return useMutation({
     mutationFn: agentApi.createWorkflow,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.workflows() });
-      queryClient.invalidateQueries({ queryKey: agentKeys.workflowStats() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.workflows() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.workflowStats() });
     },
   });
 }
@@ -570,7 +570,7 @@ export function useWorkflow(workflowId: string) {
     queryFn: () => agentApi.getWorkflow(workflowId),
     enabled: !!workflowId,
     refetchInterval: (query) => {
-      const workflow = query.state.data as Workflow | undefined;
+      const workflow = query.state.data;
       // Poll more frequently for active workflows
       if (workflow?.status === "running" || workflow?.status === "awaiting_approval") {
         return 5000;
@@ -592,8 +592,8 @@ export function useStartWorkflow() {
   return useMutation({
     mutationFn: agentApi.startWorkflow,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.workflows() });
-      queryClient.invalidateQueries({ queryKey: agentKeys.workflowStats() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.workflows() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.workflowStats() });
     },
   });
 }
@@ -603,7 +603,7 @@ export function usePauseWorkflow() {
   return useMutation({
     mutationFn: agentApi.pauseWorkflow,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.workflows() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.workflows() });
     },
   });
 }
@@ -613,7 +613,7 @@ export function useResumeWorkflow() {
   return useMutation({
     mutationFn: agentApi.resumeWorkflow,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.workflows() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.workflows() });
     },
   });
 }
@@ -624,8 +624,8 @@ export function useCancelWorkflow() {
     mutationFn: ({ workflowId, reason }: { workflowId: string; reason?: string }) =>
       agentApi.cancelWorkflow(workflowId, reason),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.workflows() });
-      queryClient.invalidateQueries({ queryKey: agentKeys.workflowStats() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.workflows() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.workflowStats() });
     },
   });
 }
@@ -635,8 +635,8 @@ export function useRetryWorkflow() {
   return useMutation({
     mutationFn: agentApi.retryWorkflow,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.workflows() });
-      queryClient.invalidateQueries({ queryKey: agentKeys.workflowStats() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.workflows() });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.workflowStats() });
     },
   });
 }
@@ -645,5 +645,132 @@ export function useWorkflowStats() {
   return useQuery({
     queryKey: agentKeys.workflowStats(),
     queryFn: agentApi.getWorkflowStats,
+  });
+}
+
+// ============= Chat Session Sync (T3-style) =============
+
+export interface ChatSession {
+  id: string;
+  userId: string;
+  title: string | null;
+  status: string;
+  initialPrompt: string | null;
+  systemContext: Record<string, unknown> | null;
+  summary: string | null;
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+}
+
+export interface ChatMessage {
+  id: string;
+  sessionId: string;
+  role: string;
+  content: string | null;
+  toolCalls: Array<{
+    id: string;
+    name: string;
+    arguments: Record<string, unknown>;
+  }> | null;
+  toolResults: Array<{
+    toolCallId: string;
+    result: unknown;
+    error?: string;
+  }> | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  actionId: string | null;
+  createdAt: string;
+}
+
+export interface SyncSessionInput {
+  localThreadId: string;
+  title?: string | null;
+  messages: Array<{
+    localId: string;
+    role: string;
+    content: string | null;
+    toolCalls?: Array<{
+      id: string;
+      name: string;
+      arguments: Record<string, unknown>;
+    }> | null;
+    toolResults?: Array<{
+      toolCallId: string;
+      result: unknown;
+      error?: string;
+    }> | null;
+    createdAt: string;
+  }>;
+}
+
+// Add to agentKeys
+export const sessionKeys = {
+  sessions: (filters?: { limit?: number; offset?: number }) =>
+    [...agentKeys.all, "sessions", filters] as const,
+  session: (id: string) => [...agentKeys.all, "session", id] as const,
+};
+
+// Session API functions
+const sessionApi = {
+  getSessions: (filters?: { limit?: number; offset?: number }) =>
+    api.get<{ result: { data: ChatSession[] } }>("/trpc/agent.getSessions", filters)
+      .then((r) => r.result?.data ?? []),
+
+  getSession: (sessionId: string) =>
+    api.get<{ result: { data: ChatSession & { messages: ChatMessage[] } } }>(
+      "/trpc/agent.getSession",
+      { sessionId }
+    ).then((r) => r.result?.data),
+
+  syncSession: (input: SyncSessionInput) =>
+    api.post<{ result: { data: { sessionId: string; synced: boolean } } }>(
+      "/trpc/agent.syncSession",
+      input
+    ).then((r) => r.result?.data),
+
+  deleteSession: (sessionId: string) =>
+    api.post<{ result: { data: { deleted: boolean } } }>(
+      "/trpc/agent.deleteSession",
+      { sessionId }
+    ).then((r) => r.result?.data),
+};
+
+// Session Hooks
+export function useChatSessions(filters?: { limit?: number; offset?: number }) {
+  return useQuery({
+    queryKey: sessionKeys.sessions(filters),
+    queryFn: () => sessionApi.getSessions(filters),
+  });
+}
+
+export function useChatSession(sessionId: string) {
+  return useQuery({
+    queryKey: sessionKeys.session(sessionId),
+    queryFn: () => sessionApi.getSession(sessionId),
+    enabled: !!sessionId,
+  });
+}
+
+export function useSyncSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: sessionApi.syncSession,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: sessionKeys.sessions() });
+    },
+  });
+}
+
+export function useDeleteSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: sessionApi.deleteSession,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: sessionKeys.sessions() });
+    },
   });
 }

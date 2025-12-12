@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InboxArrowDownIcon } from "@/assets/icons";
-import { Loader2 } from "@/components/ui/icons";
+import { Loader2Icon } from "@/components/ui/icons";
 import { toast } from "sonner";
 
 const notificationSettingsSchema = z.object({
@@ -158,8 +158,8 @@ export function NotificationSettingsForm({
 
           <div className="flex justify-end">
             <Button type="submit" disabled={isSaving}>
-              {isSaving && <Loader2 className="mr-2 size-4 animate-spin" />}
-              Save Changes
+              {isSaving && <Loader2Icon className="mr-2 size-4 animate-spin" />}
+              SaveIcon Changes
             </Button>
           </div>
         </form>

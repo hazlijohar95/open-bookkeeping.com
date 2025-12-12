@@ -8,16 +8,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Vendor } from "@/types/common/vendor";
+import type { Vendor } from "@/types/common/vendor";
 import { TruckIcon } from "@/assets/icons";
 import { useBillsByVendor } from "@/api/bills";
 import { AgingChart, formatAgingBuckets } from "@/components/aging/aging-chart";
 import { AgingTable } from "@/components/aging/aging-table";
 import {
-  User,
-  FileText,
+  UserIcon,
+  FileTextIcon,
   TrendingDown,
-  Mail,
+  MailIcon,
   Phone,
   MapPin,
   Globe,
@@ -42,12 +42,12 @@ function VendorInfo({ vendor }: { vendor: Vendor }) {
       {/* Contact Information */}
       <div className="rounded-lg border bg-card p-4">
         <h4 className="font-medium mb-3 flex items-center gap-2">
-          <User className="size-4" />
+          <UserIcon className="size-4" />
           Contact Information
         </h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex items-start gap-2">
-            <Mail className="size-4 mt-0.5 text-muted-foreground" />
+            <MailIcon className="size-4 mt-0.5 text-muted-foreground" />
             <div>
               <div className="text-xs text-muted-foreground">Email</div>
               <div className="text-sm">
@@ -95,11 +95,11 @@ function VendorInfo({ vendor }: { vendor: Vendor }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div className="text-xs text-muted-foreground">Bank Name</div>
-              <div className="text-sm">{vendor.bankName || "-"}</div>
+              <div className="text-sm">{vendor.bankName ?? "-"}</div>
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Account Number</div>
-              <div className="text-sm font-mono">{vendor.bankAccountNumber || "-"}</div>
+              <div className="text-sm font-mono">{vendor.bankAccountNumber ?? "-"}</div>
             </div>
             {vendor.bankSwiftCode && (
               <div>
@@ -222,10 +222,10 @@ function VendorAging({ vendorId }: { vendorId: string }) {
     };
 
     const tableItems = unpaidBills.map((bill) => {
-      const items = bill.items || [];
+      const items = bill.items ?? [];
       const total = items.reduce((sum, item) => {
-        const qty = new Decimal(item.quantity || "0");
-        const price = new Decimal(item.unitPrice || "0");
+        const qty = new Decimal(item.quantity ?? "0");
+        const price = new Decimal(item.unitPrice ?? "0");
         return sum + qty.times(price).toNumber();
       }, 0);
       const dueDate = bill.dueDate;
@@ -255,9 +255,9 @@ function VendorAging({ vendorId }: { vendorId: string }) {
         id: bill.id,
         serialNumber: bill.billNumber,
         date: bill.billDate,
-        dueDate: dueDate || null,
+        dueDate: dueDate ?? null,
         total,
-        currency: bill.currency || "MYR",
+        currency: bill.currency ?? "MYR",
         status: bill.status,
         daysOverdue,
       };
@@ -295,13 +295,13 @@ function VendorAging({ vendorId }: { vendorId: string }) {
       {agingData && (
         <AgingChart
           buckets={agingData}
-          currency={tableData[0]?.currency || "MYR"}
+          currency={tableData[0]?.currency ?? "MYR"}
         />
       )}
 
       <div>
         <h4 className="font-medium mb-3 flex items-center gap-2">
-          <FileText className="size-4" />
+          <FileTextIcon className="size-4" />
           Outstanding Bills
         </h4>
         <AgingTable invoices={tableData} type="ap" />
@@ -336,7 +336,7 @@ export function VendorDetailModal({ isOpen, onClose, vendor }: VendorDetailModal
         <Tabs defaultValue="details" className="mt-4">
           <TabsList>
             <TabsTrigger value="details" className="gap-1.5">
-              <User className="size-3.5" />
+              <UserIcon className="size-3.5" />
               Details
             </TabsTrigger>
             <TabsTrigger value="aging" className="gap-1.5">

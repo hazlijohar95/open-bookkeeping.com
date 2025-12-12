@@ -68,7 +68,7 @@ dashboardRoutes.get("/revenue-chart", async (c) => {
   const user = authResult;
 
   try {
-    const period = c.req.query("period") || "30d";
+    const period = c.req.query("period") ?? "30d";
     const now = new Date();
     let startDate: Date;
     let groupBy: "day" | "week" | "month";
@@ -144,22 +144,22 @@ dashboardRoutes.get("/recent-invoices", async (c) => {
     const recentInvoices = invoices.map((inv) => {
       const invoiceDetails = inv.invoiceFields?.invoiceDetails;
       const clientDetails = inv.invoiceFields?.clientDetails;
-      const items = inv.invoiceFields?.items || [];
+      const items = inv.invoiceFields?.items ?? [];
 
       // Calculate total from items
       const itemsTotal = items.reduce((sum, item) => {
-        return sum + (item.quantity * parseFloat(item.unitPrice || "0"));
+        return sum + (item.quantity * parseFloat(item.unitPrice ?? "0"));
       }, 0);
 
       return {
         id: inv.id,
-        serialNumber: invoiceDetails?.serialNumber || "-",
-        customerName: clientDetails?.name || "Unknown",
+        serialNumber: invoiceDetails?.serialNumber ?? "-",
+        customerName: clientDetails?.name ?? "Unknown",
         total: itemsTotal,
-        currency: invoiceDetails?.currency || "MYR",
+        currency: invoiceDetails?.currency ?? "MYR",
         status: inv.status,
         date: inv.createdAt,
-        dueDate: invoiceDetails?.dueDate || null,
+        dueDate: invoiceDetails?.dueDate ?? null,
       };
     });
 

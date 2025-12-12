@@ -63,11 +63,11 @@ export function useUploadImage() {
     mutationFn: (input: UploadImageInput) =>
       api.post<UploadResult>("/storage", input),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: storageKeys.images() });
+      void queryClient.invalidateQueries({ queryKey: storageKeys.images() });
       if (variables.type === "logo") {
-        queryClient.invalidateQueries({ queryKey: storageKeys.logos() });
+        void queryClient.invalidateQueries({ queryKey: storageKeys.logos() });
       } else {
-        queryClient.invalidateQueries({ queryKey: storageKeys.signatures() });
+        void queryClient.invalidateQueries({ queryKey: storageKeys.signatures() });
       }
     },
   });
@@ -80,7 +80,7 @@ export function useDeleteImage() {
     mutationFn: (key: string) =>
       api.delete<{ success: boolean }>("/storage", { key }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: storageKeys.all });
+      void queryClient.invalidateQueries({ queryKey: storageKeys.all });
     },
   });
 }

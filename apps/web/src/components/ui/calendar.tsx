@@ -1,13 +1,13 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "@/components/ui/icons";
+import { ChevronLeftIcon, ChevronRightIcon } from "@/components/ui/icons";
 import { DayPicker } from "react-day-picker";
 import * as React from "react";
 
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-function Calendar({ className, classNames, showOutsideDays = true, ...props }: React.ComponentProps<typeof DayPicker>) {
+function CalendarIcon({ className, classNames, showOutsideDays = true, ...props }: React.ComponentProps<typeof DayPicker>) {
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
@@ -56,7 +56,7 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: R
           disabled?: boolean;
           orientation?: "left" | "right" | "up" | "down";
         }) => {
-          const Icon = orientation === "left" ? ChevronLeft : ChevronRight;
+          const Icon = orientation === "left" ? ChevronLeftIcon : ChevronRightIcon;
           return <Icon className={cn("size-4", className)} />;
         },
       }}
@@ -65,4 +65,4 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: R
   );
 }
 
-export { Calendar };
+export { CalendarIcon };

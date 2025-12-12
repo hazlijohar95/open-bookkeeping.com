@@ -198,7 +198,7 @@ export const dashboardRouter = router({
           0
         );
 
-        dataMap.set(key, (dataMap.get(key) || 0) + total);
+        dataMap.set(key, (dataMap.get(key) ?? 0) + total);
       });
 
       // Generate all periods
@@ -224,7 +224,7 @@ export const dashboardRouter = router({
         if (!data.find((d) => d.date === key)) {
           data.push({
             date: key,
-            revenue: dataMap.get(key) || 0,
+            revenue: dataMap.get(key) ?? 0,
           });
         }
       }
@@ -317,7 +317,7 @@ export const dashboardRouter = router({
           invoice.customer?.name ||
           invoice.invoiceFields?.clientDetails?.name ||
           "Unknown Customer";
-        const customerEmail = invoice.customer?.email || null;
+        const customerEmail = invoice.customer?.email ?? null;
 
         // Use ID if available, otherwise use prefixed name for inline customers
         const key = customerId || `inline:${customerName}`;
@@ -333,7 +333,7 @@ export const dashboardRouter = router({
           existing.invoiceCount++;
         } else {
           customerRevenue.set(key, {
-            id: customerId || null,
+            id: customerId ?? null,
             name: customerName,
             email: customerEmail,
             revenue: total,
@@ -381,7 +381,7 @@ export const dashboardRouter = router({
         const total = invoice.invoiceFields?.items?.reduce(
           (sum, item) => sum + Number(item.quantity) * Number(item.unitPrice),
           0
-        ) || 0;
+        ) ?? 0;
 
         const dueDate = invoice.invoiceFields?.invoiceDetails?.dueDate;
         const isOverdue =
@@ -392,14 +392,14 @@ export const dashboardRouter = router({
         return {
           id: invoice.id,
           serialNumber:
-            invoice.invoiceFields?.invoiceDetails?.serialNumber || "N/A",
+            invoice.invoiceFields?.invoiceDetails?.serialNumber ?? "N/A",
           customerName:
             invoice.customer?.name ||
             invoice.invoiceFields?.clientDetails?.name ||
             "Unknown",
           total,
           currency:
-            invoice.invoiceFields?.invoiceDetails?.currency || "MYR",
+            invoice.invoiceFields?.invoiceDetails?.currency ?? "MYR",
           status: isOverdue ? "overdue" : invoice.status,
           date: invoice.createdAt,
           dueDate,

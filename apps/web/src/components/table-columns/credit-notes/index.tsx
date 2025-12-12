@@ -18,14 +18,15 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { createColumnConfigHelper } from "@/components/ui/data-table-filter/core/filters";
 import { HeaderColumnButton, FormatTableDateObject } from "@/components/ui/data-table";
-import type { CreditNoteStatusType, CreditNoteApiResponse, NoteReasonType } from "@/types/common/creditNote";
+import type { CreditNoteStatusType, CreditNoteApiResponse } from "@/types/common/creditNote";
 import { noteReasonLabels } from "@/types/common/creditNote";
-import { Badge, BadgeVariants } from "@/components/ui/badge";
+import type { BadgeVariants } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { createColumnHelper } from "@tanstack/react-table";
 import getSymbolFromCurrency from "currency-symbol-map";
 import { Button } from "@/components/ui/button";
 import { CalendarPenIcon } from "@/assets/icons";
-import { Trash2 } from "@/components/ui/icons";
+import { Trash2Icon } from "@/components/ui/icons";
 import { trpc } from "@/trpc/provider";
 
 const columnHelper = createColumnHelper<CreditNoteApiResponse>();
@@ -54,13 +55,13 @@ export const columns = [
   }),
 
   columnHelper.accessor(
-    (row) => `${row.creditNoteFields?.creditNoteDetails?.prefix || "CN-"}${row.creditNoteFields?.creditNoteDetails?.serialNumber || ""}`,
+    (row) => `${row.creditNoteFields?.creditNoteDetails?.prefix ?? "CN-"}${row.creditNoteFields?.creditNoteDetails?.serialNumber ?? ""}`,
     {
       id: "serialNumber",
       header: ({ column }) => <HeaderColumnButton column={column}>Serial No</HeaderColumnButton>,
       cell: ({ row }) => (
         <div className="text-xs font-medium">
-          {`${row.original.creditNoteFields?.creditNoteDetails?.prefix || "CN-"}${row.original.creditNoteFields?.creditNoteDetails?.serialNumber || ""}`}
+          {`${row.original.creditNoteFields?.creditNoteDetails?.prefix ?? "CN-"}${row.original.creditNoteFields?.creditNoteDetails?.serialNumber ?? ""}`}
         </div>
       ),
       enableSorting: false,
@@ -72,7 +73,7 @@ export const columns = [
     header: ({ column }) => <HeaderColumnButton column={column}>Reason</HeaderColumnButton>,
     cell: ({ row }) => (
       <Badge variant="warning" className="capitalize">
-        {noteReasonLabels[row.original.reason as NoteReasonType] || row.original.reason}
+        {noteReasonLabels[row.original.reason] || row.original.reason}
       </Badge>
     ),
     enableSorting: false,
@@ -82,7 +83,7 @@ export const columns = [
     id: "client",
     header: ({ column }) => <HeaderColumnButton column={column}>Client</HeaderColumnButton>,
     cell: ({ row }) => (
-      <div className="text-xs">{row.original.creditNoteFields?.clientDetails?.name || "-"}</div>
+      <div className="text-xs">{row.original.creditNoteFields?.clientDetails?.name ?? "-"}</div>
     ),
     enableSorting: false,
   }),
@@ -91,11 +92,11 @@ export const columns = [
     id: "total",
     header: ({ column }) => <HeaderColumnButton column={column}>Total</HeaderColumnButton>,
     cell: ({ row }) => (
-      <div className="text-xs font-medium">{`${getSymbolFromCurrency(row.original.creditNoteFields?.creditNoteDetails?.currency || "MYR")}${getTotalValue(row.original.creditNoteFields)}`}</div>
+      <div className="text-xs font-medium">{`${getSymbolFromCurrency(row.original.creditNoteFields?.creditNoteDetails?.currency ?? "MYR")}${getTotalValue(row.original.creditNoteFields)}`}</div>
     ),
   }),
 
-  columnHelper.accessor((row) => row.creditNoteFields?.items?.length || 0, {
+  columnHelper.accessor((row) => row.creditNoteFields?.items?.length ?? 0, {
     id: "items",
     header: ({ column }) => <HeaderColumnButton column={column}>Items</HeaderColumnButton>,
     cell: ({ row }) => (
@@ -104,11 +105,11 @@ export const columns = [
           <TooltipTrigger asChild>
             <Badge variant="secondary">
               <BoxIcon />
-              <span>{row.original.creditNoteFields?.items?.length || 0}</span>
+              <span>{row.original.creditNoteFields?.items?.length ?? 0}</span>
             </Badge>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{row.original.creditNoteFields?.items?.length || 0} items in this credit note</p>
+            <p>{row.original.creditNoteFields?.items?.length ?? 0} items in this credit note</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -184,7 +185,7 @@ export const columns = [
                   onClick={() => deleteMutation.mutate({ id })}
                   className="text-destructive"
                 >
-                  <Trash2 className="size-4" />
+                  <Trash2Icon className="size-4" />
                   <span>Delete</span>
                 </DropdownMenuItem>
               )}
@@ -236,7 +237,7 @@ export const columnConfig = [
     .text()
     .id("serialNumber")
     .displayName("Serial No")
-    .accessor((row) => `${row.creditNoteFields?.creditNoteDetails?.prefix || "CN-"}${row.creditNoteFields?.creditNoteDetails?.serialNumber || ""}`)
+    .accessor((row) => `${row.creditNoteFields?.creditNoteDetails?.prefix ?? "CN-"}${row.creditNoteFields?.creditNoteDetails?.serialNumber ?? ""}`)
     .icon(SortNumDescendingIcon)
     .build(),
   columnConfigHelper

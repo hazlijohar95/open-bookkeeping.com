@@ -86,13 +86,13 @@ export const accountRepository = {
           userId,
           code: defaultAccount.code,
           name: defaultAccount.name,
-          description: defaultAccount.description || null,
+          description: defaultAccount.description ?? null,
           accountType: defaultAccount.accountType,
           normalBalance: defaultAccount.normalBalance,
           parentId: null, // Will update in second pass
           level: defaultAccount.parentCode ? 1 : 0,
           path: defaultAccount.code,
-          sstTaxCode: defaultAccount.sstTaxCode || "none",
+          sstTaxCode: defaultAccount.sstTaxCode ?? "none",
           isActive: true,
           isSystemAccount: defaultAccount.isSystemAccount,
           isHeader: defaultAccount.isHeader,
@@ -247,7 +247,7 @@ export const accountRepository = {
         isSystemAccount: account.isSystemAccount,
         isHeader: account.isHeader,
         openingBalance: account.openingBalance,
-        balance: account.openingBalance || "0",
+        balance: account.openingBalance ?? "0",
         children: [],
       };
       accountMap.set(account.id, node);
@@ -307,18 +307,18 @@ export const accountRepository = {
         userId: input.userId,
         code: input.code,
         name: input.name,
-        description: input.description || null,
+        description: input.description ?? null,
         accountType: input.accountType,
         normalBalance: input.normalBalance,
-        parentId: input.parentId || null,
+        parentId: input.parentId ?? null,
         level,
         path,
-        sstTaxCode: input.sstTaxCode || "none",
+        sstTaxCode: input.sstTaxCode ?? "none",
         isActive: true,
         isSystemAccount: input.isSystemAccount || false,
         isHeader: input.isHeader || false,
-        openingBalance: input.openingBalance || "0",
-        openingBalanceDate: input.openingBalanceDate || null,
+        openingBalance: input.openingBalance ?? "0",
+        openingBalanceDate: input.openingBalanceDate ?? null,
       })
       .returning();
 

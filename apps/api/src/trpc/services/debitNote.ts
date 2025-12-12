@@ -58,7 +58,7 @@ export const debitNoteRouter = router({
   list: protectedProcedure
     .input(paginationSchema)
     .query(async ({ ctx, input }) => {
-      const { limit = 50, offset = 0 } = input || {};
+      const { limit = 50, offset = 0 } = input ?? {};
 
       const userDebitNotes = await db.query.debitNotes.findMany({
         where: eq(debitNotes.userId, ctx.user.id),
@@ -518,15 +518,15 @@ export const debitNoteRouter = router({
         if (fullDebitNote?.debitNoteFields) {
           const fields = fullDebitNote.debitNoteFields;
           const details = fields.debitNoteDetails;
-          const items = fields.items || [];
-          const billingDetails = details?.billingDetails || [];
+          const items = fields.items ?? [];
+          const billingDetails = details?.billingDetails ?? [];
 
           // Create journal entry in background (don't block the response)
           journalEntryIntegration.createDebitNoteJournalEntry(ctx.user.id, {
             id: fullDebitNote.id,
-            serialNumber: `${details?.prefix || "DN-"}${details?.serialNumber || ""}`,
+            serialNumber: `${details?.prefix ?? "DN-"}${details?.serialNumber ?? ""}`,
             date: details?.date || new Date(),
-            reason: fullDebitNote.reason || "adjustment",
+            reason: fullDebitNote.reason ?? "adjustment",
             items: items.map((item) => ({
               name: item.name,
               quantity: item.quantity,
@@ -539,9 +539,9 @@ export const debitNoteRouter = router({
               isSstTax: b.label.toLowerCase().includes("sst") || b.label.toLowerCase().includes("tax"),
             })),
             clientDetails: {
-              name: fields.clientDetails?.name || "Customer",
+              name: fields.clientDetails?.name ?? "Customer",
             },
-            originalInvoiceNumber: details?.originalInvoiceNumber || undefined,
+            originalInvoiceNumber: details?.originalInvoiceNumber ?? undefined,
           }).then((result) => {
             if (result.success) {
               logger.info({ debitNoteId: input.id, entryId: result.entryId }, "Debit note journal entry created");

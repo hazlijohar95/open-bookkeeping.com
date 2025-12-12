@@ -159,7 +159,7 @@ export function createCrudRouter<
       const user = authResult;
 
       try {
-        const query = c.req.query("q") || "";
+        const query = c.req.query("q") ?? "";
         const entities = await repository.search!(user.id, query);
         return c.json(entities);
       } catch (error) {

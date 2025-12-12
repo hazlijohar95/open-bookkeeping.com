@@ -246,8 +246,8 @@ export function getFacetedUniqueValues<TData, TType extends ColumnDataType, TVal
     }
   } else {
     for (const option of values) {
-      const curr = acc.get(option as string) ?? 0;
-      acc.set(option as string, curr + 1);
+      const curr = acc.get(option) ?? 0;
+      acc.set(option, curr + 1);
     }
   }
 

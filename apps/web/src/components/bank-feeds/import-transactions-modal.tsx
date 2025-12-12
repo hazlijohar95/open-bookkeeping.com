@@ -22,7 +22,7 @@ import { FileDownloadIcon } from "@/assets/icons";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useState, useCallback } from "react";
-import { Upload, FileText, AlertCircle } from "@/components/ui/icons";
+import { Upload, FileTextIcon, AlertCircleIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import { useImportTransactions } from "@/api/bank-feed";
 
@@ -106,20 +106,20 @@ function parseCSV(
       if (dateStr.includes("/")) {
         // DD/MM/YYYY format (Malaysian banks)
         const parts = dateStr.split("/");
-        const day = parts[0] || "1";
-        const month = parts[1] || "1";
-        const year = parts[2] || "2000";
+        const day = parts[0] ?? "1";
+        const month = parts[1] ?? "1";
+        const year = parts[2] ?? "2000";
         date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
       } else if (dateStr.includes("-")) {
         // YYYY-MM-DD or DD-MM-YYYY
         const parts = dateStr.split("-");
-        const firstPart = parts[0] || "";
+        const firstPart = parts[0] ?? "";
         if (firstPart.length === 4) {
           date = new Date(dateStr);
         } else {
-          const day = parts[0] || "1";
-          const month = parts[1] || "1";
-          const year = parts[2] || "2000";
+          const day = parts[0] ?? "1";
+          const month = parts[1] ?? "1";
+          const year = parts[2] ?? "2000";
           date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
         }
       } else {
@@ -133,20 +133,20 @@ function parseCSV(
       }
 
       // Parse description
-      const description = cols[1] || "No description";
+      const description = cols[1] ?? "No description";
 
       // Parse amount - handle debit/credit or single amount column
       let amount = 0;
       let type: "deposit" | "withdrawal" = "deposit";
 
       // Try to find the amount - check for separate debit/credit columns or single amount
-      const amountStr = cols[2]?.replace(/[,\s]/g, "") || "0";
-      const creditStr = cols[3]?.replace(/[,\s]/g, "") || "";
+      const amountStr = cols[2]?.replace(/[,\s]/g, "") ?? "0";
+      const creditStr = cols[3]?.replace(/[,\s]/g, "") ?? "";
 
       if (creditStr && parseFloat(creditStr)) {
         // Separate debit/credit columns
-        const debit = parseFloat(amountStr) || 0;
-        const credit = parseFloat(creditStr) || 0;
+        const debit = parseFloat(amountStr) ?? 0;
+        const credit = parseFloat(creditStr) ?? 0;
         if (credit > 0) {
           amount = credit;
           type = "deposit";
@@ -183,7 +183,7 @@ function parseCSV(
         type,
         balance,
       });
-    } catch (e) {
+    } catch {
       errors.push(`Row ${i + 1}: Parse error`);
     }
   }
@@ -198,7 +198,7 @@ export function ImportTransactionsModal({
   preselectedAccountId,
 }: ImportTransactionsModalProps) {
   const [selectedAccountId, setSelectedAccountId] = useState<string>(
-    preselectedAccountId || accounts[0]?.id || ""
+    (preselectedAccountId || accounts[0]?.id) ?? ""
   );
   const [selectedPreset, setSelectedPreset] = useState<string>("maybank");
   const [fileName, setFileName] = useState<string>("");
@@ -256,10 +256,10 @@ export function ImportTransactionsModal({
       transactions: parsedData.transactions.map((t) => ({
         transactionDate: t.transactionDate.toISOString().split('T')[0]!,
         description: t.description,
-        reference: t.reference || undefined,
+        reference: t.reference ?? undefined,
         amount: t.amount,
         type: t.type,
-        balance: t.balance || undefined,
+        balance: t.balance ?? undefined,
       })),
     }, {
       onSuccess: (result) => {
@@ -342,14 +342,14 @@ export function ImportTransactionsModal({
             >
               {parsedData ? (
                 <div className="text-center">
-                  <FileText className="size-10 mx-auto mb-2 text-muted-foreground" />
+                  <FileTextIcon className="size-10 mx-auto mb-2 text-muted-foreground" />
                   <div className="font-medium">{fileName}</div>
                   <div className="text-sm text-muted-foreground mt-1">
                     {parsedData.transactions.length} transactions found
                   </div>
                   {parsedData.errors.length > 0 && (
                     <div className="text-xs text-warning mt-2 flex items-center justify-center gap-1">
-                      <AlertCircle className="size-3" />
+                      <AlertCircleIcon className="size-3" />
                       {parsedData.errors.length} rows skipped
                     </div>
                   )}
@@ -438,7 +438,7 @@ export function ImportTransactionsModal({
           >
             {importMutation.isPending
               ? "Importing..."
-              : `Import ${parsedData?.transactions.length || 0} Transactions`}
+              : `Import ${parsedData?.transactions.length ?? 0} Transactions`}
           </Button>
         </DialogFooter>
       </DialogContent>

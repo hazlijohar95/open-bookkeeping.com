@@ -1,5 +1,4 @@
 // Image Component by OriginUI.com
-/* eslint-disable @next/next/no-img-element */
 
 import { AlertCircleIcon, LoaderCircleIcon, XIcon } from "@/components/ui/icons";
 
@@ -53,7 +52,7 @@ export default function ImageInput({
 
       // preview url is the url of the image
       if (onFileUpload) {
-        onFileUpload(files[0].preview || "");
+        onFileUpload(files[0].preview ?? "");
       }
 
       // if base64 change is not provided, return
@@ -68,7 +67,7 @@ export default function ImageInput({
     },
   });
 
-  const previewUrl = files[0]?.preview || defaultUrl || "";
+  const previewUrl = (files[0]?.preview || defaultUrl) ?? "";
 
   return (
     <div className={cn("flex w-full flex-col gap-1.5", className)}>
@@ -81,13 +80,13 @@ export default function ImageInput({
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
-          data-dragging={isDragging || undefined}
+          data-dragging={isDragging ?? undefined}
           className="border-input hover:bg-accent/50 data-[dragging=true]:bg-accent/50 relative flex aspect-square flex-col items-center justify-center overflow-hidden rounded-none border border-dashed p-4 transition-colors has-disabled:pointer-events-none has-disabled:opacity-50 has-[img]:border-none"
         >
           <input {...getInputProps()} className="sr-only" aria-label="Upload file" />
           {previewUrl && allowPreview && !isLoading ? (
             <div className="absolute inset-0">
-              <img src={previewUrl} alt={files[0]?.file?.name || "Uploaded image"} className="size-full object-cover" />
+              <img src={previewUrl} alt={files[0]?.file?.name ?? "Uploaded image"} className="size-full object-cover" />
             </div>
           ) : isLoading ? (
             <div className="flex flex-col items-center justify-center gap-2">

@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { cn, formatCurrency } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, Clock, AlertTriangle, ArrowUpRight } from "@/components/ui/icons";
+import { TrendingUp, ClockIcon, AlertTriangleIcon, ArrowUpRight } from "@/components/ui/icons";
 
 interface KeyMetricsProps {
   stats?: {
@@ -22,7 +22,7 @@ interface KeyMetricsProps {
 }
 
 export function KeyMetrics({ stats, isLoading, className }: KeyMetricsProps) {
-  const currency = stats?.currency || "MYR";
+  const currency = stats?.currency ?? "MYR";
 
   if (isLoading) {
     return (
@@ -49,8 +49,8 @@ export function KeyMetrics({ stats, isLoading, className }: KeyMetricsProps) {
     {
       id: "revenue",
       label: "This Month",
-      value: formatCurrency(stats?.revenueThisMonth || 0, currency),
-      subtext: `${stats?.paidThisMonth || 0} invoices paid`,
+      value: formatCurrency(stats?.revenueThisMonth ?? 0, currency),
+      subtext: `${stats?.paidThisMonth ?? 0} invoices paid`,
       icon: TrendingUp,
       iconBg: "bg-emerald-100 dark:bg-emerald-900/30",
       iconColor: "text-emerald-600 dark:text-emerald-400",
@@ -60,27 +60,27 @@ export function KeyMetrics({ stats, isLoading, className }: KeyMetricsProps) {
     {
       id: "pending",
       label: "Pending",
-      value: formatCurrency(stats?.pendingAmount || 0, currency),
+      value: formatCurrency(stats?.pendingAmount ?? 0, currency),
       subtext: "Awaiting payment",
-      icon: Clock,
+      icon: ClockIcon,
       iconBg: "bg-blue-100 dark:bg-blue-900/30",
       iconColor: "text-blue-600 dark:text-blue-400",
       href: "/invoices?status=pending",
-      show: (stats?.pendingAmount || 0) > 0,
+      show: (stats?.pendingAmount ?? 0) > 0,
     },
     {
       id: "overdue",
       label: "Overdue",
-      value: stats?.overdueCount || 0,
+      value: stats?.overdueCount ?? 0,
       subtext: stats?.overdueAmount
         ? formatCurrency(stats.overdueAmount, currency)
         : "No overdue invoices",
-      icon: AlertTriangle,
+      icon: AlertTriangleIcon,
       iconBg: "bg-amber-100 dark:bg-amber-900/30",
       iconColor: "text-amber-600 dark:text-amber-400",
       href: "/invoices?status=overdue",
-      show: (stats?.overdueCount || 0) > 0,
-      highlight: (stats?.overdueCount || 0) > 0,
+      show: (stats?.overdueCount ?? 0) > 0,
+      highlight: (stats?.overdueCount ?? 0) > 0,
     },
   ];
 
@@ -92,7 +92,7 @@ export function KeyMetrics({ stats, isLoading, className }: KeyMetricsProps) {
     visibleMetrics.push({
       id: "total",
       label: "Total Revenue",
-      value: formatCurrency(stats?.totalRevenue || 0, currency),
+      value: formatCurrency(stats?.totalRevenue ?? 0, currency),
       subtext: "All time",
       icon: TrendingUp,
       iconBg: "bg-violet-100 dark:bg-violet-900/30",

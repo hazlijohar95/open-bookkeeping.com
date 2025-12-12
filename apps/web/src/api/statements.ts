@@ -104,7 +104,7 @@ export function useStatementCustomers(options?: {
   limit?: number;
   offset?: number;
 }) {
-  const { enabled, limit = 100, offset = 0 } = options || {};
+  const { enabled, limit = 100, offset = 0 } = options ?? {};
   return useQuery({
     queryKey: statementKeys.customers(limit, offset),
     queryFn: () => api.get<PaginatedResponse<StatementCustomer>>("/statements/customers", { limit, offset }),
@@ -118,7 +118,7 @@ export function useStatementVendors(options?: {
   limit?: number;
   offset?: number;
 }) {
-  const { enabled, limit = 100, offset = 0 } = options || {};
+  const { enabled, limit = 100, offset = 0 } = options ?? {};
   return useQuery({
     queryKey: statementKeys.vendors(limit, offset),
     queryFn: () => api.get<PaginatedResponse<StatementVendor>>("/statements/vendors", { limit, offset }),
@@ -168,7 +168,7 @@ export function useAllCustomersSummary(options?: {
   limit?: number;
   offset?: number;
 }) {
-  const { enabled, limit = 50, offset = 0 } = options || {};
+  const { enabled, limit = 50, offset = 0 } = options ?? {};
   return useQuery({
     queryKey: statementKeys.allCustomersSummary(limit, offset),
     queryFn: () => api.get<PaginatedResponse<CustomerSummary>>("/statements/customers/summary", { limit, offset }),

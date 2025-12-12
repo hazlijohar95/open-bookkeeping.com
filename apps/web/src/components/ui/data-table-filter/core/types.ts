@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { LucideIcon } from "@/components/ui/icons";
 
@@ -125,7 +125,7 @@ export type ColumnConfigHelper<TData> = {
   accessor: <TAccessor extends TAccessorFn<TData>, TType extends ColumnDataType, TVal extends ReturnType<TAccessor>>(
     accessor: TAccessor,
     config?: Omit<ColumnConfig<TData, TType, TVal>, "accessor">,
-  ) => ColumnConfig<TData, TType, unknown>;
+  ) => ColumnConfig<TData, TType>;
 };
 
 export type DataTableFilterConfig<TData> = {

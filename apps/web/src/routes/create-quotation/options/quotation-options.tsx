@@ -13,12 +13,12 @@ import {
   HardDriveIcon,
   DatabaseIcon,
 } from "@/assets/icons";
-import { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
+import type { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
 import { forceInsertQuotation } from "@/lib/indexdb-queries/quotation";
 import QuotationErrorsModal from "./quotation-errors-modal";
 import QuotationTabSwitch from "./quotation-tab-switch";
 import { Button } from "@/components/ui/button";
-import { UseFormReturn } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers";
 import { useCreateQuotation } from "@/api/quotations";
@@ -49,15 +49,15 @@ const QuotationOptions = ({ form, onTabChange }: QuotationOptionsProps) => {
     switch (action) {
       case "view-pdf":
         await QuotationDownloadManagerInstance.initialize(formValues);
-        QuotationDownloadManagerInstance.previewPdf();
+        void QuotationDownloadManagerInstance.previewPdf();
         break;
       case "download-pdf":
         await QuotationDownloadManagerInstance.initialize(formValues);
-        QuotationDownloadManagerInstance.downloadPdf();
+        void QuotationDownloadManagerInstance.downloadPdf();
         break;
       case "download-png":
         await QuotationDownloadManagerInstance.initialize(formValues);
-        QuotationDownloadManagerInstance.downloadPng();
+        void QuotationDownloadManagerInstance.downloadPng();
         break;
       case "save-local":
         await handleSaveLocal(formValues);
@@ -74,7 +74,7 @@ const QuotationOptions = ({ form, onTabChange }: QuotationOptionsProps) => {
     setIsSaving(true);
     try {
       await forceInsertQuotation(formValues);
-      queryClient.invalidateQueries({ queryKey: ["idb-quotations"] });
+      void queryClient.invalidateQueries({ queryKey: ["idb-quotations"] });
       toast.success("Quotation saved locally!");
     } catch (error) {
       toast.error("Failed to save quotation locally");
@@ -110,7 +110,7 @@ const QuotationOptions = ({ form, onTabChange }: QuotationOptionsProps) => {
         },
         {
           onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["quotation"] });
+            void queryClient.invalidateQueries({ queryKey: ["quotation"] });
             toast.success("Quotation saved to server successfully!");
           },
           onError: (error) => {
@@ -159,15 +159,15 @@ const QuotationOptions = ({ form, onTabChange }: QuotationOptionsProps) => {
 
             <DropdownMenuSeparator />
 
-            {/* Save Options */}
+            {/* SaveIcon Options */}
             <DropdownMenuItem onClick={() => handleDropDownAction("save-local")}>
               <HardDriveIcon className="size-4" />
-              <span>Save Locally</span>
+              <span>SaveIcon Locally</span>
             </DropdownMenuItem>
             {user && (
               <DropdownMenuItem onClick={() => handleDropDownAction("save-server")}>
                 <DatabaseIcon className="size-4" />
-                <span>Save to Server</span>
+                <span>SaveIcon to Server</span>
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>

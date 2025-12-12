@@ -1,6 +1,6 @@
-import { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
+import type { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
 import { IDB_SCHEMA_INVOICES } from "@/constants/indexed-db";
-import { IDBInvoice } from "@/types/indexdb/invoice";
+import type { IDBInvoice } from "@/types/indexdb/invoice";
 import { ERROR_MESSAGES } from "@/constants/issues";
 import { initIndexedDB } from "@/global/indexdb";
 import { v4 as uuidv4 } from "uuid";

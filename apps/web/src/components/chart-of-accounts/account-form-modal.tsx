@@ -84,9 +84,9 @@ export function AccountFormModal({
 
   const createMutation = trpc.chartOfAccounts.createAccount.useMutation({
     onSuccess: () => {
-      utils.chartOfAccounts.getAccountTree.invalidate();
-      utils.chartOfAccounts.getAccountSummary.invalidate();
-      utils.chartOfAccounts.checkHasAccounts.invalidate();
+      void utils.chartOfAccounts.getAccountTree.invalidate();
+      void utils.chartOfAccounts.getAccountSummary.invalidate();
+      void utils.chartOfAccounts.checkHasAccounts.invalidate();
       toast.success("Account created successfully");
       handleClose();
     },
@@ -97,8 +97,8 @@ export function AccountFormModal({
 
   const updateMutation = trpc.chartOfAccounts.updateAccount.useMutation({
     onSuccess: () => {
-      utils.chartOfAccounts.getAccountTree.invalidate();
-      utils.chartOfAccounts.getAccountSummary.invalidate();
+      void utils.chartOfAccounts.getAccountTree.invalidate();
+      void utils.chartOfAccounts.getAccountSummary.invalidate();
       toast.success("Account updated successfully");
       handleClose();
     },
@@ -112,15 +112,15 @@ export function AccountFormModal({
       if (editingAccount.id) {
         // Editing existing account
         form.reset({
-          code: editingAccount.code || "",
-          name: editingAccount.name || "",
-          description: editingAccount.description || "",
-          accountType: editingAccount.accountType || "asset",
-          normalBalance: editingAccount.normalBalance || "debit",
+          code: editingAccount.code ?? "",
+          name: editingAccount.name ?? "",
+          description: editingAccount.description ?? "",
+          accountType: editingAccount.accountType ?? "asset",
+          normalBalance: editingAccount.normalBalance ?? "debit",
           parentId: editingAccount.parentId,
-          sstTaxCode: editingAccount.sstTaxCode || "none",
+          sstTaxCode: editingAccount.sstTaxCode ?? "none",
           isHeader: editingAccount.isHeader || false,
-          openingBalance: editingAccount.openingBalance || "0",
+          openingBalance: editingAccount.openingBalance ?? "0",
         });
       } else if (editingAccount.parentId) {
         // Adding child account
@@ -128,8 +128,8 @@ export function AccountFormModal({
           code: "",
           name: "",
           description: "",
-          accountType: editingAccount.accountType || "asset",
-          normalBalance: editingAccount.normalBalance || "debit",
+          accountType: editingAccount.accountType ?? "asset",
+          normalBalance: editingAccount.normalBalance ?? "debit",
           parentId: editingAccount.parentId,
           sstTaxCode: "none",
           isHeader: false,
@@ -170,7 +170,7 @@ export function AccountFormModal({
 
     if (isEditing) {
       updateMutation.mutate({
-        id: editingAccount!.id!,
+        id: editingAccount.id!,
         ...submitData,
       });
     } else {
@@ -282,7 +282,7 @@ export function AccountFormModal({
             <div className="space-y-2">
               <Label>SST Tax Code</Label>
               <Select
-                value={form.watch("sstTaxCode") || "none"}
+                value={form.watch("sstTaxCode") ?? "none"}
                 onValueChange={(v) => form.setValue("sstTaxCode", v as SstTaxCode)}
               >
                 <SelectTrigger>

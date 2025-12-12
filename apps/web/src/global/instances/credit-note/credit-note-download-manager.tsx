@@ -1,4 +1,4 @@
-import { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
+import type { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
 import { createCreditNotePdfBlob } from "@/lib/credit-note/create-credit-note-pdf-blob";
 import { generateCreditNoteName } from "@/lib/credit-note/generate-credit-note-name";
 import { createBlobUrl, revokeBlobUrl } from "@/lib/invoice/create-blob-url";

@@ -1,4 +1,4 @@
-import { Check, ChevronsUpDown, Users } from "@/components/ui/icons";
+import { Check, ChevronsUpDown, UsersIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,7 +56,7 @@ export function CustomerSelector({
         >
           {selectedCustomer ? (
             <div className="flex items-center gap-2">
-              <Users className="size-4 text-muted-foreground" />
+              <UsersIcon className="size-4 text-muted-foreground" />
               <span className="truncate">{selectedCustomer.name}</span>
             </div>
           ) : (
@@ -67,7 +67,7 @@ export function CustomerSelector({
       </PopoverTrigger>
       <PopoverContent className="w-[300px] p-0" align="start">
         <Command>
-          <CommandInput placeholder="Search customers..." />
+          <CommandInput placeholder="SearchIcon customers..." />
           <CommandList>
             <CommandEmpty>No customer found.</CommandEmpty>
             <CommandGroup>

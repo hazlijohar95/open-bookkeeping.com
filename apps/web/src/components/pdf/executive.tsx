@@ -1,6 +1,4 @@
-/* eslint-disable jsx-a11y/alt-text */
-
-import { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
+import type { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
 import { Document, Page, Text, View, Image, Font } from "@react-pdf/renderer";
 import { getSubTotalValue, getTotalValue } from "@/constants/pdf-helpers";
 import { POPPINS_FONT, GEIST_MONO_FONT, GEIST_FONT } from "@/constants/pdf-fonts";
@@ -83,7 +81,7 @@ const ExecutivePdf: React.FC<{ data: ZodCreateInvoiceSchema }> = ({ data }) => {
       author={data.companyDetails.name}
       producer="Open-Bookkeeping"
     >
-      <Page size="A4" style={{ ...tw(`${bg}`), fontFamily: "Poppins" }}>
+      <Page size="A4" style={{ ...tw(bg), fontFamily: "Poppins" }}>
         {/* ═══════════════════════════════════════════════════════════════════
             TOP ACCENT BAR - Brand color stripe
         ═══════════════════════════════════════════════════════════════════ */}

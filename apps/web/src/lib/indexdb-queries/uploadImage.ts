@@ -1,4 +1,4 @@
-import { InvoiceImageType } from "@/types/common/invoice";
+import type { InvoiceImageType } from "@/types/common/invoice";
 import { IDB_IMAGES } from "@/constants/indexed-db";
 import { initIndexedDB } from "@/global/indexdb";
 import { v4 as uuidv4 } from "uuid";

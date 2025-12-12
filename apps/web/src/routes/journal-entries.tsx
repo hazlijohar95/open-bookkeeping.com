@@ -39,7 +39,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileSpreadsheet, MoreHorizontal, CheckCircle, Undo2Icon, Eye } from "@/components/ui/icons";
+import { FileSpreadsheet, MoreHorizontalIcon, CheckCircleIcon, Undo2Icon, Eye } from "@/components/ui/icons";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
@@ -101,7 +101,7 @@ export function JournalEntries() {
       toast.success(`Journal entry ${entryToPost.entryNumber} posted successfully`);
       setEntryToPost(null);
     } catch (error: any) {
-      toast.error(error?.message || "Failed to post journal entry");
+      toast.error(error?.message ?? "Failed to post journal entry");
     }
   };
 
@@ -116,15 +116,15 @@ export function JournalEntries() {
       toast.success(`Journal entry ${entryToReverse.entryNumber} reversed successfully`);
       setEntryToReverse(null);
     } catch (error: any) {
-      toast.error(error?.message || "Failed to reverse journal entry");
+      toast.error(error?.message ?? "Failed to reverse journal entry");
     }
   };
 
   // Calculate totals for each entry
   const calculateTotals = (entry: JournalEntry) => {
     if (!entry.lines) return { debit: "0", credit: "0" };
-    const debit = entry.lines.reduce((sum, line) => sum + parseFloat(line.debitAmount || "0"), 0);
-    const credit = entry.lines.reduce((sum, line) => sum + parseFloat(line.creditAmount || "0"), 0);
+    const debit = entry.lines.reduce((sum, line) => sum + parseFloat(line.debitAmount ?? "0"), 0);
+    const credit = entry.lines.reduce((sum, line) => sum + parseFloat(line.creditAmount ?? "0"), 0);
     return { debit: debit.toFixed(2), credit: credit.toFixed(2) };
   };
 
@@ -241,7 +241,7 @@ export function JournalEntries() {
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="size-7">
-                            <MoreHorizontal className="size-4" />
+                            <MoreHorizontalIcon className="size-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -251,7 +251,7 @@ export function JournalEntries() {
                           </DropdownMenuItem>
                           {entry.status === "draft" && (
                             <DropdownMenuItem onClick={() => setEntryToPost(entry)}>
-                              <CheckCircle className="size-4" />
+                              <CheckCircleIcon className="size-4" />
                               <span>Post Entry</span>
                             </DropdownMenuItem>
                           )}

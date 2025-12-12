@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Separator } from "@/components/ui/separator";
 import { SIDEBAR_ITEMS } from "@/constants/sidebar";
 import { useLocation } from "react-router-dom";
-import { ISidebarHeader } from "@/types";
+import type { ISidebarHeader } from "@/types";
 
 const DashboardSidebarHeader = ({ children }: ISidebarHeader) => {
   const location = useLocation();

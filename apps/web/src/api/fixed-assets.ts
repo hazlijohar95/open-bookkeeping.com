@@ -269,8 +269,8 @@ export function useCreateFixedAsset() {
     mutationFn: (input: CreateFixedAssetInput) =>
       api.post<FixedAsset>("/fixed-assets", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.summary() });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.summary() });
     },
   });
 }
@@ -282,8 +282,8 @@ export function useUpdateFixedAsset() {
     mutationFn: ({ id, ...data }: UpdateFixedAssetInput & { id: string }) =>
       api.patch<FixedAsset>(`/fixed-assets/${id}`, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.detail(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.detail(variables.id) });
     },
   });
 }
@@ -294,8 +294,8 @@ export function useDeleteFixedAsset() {
   return useMutation({
     mutationFn: (id: string) => api.delete<{ success: boolean }>(`/fixed-assets/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.summary() });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.summary() });
     },
   });
 }
@@ -306,9 +306,9 @@ export function useActivateFixedAsset() {
   return useMutation({
     mutationFn: (id: string) => api.post<FixedAsset>(`/fixed-assets/${id}/activate`),
     onSuccess: (_, id) => {
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.detail(id) });
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.summary() });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.detail(id) });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.summary() });
     },
   });
 }
@@ -320,9 +320,9 @@ export function useDisposeFixedAsset() {
     mutationFn: ({ id, ...data }: DisposeAssetInput & { id: string }) =>
       api.post<FixedAssetDisposal>(`/fixed-assets/${id}/dispose`, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.detail(variables.id) });
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.summary() });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.detail(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.summary() });
     },
   });
 }
@@ -343,7 +343,7 @@ export function useRunDepreciation() {
         `/fixed-assets/depreciation/${depreciationId}/run`
       ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.all });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.all });
     },
   });
 }
@@ -355,7 +355,7 @@ export function useSkipDepreciation() {
     mutationFn: ({ id, notes }: { id: string; notes?: string }) =>
       api.post<FixedAssetDepreciation>(`/fixed-assets/depreciation/${id}/skip`, { notes }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.all });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.all });
     },
   });
 }
@@ -388,7 +388,7 @@ export function useCreateFixedAssetCategory() {
     mutationFn: (input: CreateCategoryInput) =>
       api.post<FixedAssetCategory>("/fixed-assets/categories", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.categories() });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.categories() });
     },
   });
 }
@@ -400,8 +400,8 @@ export function useUpdateFixedAssetCategory() {
     mutationFn: ({ id, ...data }: UpdateCategoryInput & { id: string }) =>
       api.patch<FixedAssetCategory>(`/fixed-assets/categories/${id}`, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.categories() });
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.category(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.categories() });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.category(variables.id) });
     },
   });
 }
@@ -413,7 +413,7 @@ export function useDeleteFixedAssetCategory() {
     mutationFn: (id: string) =>
       api.delete<{ success: boolean }>(`/fixed-assets/categories/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: fixedAssetKeys.categories() });
+      void queryClient.invalidateQueries({ queryKey: fixedAssetKeys.categories() });
     },
   });
 }

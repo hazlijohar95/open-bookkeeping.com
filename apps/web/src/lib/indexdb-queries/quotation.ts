@@ -1,6 +1,6 @@
-import { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
+import type { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
 import { IDB_SCHEMA_QUOTATIONS } from "@/constants/indexed-db";
-import { IDBQuotation } from "@/types/indexdb/quotation";
+import type { IDBQuotation } from "@/types/indexdb/quotation";
 import { ERROR_MESSAGES } from "@/constants/issues";
 import { initIndexedDB } from "@/global/indexdb";
 import { v4 as uuidv4 } from "uuid";

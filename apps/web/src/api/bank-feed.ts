@@ -233,7 +233,7 @@ export function useCreateBankAccount() {
     mutationFn: (input: CreateBankAccountInput) =>
       api.post<BankAccount>("/bank-feed/accounts", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.accounts() });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.accounts() });
     },
   });
 }
@@ -245,8 +245,8 @@ export function useUpdateBankAccount() {
     mutationFn: ({ id, ...data }: UpdateBankAccountInput) =>
       api.patch<BankAccount>(`/bank-feed/accounts/${id}`, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.accounts() });
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.account(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.accounts() });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.account(variables.id) });
     },
   });
 }
@@ -258,7 +258,7 @@ export function useDeleteBankAccount() {
     mutationFn: (id: string) =>
       api.delete<{ success: boolean }>(`/bank-feed/accounts/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.accounts() });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.accounts() });
     },
   });
 }
@@ -306,8 +306,8 @@ export function useCreateTransaction() {
     mutationFn: (input: CreateTransactionInput) =>
       api.post<BankTransaction>("/bank-feed/transactions", input),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.transactions(variables.bankAccountId) });
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.stats() });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.transactions(variables.bankAccountId) });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.stats() });
     },
   });
 }
@@ -319,9 +319,9 @@ export function useImportTransactions() {
     mutationFn: (input: ImportTransactionsInput) =>
       api.post<ImportResult>("/bank-feed/transactions/import", input),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.transactions(variables.bankAccountId) });
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.stats() });
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.unmatched() });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.transactions(variables.bankAccountId) });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.stats() });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.unmatched() });
     },
   });
 }
@@ -333,7 +333,7 @@ export function useUpdateTransactionMatch() {
     mutationFn: ({ id, ...data }: UpdateMatchInput) =>
       api.patch<BankTransaction>(`/bank-feed/transactions/${id}/match`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
     },
   });
 }
@@ -345,7 +345,7 @@ export function useReconcileTransaction() {
     mutationFn: (id: string) =>
       api.post<BankTransaction>(`/bank-feed/transactions/${id}/reconcile`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
     },
   });
 }
@@ -357,7 +357,7 @@ export function useAcceptSuggestion() {
     mutationFn: (id: string) =>
       api.post<BankTransaction>(`/bank-feed/transactions/${id}/accept-suggestion`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
     },
   });
 }
@@ -369,7 +369,7 @@ export function useRejectSuggestion() {
     mutationFn: (id: string) =>
       api.post<BankTransaction>(`/bank-feed/transactions/${id}/reject-suggestion`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
     },
   });
 }
@@ -389,7 +389,7 @@ export function useCreateCategory() {
     mutationFn: (input: CreateCategoryInput) =>
       api.post<BankFeedCategory>("/bank-feed/categories", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.categories() });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.categories() });
     },
   });
 }
@@ -409,7 +409,7 @@ export function useCreateRule() {
     mutationFn: (input: CreateRuleInput) =>
       api.post<MatchingRule>("/bank-feed/rules", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.rules() });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.rules() });
     },
   });
 }
@@ -421,7 +421,7 @@ export function useDeleteRule() {
     mutationFn: (id: string) =>
       api.delete<{ success: boolean }>(`/bank-feed/rules/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.rules() });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.rules() });
     },
   });
 }
@@ -449,7 +449,7 @@ export function useApplyMatch() {
     mutationFn: (input: ApplyMatchInput) =>
       api.post<BankTransaction>("/bank-feed/transactions/apply-match", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
     },
   });
 }
@@ -461,7 +461,7 @@ export function useAutoMatch() {
     mutationFn: (params?: { bankAccountId?: string }) =>
       api.post<AutoMatchResult>("/bank-feed/auto-match", params),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
     },
   });
 }
@@ -473,7 +473,7 @@ export function useReconcileMatched() {
     mutationFn: (params?: { bankAccountId?: string }) =>
       api.post<ReconcileMatchedResult>("/bank-feed/reconcile-matched", params),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
     },
   });
 }

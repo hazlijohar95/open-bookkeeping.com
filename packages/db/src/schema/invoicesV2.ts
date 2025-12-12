@@ -56,6 +56,7 @@ export interface CompanyDetailsV2 {
 export interface ClientDetailsV2 {
   name: string;
   address: string;
+  taxId?: string; // TIN for Malaysian tax compliance (SST, e-Invoice)
   metadata?: MetadataField[];
 }
 

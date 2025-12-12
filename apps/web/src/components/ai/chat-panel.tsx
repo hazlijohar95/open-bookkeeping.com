@@ -16,12 +16,12 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Bot,
-  Send,
-  Loader2,
+  SendIcon,
+  Loader2Icon,
   Sparkles,
-  User,
+  UserIcon,
   Wrench,
-  CheckCircle2,
+  CheckCircle2Icon,
 } from "@/components/ui/icons";
 import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
@@ -45,9 +45,9 @@ export function ChatPanel() {
 
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({
-      api: `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/ai/chat`,
+      api: `${import.meta.env.VITE_API_URL ?? "http://localhost:3001"}/api/ai/chat`,
       headers: {
-        Authorization: `Bearer ${session?.access_token || ""}`,
+        Authorization: `Bearer ${session?.access_token ?? ""}`,
       },
     }),
   });
@@ -64,7 +64,7 @@ export function ChatPanel() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && status === "ready") {
-      sendMessage({ text: input });
+      void sendMessage({ text: input });
       setInput("");
     }
   };
@@ -92,9 +92,9 @@ export function ChatPanel() {
             className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1.5 my-1"
           >
             {isComplete ? (
-              <CheckCircle2 className="h-3 w-3 text-success" />
+              <CheckCircle2Icon className="h-3 w-3 text-success" />
             ) : (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <Loader2Icon className="h-3 w-3 animate-spin" />
             )}
             <Wrench className="h-3 w-3" />
             <span>{label}</span>
@@ -186,7 +186,7 @@ export function ChatPanel() {
                   </div>
                   {message.role === "user" && (
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary">
-                      <User className="h-4 w-4 text-primary-foreground" />
+                      <UserIcon className="h-4 w-4 text-primary-foreground" />
                     </div>
                   )}
                 </div>
@@ -197,7 +197,7 @@ export function ChatPanel() {
                     <Bot className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground text-sm bg-muted rounded-lg px-4 py-2.5">
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2Icon className="h-4 w-4 animate-spin" />
                     <span>Thinking...</span>
                   </div>
                 </div>
@@ -225,9 +225,9 @@ export function ChatPanel() {
           />
           <Button type="submit" size="icon" disabled={isLoading || !input.trim()}>
             {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2Icon className="h-4 w-4 animate-spin" />
             ) : (
-              <Send className="h-4 w-4" />
+              <SendIcon className="h-4 w-4" />
             )}
           </Button>
         </form>

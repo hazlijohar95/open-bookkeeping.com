@@ -25,7 +25,7 @@ export function BankFeeds() {
 
   const { data: accounts, isLoading: accountsLoading } = useBankAccounts();
 
-  const { data: stats } = useBankFeedStats(selectedAccountId || undefined);
+  const { data: stats } = useBankFeedStats(selectedAccountId ?? undefined);
 
   // Set first account as selected when accounts load
   useEffect(() => {
@@ -120,7 +120,7 @@ export function BankFeeds() {
                 <CardDescription>Unmatched</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats?.unmatched || 0}</div>
+                <div className="text-2xl font-bold">{stats?.unmatched ?? 0}</div>
               </CardContent>
             </Card>
             <Card>
@@ -128,7 +128,7 @@ export function BankFeeds() {
                 <CardDescription>AI Suggested</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats?.suggested || 0}</div>
+                <div className="text-2xl font-bold">{stats?.suggested ?? 0}</div>
               </CardContent>
             </Card>
             <Card>
@@ -136,7 +136,7 @@ export function BankFeeds() {
                 <CardDescription>Matched</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats?.matched || 0}</div>
+                <div className="text-2xl font-bold">{stats?.matched ?? 0}</div>
               </CardContent>
             </Card>
             <Card>
@@ -144,7 +144,7 @@ export function BankFeeds() {
                 <CardDescription>Reconciled</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-primary">{stats?.reconciled || 0}</div>
+                <div className="text-2xl font-bold text-primary">{stats?.reconciled ?? 0}</div>
               </CardContent>
             </Card>
           </div>
@@ -250,10 +250,10 @@ export function BankFeeds() {
       <ImportTransactionsModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
-        accounts={(accounts || []).map((a) => ({
+        accounts={(accounts ?? []).map((a) => ({
           id: a.id,
           accountName: a.accountName,
-          bankName: a.bankName || null,
+          bankName: a.bankName ?? null,
         }))}
         preselectedAccountId={selectedAccountId}
       />

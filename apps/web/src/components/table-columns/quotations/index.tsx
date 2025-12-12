@@ -20,18 +20,19 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { createColumnConfigHelper } from "@/components/ui/data-table-filter/core/filters";
 import { HeaderColumnButton, FormatTableDateObject } from "@/components/ui/data-table";
 import type { QuotationStatusType } from "@/types/common/quotation";
-import { Badge, BadgeVariants } from "@/components/ui/badge";
+import type { BadgeVariants } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { createColumnHelper } from "@tanstack/react-table";
 import { getQuotationTotalValue } from "@/constants/quotation-helpers";
 import getSymbolFromCurrency from "currency-symbol-map";
 import DeleteQuotationModal from "./deleteQuotationModal";
 import UpdateStatusModal from "./updateStatusModal";
 import ConvertToInvoiceModal from "./convertToInvoiceModal";
-import { Quotation } from "@/types/common/quotation";
+import type { Quotation } from "@/types/common/quotation";
 import { CalendarPenIcon } from "@/assets/icons";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { Send, Clock, CheckCircle, XCircle, ArrowRightLeft, FileText } from "@/components/ui/icons";
+import { SendIcon, ClockIcon, CheckCircleIcon, XCircleIcon, ArrowRightLeft, FileTextIcon } from "@/components/ui/icons";
 
 const columnHelper = createColumnHelper<Quotation>();
 const columnConfigHelper = createColumnConfigHelper<Quotation>();
@@ -176,7 +177,7 @@ export const columns = [
                 <>
                   <Link to={`/edit/server/${convertedInvoiceId}`}>
                     <DropdownMenuItem className="text-primary">
-                      <FileText className="size-4" />
+                      <FileTextIcon className="size-4" />
                       <span>View Invoice</span>
                     </DropdownMenuItem>
                   </Link>
@@ -280,13 +281,13 @@ const getStatusIcon = (status: QuotationStatusType) => {
     case "draft":
       return <HourglassStartIcon />;
     case "sent":
-      return <Send className="size-3" />;
+      return <SendIcon className="size-3" />;
     case "accepted":
-      return <CheckCircle className="size-3" />;
+      return <CheckCircleIcon className="size-3" />;
     case "rejected":
-      return <XCircle className="size-3" />;
+      return <XCircleIcon className="size-3" />;
     case "expired":
-      return <Clock className="size-3" />;
+      return <ClockIcon className="size-3" />;
     case "converted":
       return <ArrowRightLeft className="size-3" />;
     default:

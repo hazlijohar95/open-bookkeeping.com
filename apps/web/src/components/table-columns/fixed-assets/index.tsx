@@ -1,14 +1,14 @@
 import { WarehouseIcon } from "@/assets/icons";
 import {
   Hash,
-  DollarSign,
-  Calendar,
+  CurrencyDollarIcon,
+  CalendarIcon,
   Building2,
   Eye,
   Edit,
-  Play,
-  Trash2,
-  MoreHorizontal,
+  PlayIcon,
+  Trash2Icon,
+  MoreHorizontalIcon,
 } from "@/components/ui/icons";
 import {
   DropdownMenu,
@@ -123,7 +123,7 @@ export const createFixedAssetColumns = ({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon">
-              <MoreHorizontal className="size-4" />
+              <MoreHorizontalIcon className="size-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -138,7 +138,7 @@ export const createFixedAssetColumns = ({
                   Edit
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onActivate(asset)}>
-                  <Play className="size-4 mr-2" />
+                  <PlayIcon className="size-4 mr-2" />
                   Activate
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -146,7 +146,7 @@ export const createFixedAssetColumns = ({
                   onClick={() => onDelete(asset)}
                   className="text-destructive"
                 >
-                  <Trash2 className="size-4 mr-2" />
+                  <Trash2Icon className="size-4 mr-2" />
                   Delete
                 </DropdownMenuItem>
               </>
@@ -203,7 +203,7 @@ export const fixedAssetColumnConfig = [
     .id("acquisitionCost")
     .displayName("Acquisition Cost")
     .accessor((row) => parseFloat(row.acquisitionCost))
-    .icon(DollarSign)
+    .icon(CurrencyDollarIcon)
     .build(),
 
   columnConfigHelper
@@ -211,7 +211,7 @@ export const fixedAssetColumnConfig = [
     .id("netBookValue")
     .displayName("Net Book Value")
     .accessor((row) => parseFloat(row.netBookValue))
-    .icon(DollarSign)
+    .icon(CurrencyDollarIcon)
     .build(),
 
   columnConfigHelper
@@ -219,6 +219,6 @@ export const fixedAssetColumnConfig = [
     .id("acquisitionDate")
     .displayName("Acquisition Date")
     .accessor((row) => new Date(row.acquisitionDate))
-    .icon(Calendar)
+    .icon(CalendarIcon)
     .build(),
 ];

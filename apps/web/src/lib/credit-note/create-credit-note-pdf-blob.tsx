@@ -1,4 +1,4 @@
-import { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
+import type { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
 import { CreditNoteDefaultPDF } from "@/components/pdf/credit-note";
 import { pdf } from "@react-pdf/renderer";
 

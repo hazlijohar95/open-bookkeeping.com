@@ -14,10 +14,10 @@ import {
 } from "@/components/ui/dialog";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { TrashIcon } from "@/assets/icons";
-import { Trash2 } from "@/components/ui/icons";
+import { Trash2Icon } from "@/components/ui/icons";
 import { useDeleteQuotation } from "@/api/quotations";
 import { toast } from "sonner";
-import { QuotationTypeType } from "@/types/common/quotation";
+import type { QuotationTypeType } from "@/types/common/quotation";
 
 interface DeleteQuotationModalProps {
   quotationId: string;
@@ -52,7 +52,7 @@ export default function DeleteQuotationModal({ quotationId, type }: DeleteQuotat
           className="text-destructive focus:text-destructive"
           onSelect={(e) => e.preventDefault()}
         >
-          <Trash2 className="size-4" />
+          <Trash2Icon className="size-4" />
           <span>Delete</span>
         </DropdownMenuItem>
       </DialogTrigger>

@@ -11,15 +11,15 @@ export function AuthCallback() {
 
       if (error) {
         console.error("Auth callback error:", error);
-        navigate("/");
+        void navigate("/");
         return;
       }
 
       // Successfully authenticated, redirect to dashboard
-      navigate("/invoices");
+      void navigate("/invoices");
     };
 
-    handleAuthCallback();
+    void handleAuthCallback();
   }, [navigate]);
 
   return (

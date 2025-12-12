@@ -58,7 +58,7 @@ export const creditNoteRouter = router({
   list: protectedProcedure
     .input(paginationSchema)
     .query(async ({ ctx, input }) => {
-      const { limit = 50, offset = 0 } = input || {};
+      const { limit = 50, offset = 0 } = input ?? {};
 
       const userCreditNotes = await db.query.creditNotes.findMany({
         where: eq(creditNotes.userId, ctx.user.id),
@@ -518,15 +518,15 @@ export const creditNoteRouter = router({
         if (fullCreditNote?.creditNoteFields) {
           const fields = fullCreditNote.creditNoteFields;
           const details = fields.creditNoteDetails;
-          const items = fields.items || [];
-          const billingDetails = details?.billingDetails || [];
+          const items = fields.items ?? [];
+          const billingDetails = details?.billingDetails ?? [];
 
           // Create journal entry in background (don't block the response)
           journalEntryIntegration.createCreditNoteJournalEntry(ctx.user.id, {
             id: fullCreditNote.id,
-            serialNumber: `${details?.prefix || "CN-"}${details?.serialNumber || ""}`,
+            serialNumber: `${details?.prefix ?? "CN-"}${details?.serialNumber ?? ""}`,
             date: details?.date || new Date(),
-            reason: fullCreditNote.reason || "adjustment",
+            reason: fullCreditNote.reason ?? "adjustment",
             items: items.map((item) => ({
               name: item.name,
               quantity: item.quantity,
@@ -539,9 +539,9 @@ export const creditNoteRouter = router({
               isSstTax: b.label.toLowerCase().includes("sst") || b.label.toLowerCase().includes("tax"),
             })),
             clientDetails: {
-              name: fields.clientDetails?.name || "Customer",
+              name: fields.clientDetails?.name ?? "Customer",
             },
-            originalInvoiceNumber: details?.originalInvoiceNumber || undefined,
+            originalInvoiceNumber: details?.originalInvoiceNumber ?? undefined,
           }).then((result) => {
             if (result.success) {
               logger.info({ creditNoteId: input.id, entryId: result.entryId }, "Credit note journal entry created");

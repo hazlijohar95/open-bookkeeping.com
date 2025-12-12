@@ -1,9 +1,9 @@
-import { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
-import { PdfTemplateName } from "@/lib/invoice/create-pdf-blob";
+import type { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
+import type { PdfTemplateName } from "@/lib/invoice/create-pdf-blob";
 import { FormSelect } from "@/components/ui/form/form-select";
 import { DefaultPDF, CyncoPDF, ClassicPDF, ZenPDF, ExecutivePDF } from "@/components/pdf";
 import { SelectItem } from "@/components/ui/select";
-import { UseFormReturn } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
 import { BoxIcon, SyncIcon, FileFeatherIcon, TriangleIcon, IdBadgeIcon } from "@/assets/icons";
 
 interface PdfTemplate {

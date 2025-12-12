@@ -8,14 +8,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  ChevronRight,
-  ChevronDown,
-  MoreHorizontal,
+  ChevronRightIcon,
+  ChevronDownIcon,
+  MoreHorizontalIcon,
   Pencil,
   Plus,
   Lock,
   Eye,
-  Trash2,
+  Trash2Icon,
 } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import {
@@ -76,9 +76,9 @@ export function AccountTreeRow({
       >
         {hasChildren &&
           (isExpanded ? (
-            <ChevronDown className="size-4 text-muted-foreground" />
+            <ChevronDownIcon className="size-4 text-muted-foreground" />
           ) : (
-            <ChevronRight className="size-4 text-muted-foreground" />
+            <ChevronRightIcon className="size-4 text-muted-foreground" />
           ))}
       </button>
 
@@ -153,7 +153,7 @@ export function AccountTreeRow({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="size-7">
-              <MoreHorizontal className="size-4" />
+              <MoreHorizontalIcon className="size-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -176,7 +176,7 @@ export function AccountTreeRow({
               disabled={account.isSystemAccount || hasChildren}
               className="text-destructive focus:text-destructive"
             >
-              <Trash2 className="size-4" />
+              <Trash2Icon className="size-4" />
               <span>Delete Account</span>
             </DropdownMenuItem>
           </DropdownMenuContent>

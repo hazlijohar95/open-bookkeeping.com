@@ -121,7 +121,7 @@ export function useCreateDebitNote() {
     mutationFn: (input: CreateDebitNoteInput) =>
       api.post<DebitNote>("/debit-notes", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: debitNoteKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: debitNoteKeys.lists() });
     },
   });
 }
@@ -133,8 +133,8 @@ export function useUpdateDebitNoteStatus() {
     mutationFn: ({ id, status }: UpdateDebitNoteStatusInput) =>
       api.patch<DebitNote>(`/debit-notes/${id}/status`, { status }),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: debitNoteKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: debitNoteKeys.detail(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: debitNoteKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: debitNoteKeys.detail(variables.id) });
     },
   });
 }
@@ -146,7 +146,7 @@ export function useDeleteDebitNote() {
     mutationFn: ({ id }: { id: string }) =>
       api.delete<{ success: boolean }>(`/debit-notes/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: debitNoteKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: debitNoteKeys.lists() });
     },
   });
 }

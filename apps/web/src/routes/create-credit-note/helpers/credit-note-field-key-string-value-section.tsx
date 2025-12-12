@@ -1,9 +1,10 @@
-import { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
-import { useFieldArray, UseFormReturn } from "react-hook-form";
+import type { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
+import type { UseFormReturn } from "react-hook-form";
+import { useFieldArray } from "react-hook-form";
 import { FormInput } from "@/components/ui/form/form-input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Trash2 } from "@/components/ui/icons";
+import { Trash2Icon } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import React from "react";
 
@@ -69,7 +70,7 @@ const CreditNoteFieldKeyStringValuesSection: React.FC<CreditNoteFieldKeyStringVa
             placeholder={placeholders.value}
           />
           <Button className="mb-0.5" variant="destructive" size="icon" onClick={() => remove(index)} type="button">
-            <Trash2 className="size-4" />
+            <Trash2Icon className="size-4" />
           </Button>
         </div>
       ))}

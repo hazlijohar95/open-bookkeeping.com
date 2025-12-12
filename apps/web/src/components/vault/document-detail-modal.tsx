@@ -7,16 +7,16 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import {
-  Loader2,
+  Loader2Icon,
   Check,
-  AlertCircle,
+  AlertCircleIcon,
   Sparkles,
-  FileText,
+  FileTextIcon,
   Building2,
-  ArrowRight,
+  ArrowRightIcon,
   Zap,
   RefreshCw,
-  CheckCircle2,
+  CheckCircle2Icon,
   Brain,
 } from "@/components/ui/icons";
 import { FileFeatherIcon, FileDownloadIcon } from "@/assets/icons";
@@ -148,7 +148,7 @@ export function DocumentDetailModal({
                     >
                       {isProcessing ? (
                         <>
-                          <Loader2 className="size-4 mr-2 animate-spin" />
+                          <Loader2Icon className="size-4 mr-2 animate-spin" />
                           Processing...
                         </>
                       ) : (
@@ -189,7 +189,7 @@ export function DocumentDetailModal({
             {/* Loading Result */}
             {isLoadingResult && document.processingStatus === "processed" && (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="size-8 animate-spin text-muted-foreground" />
+                <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
               </div>
             )}
 
@@ -203,12 +203,12 @@ export function DocumentDetailModal({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="size-10 rounded-lg bg-success/10 flex items-center justify-center">
-                      <CheckCircle2 className="size-5 text-success" />
+                      <CheckCircle2Icon className="size-5 text-success" />
                     </div>
                     <div>
                       <h3 className="font-semibold">AI Extraction Complete</h3>
                       <p className="text-xs text-muted-foreground">
-                        {getDocumentTypeLabel(processingResult.extractedData.documentType || "document")} detected
+                        {getDocumentTypeLabel(processingResult.extractedData.documentType ?? "document")} detected
                       </p>
                     </div>
                   </div>
@@ -243,7 +243,7 @@ export function DocumentDetailModal({
                     </p>
                     <ActionButton
                       onClick={onCreateBill}
-                      icon={<FileText className="size-4" />}
+                      icon={<FileTextIcon className="size-4" />}
                       label="Create Bill"
                       variant="success"
                       loading={isCreatingBill}
@@ -253,7 +253,7 @@ export function DocumentDetailModal({
 
                 {processingResult.linkedBillId && (
                   <div className="flex items-center gap-3 p-4 rounded-xl bg-success/10 border border-success/20">
-                    <CheckCircle2 className="size-5 text-success" />
+                    <CheckCircle2Icon className="size-5 text-success" />
                     <div>
                       <p className="font-medium text-success">Bill Created</p>
                       <p className="text-sm text-muted-foreground">This document has been converted to a bill.</p>
@@ -267,7 +267,7 @@ export function DocumentDetailModal({
             {processingResult?.status === "failed" && (
               <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-5">
                 <div className="flex items-start gap-3">
-                  <AlertCircle className="size-5 text-destructive flex-shrink-0 mt-0.5" />
+                  <AlertCircleIcon className="size-5 text-destructive flex-shrink-0 mt-0.5" />
                   <div>
                     <h4 className="font-semibold text-destructive">Processing Failed</h4>
                     <p className="text-sm text-muted-foreground mt-1">{processingResult.errorMessage}</p>
@@ -307,12 +307,12 @@ export function DocumentDetailModal({
             >
               {isCreatingBill ? (
                 <>
-                  <Loader2 className="size-4 mr-2 animate-spin" />
+                  <Loader2Icon className="size-4 mr-2 animate-spin" />
                   Creating...
                 </>
               ) : (
                 <>
-                  <ArrowRight className="size-4 mr-2" />
+                  <ArrowRightIcon className="size-4 mr-2" />
                   Create Bill
                 </>
               )}
@@ -343,20 +343,20 @@ function BankStatementData({ data }: { data: NonNullable<ProcessingResult["extra
           {data.statementPeriod && (
             <DataCard
               label="Period"
-              value={`${data.statementPeriod.startDate || "?"} - ${data.statementPeriod.endDate || "?"}`}
+              value={`${data.statementPeriod.startDate ?? "?"} - ${data.statementPeriod.endDate ?? "?"}`}
             />
           )}
           {data.openingBalance !== undefined && (
             <DataCard
               label="Opening"
-              value={`${data.currency || "MYR"} ${data.openingBalance.toLocaleString()}`}
+              value={`${data.currency ?? "MYR"} ${data.openingBalance.toLocaleString()}`}
             />
           )}
           {data.closingBalance !== undefined && (
             <DataCard
               label="Closing"
-              value={`${data.currency || "MYR"} ${data.closingBalance.toLocaleString()}`}
-              trend={data.closingBalance >= (data.openingBalance || 0) ? "up" : "down"}
+              value={`${data.currency ?? "MYR"} ${data.closingBalance.toLocaleString()}`}
+              trend={data.closingBalance >= (data.openingBalance ?? 0) ? "up" : "down"}
             />
           )}
         </div>
@@ -388,7 +388,7 @@ function BankStatementData({ data }: { data: NonNullable<ProcessingResult["extra
                         "p-3 text-right font-medium tabular-nums",
                         tx.debit ? "text-destructive" : "text-success"
                       )}>
-                        {tx.debit ? `-${tx.debit.toLocaleString()}` : `+${(tx.credit || 0).toLocaleString()}`}
+                        {tx.debit ? `-${tx.debit.toLocaleString()}` : `+${(tx.credit ?? 0).toLocaleString()}`}
                       </td>
                     </tr>
                   ))}
@@ -428,7 +428,7 @@ function ReceiptData({ data }: { data: NonNullable<ProcessingResult["extractedDa
         {data.total !== undefined && (
           <DataCard
             label="Total"
-            value={`${data.currency || "MYR"} ${data.total.toLocaleString()}`}
+            value={`${data.currency ?? "MYR"} ${data.total.toLocaleString()}`}
           />
         )}
       </div>
@@ -478,7 +478,7 @@ function InvoiceBillData({ data, matchedVendor }: { data: NonNullable<Processing
         {data.total !== undefined && (
           <DataCard
             label="Total"
-            value={`${data.currency || "MYR"} ${data.total.toLocaleString()}`}
+            value={`${data.currency ?? "MYR"} ${data.total.toLocaleString()}`}
           />
         )}
       </div>

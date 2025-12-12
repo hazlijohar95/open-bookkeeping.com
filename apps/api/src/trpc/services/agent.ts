@@ -4,6 +4,8 @@ import { approvalService } from "../../services/approval.service";
 import { agentAuditService } from "../../services/agent-audit.service";
 import { agentSafetyService } from "../../services/agent-safety.service";
 import { workflowEngineService } from "../../services/workflow-engine.service";
+import { db, agentSessions, agentMessages } from "@open-bookkeeping/db";
+import { eq, desc, and } from "drizzle-orm";
 
 // Validation schemas
 const updateApprovalSettingsSchema = z.object({
@@ -309,4 +311,170 @@ export const agentRouter = router({
   getWorkflowStats: protectedProcedure.query(async ({ ctx }) => {
     return workflowEngineService.getStats(ctx.user.id);
   }),
+
+  // ==========================================
+  // CHAT SESSIONS (T3-style sync from IndexedDB)
+  // ==========================================
+
+  // List user's chat sessions
+  getSessions: protectedProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(100).optional(),
+      offset: z.number().min(0).optional(),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const sessions = await db
+        .select()
+        .from(agentSessions)
+        .where(eq(agentSessions.userId, ctx.user.id))
+        .orderBy(desc(agentSessions.updatedAt))
+        .limit(input?.limit ?? 50)
+        .offset(input?.offset ?? 0);
+      return sessions;
+    }),
+
+  // Get a specific session with messages
+  getSession: protectedProcedure
+    .input(z.object({ sessionId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const session = await db
+        .select()
+        .from(agentSessions)
+        .where(
+          and(
+            eq(agentSessions.id, input.sessionId),
+            eq(agentSessions.userId, ctx.user.id)
+          )
+        )
+        .limit(1);
+
+      if (!session[0]) {
+        throw new Error("Session not found");
+      }
+
+      const messages = await db
+        .select()
+        .from(agentMessages)
+        .where(eq(agentMessages.sessionId, input.sessionId))
+        .orderBy(agentMessages.createdAt);
+
+      return { ...session[0], messages };
+    }),
+
+  // Sync a thread from IndexedDB to PostgreSQL
+  syncSession: protectedProcedure
+    .input(z.object({
+      localThreadId: z.string(),
+      title: z.string().nullable().optional(),
+      messages: z.array(z.object({
+        localId: z.string(),
+        role: z.string(),
+        content: z.string().nullable(),
+        toolCalls: z.array(z.object({
+          id: z.string(),
+          name: z.string(),
+          arguments: z.record(z.unknown()),
+        })).nullable().optional(),
+        toolResults: z.array(z.object({
+          toolCallId: z.string(),
+          result: z.unknown(),
+          error: z.string().optional(),
+        })).nullable().optional(),
+        createdAt: z.string(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Create or update session
+      const existingSession = await db
+        .select()
+        .from(agentSessions)
+        .where(eq(agentSessions.id, input.localThreadId))
+        .limit(1);
+
+      let sessionId: string;
+
+      if (existingSession[0]) {
+        // Update existing session
+        sessionId = existingSession[0].id;
+        await db
+          .update(agentSessions)
+          .set({
+            title: input.title ?? existingSession[0].title,
+            updatedAt: new Date(),
+          })
+          .where(eq(agentSessions.id, sessionId));
+      } else {
+        // Create new session with the local thread ID as the server ID
+        const result = await db
+          .insert(agentSessions)
+          .values({
+            id: input.localThreadId,
+            userId: ctx.user.id,
+            title: input.title,
+            status: "active",
+          })
+          .returning();
+
+        if (!result[0]) {
+          throw new Error("Failed to create session");
+        }
+        sessionId = result[0].id;
+      }
+
+      // Sync messages - upsert each message
+      for (const msg of input.messages) {
+        const existingMsg = await db
+          .select()
+          .from(agentMessages)
+          .where(eq(agentMessages.id, msg.localId))
+          .limit(1);
+
+        if (!existingMsg[0]) {
+          await db.insert(agentMessages).values({
+            id: msg.localId,
+            sessionId,
+            role: msg.role,
+            content: msg.content,
+            toolCalls: msg.toolCalls as any,
+            toolResults: msg.toolResults as any,
+            createdAt: new Date(msg.createdAt),
+          });
+        }
+      }
+
+      return { sessionId, synced: true };
+    }),
+
+  // Delete a session
+  deleteSession: protectedProcedure
+    .input(z.object({ sessionId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // First verify ownership
+      const session = await db
+        .select()
+        .from(agentSessions)
+        .where(
+          and(
+            eq(agentSessions.id, input.sessionId),
+            eq(agentSessions.userId, ctx.user.id)
+          )
+        )
+        .limit(1);
+
+      if (!session[0]) {
+        throw new Error("Session not found");
+      }
+
+      // Delete messages first (cascade should handle this but being explicit)
+      await db
+        .delete(agentMessages)
+        .where(eq(agentMessages.sessionId, input.sessionId));
+
+      // Delete session
+      await db
+        .delete(agentSessions)
+        .where(eq(agentSessions.id, input.sessionId));
+
+      return { deleted: true };
+    }),
 });

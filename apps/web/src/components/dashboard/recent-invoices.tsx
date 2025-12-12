@@ -1,10 +1,11 @@
 import { memo } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge, BadgeVariants } from "@/components/ui/badge";
+import type { BadgeVariants } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowRight, FileText } from "@/components/ui/icons";
+import { ArrowRightIcon, FileTextIcon } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { formatCurrencyWithDecimals, formatDate } from "@/lib/utils";
 
@@ -82,14 +83,14 @@ export const RecentInvoices = memo(function RecentInvoices({
         <Button variant="ghost" size="sm" asChild>
           <Link to="/invoices" className="flex items-center gap-1">
             View all
-            <ArrowRight className="size-3" />
+            <ArrowRightIcon className="size-3" />
           </Link>
         </Button>
       </CardHeader>
       <CardContent>
         {invoices.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <FileText className="mb-2 size-10 text-muted-foreground/50" />
+            <FileTextIcon className="mb-2 size-10 text-muted-foreground/50" />
             <p className="text-sm text-muted-foreground">No invoices yet</p>
             <Button variant="outline" size="sm" className="mt-4" asChild>
               <Link to="/create/invoice">Create your first invoice</Link>

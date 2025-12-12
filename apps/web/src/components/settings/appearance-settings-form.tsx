@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SlidersIcon, Sun, Moon, LayoutSplitIcon } from "@/assets/icons";
-import { Loader2 } from "@/components/ui/icons";
+import { Loader2Icon } from "@/components/ui/icons";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -61,9 +61,9 @@ export function AppearanceSettingsForm({
   const form = useForm<AppearanceSettingsFormData>({
     resolver: zodResolver(appearanceSettingsSchema),
     defaultValues: {
-      theme: defaultValues?.theme || "system",
-      dateFormat: defaultValues?.dateFormat || "DD/MM/YYYY",
-      numberFormat: defaultValues?.numberFormat || "1,234.56",
+      theme: defaultValues?.theme ?? "system",
+      dateFormat: defaultValues?.dateFormat ?? "DD/MM/YYYY",
+      numberFormat: defaultValues?.numberFormat ?? "1,234.56",
     },
   });
 
@@ -76,7 +76,7 @@ export function AppearanceSettingsForm({
     }
   };
 
-  const selectedTheme = form.watch("theme") || "system";
+  const selectedTheme = form.watch("theme") ?? "system";
 
   if (isLoading) {
     return (
@@ -139,7 +139,7 @@ export function AppearanceSettingsForm({
             <div className="space-y-2">
               <Label htmlFor="dateFormat">Date Format</Label>
               <Select
-                value={form.watch("dateFormat") || "DD/MM/YYYY"}
+                value={form.watch("dateFormat") ?? "DD/MM/YYYY"}
                 onValueChange={(v) => form.setValue("dateFormat", v)}
               >
                 <SelectTrigger id="dateFormat">
@@ -158,7 +158,7 @@ export function AppearanceSettingsForm({
             <div className="space-y-2">
               <Label htmlFor="numberFormat">Number Format</Label>
               <Select
-                value={form.watch("numberFormat") || "1,234.56"}
+                value={form.watch("numberFormat") ?? "1,234.56"}
                 onValueChange={(v) => form.setValue("numberFormat", v)}
               >
                 <SelectTrigger id="numberFormat">
@@ -177,8 +177,8 @@ export function AppearanceSettingsForm({
 
           <div className="flex justify-end">
             <Button type="submit" disabled={isSaving}>
-              {isSaving && <Loader2 className="mr-2 size-4 animate-spin" />}
-              Save Changes
+              {isSaving && <Loader2Icon className="mr-2 size-4 animate-spin" />}
+              SaveIcon Changes
             </Button>
           </div>
         </form>

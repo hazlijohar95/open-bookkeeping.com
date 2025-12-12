@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { LucideIcon } from "@/components/ui/icons"
+import type { LucideIcon } from "@/components/ui/icons"
 
 import {
   SidebarGroup,

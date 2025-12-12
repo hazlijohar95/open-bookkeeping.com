@@ -31,8 +31,8 @@ const getRedisConnection = (): ConnectionOptions | null => {
       return {
         host: url.hostname,
         port: parseInt(url.port || (isTls ? "6380" : "6379"), 10),
-        password: url.password || undefined,
-        username: url.username || undefined,
+        password: url.password ?? undefined,
+        username: url.username ?? undefined,
         tls: isTls ? {} : undefined,
       };
     } catch (e) {
@@ -49,8 +49,8 @@ const getRedisConnection = (): ConnectionOptions | null => {
   if (redisHost) {
     return {
       host: redisHost,
-      port: parseInt(redisPort || "6379", 10),
-      password: redisPassword || undefined,
+      port: parseInt(redisPort ?? "6379", 10),
+      password: redisPassword ?? undefined,
     };
   }
 

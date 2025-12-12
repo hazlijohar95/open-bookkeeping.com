@@ -141,6 +141,13 @@
       "when": 1765401608519,
       "tag": "0019_eminent_grim_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1765427727603,
+      "tag": "0020_cute_firelord",
+      "breakpoints": true
     }
   ]
 }

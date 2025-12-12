@@ -3,7 +3,7 @@ import pino from "pino";
 export type LogLevel = "fatal" | "error" | "warn" | "info" | "debug" | "trace";
 
 const isDevelopment = process.env.NODE_ENV === "development";
-const logLevel = (process.env.LOG_LEVEL as LogLevel) || "info";
+const logLevel = (process.env.LOG_LEVEL as LogLevel) ?? "info";
 
 export const logger = pino({
   level: logLevel,

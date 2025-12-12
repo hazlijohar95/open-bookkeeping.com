@@ -68,7 +68,7 @@ async function setCachedUser(token: string, user: User): Promise<void> {
 
   // Also cache token reference by user ID for invalidation
   const userIdKey = `${USER_ID_CACHE_PREFIX}${user.id}:tokens`;
-  const existingTokens = (await cacheGet<string[]>(userIdKey)) || [];
+  const existingTokens = (await cacheGet<string[]>(userIdKey)) ?? [];
   if (!existingTokens.includes(tokenKey)) {
     existingTokens.push(tokenKey);
     await cacheSet(userIdKey, existingTokens, CACHE_TTL_SECONDS);
@@ -147,8 +147,8 @@ export async function createContext({
         .values({
           supabaseId: supabaseUser.id,
           email: supabaseUser.email!,
-          name: supabaseUser.user_metadata?.full_name || null,
-          avatarUrl: supabaseUser.user_metadata?.avatar_url || null,
+          name: supabaseUser.user_metadata?.full_name ?? null,
+          avatarUrl: supabaseUser.user_metadata?.avatar_url ?? null,
           allowedSavingData: true,
         })
         .returning();

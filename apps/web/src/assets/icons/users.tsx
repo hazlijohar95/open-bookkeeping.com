@@ -1,8 +1,8 @@
-import { IconProps } from "@/types";
+import type { IconProps } from "@/types";
 import { cn } from "@/lib/utils";
 
-function Users({ fill = "currentColor", secondaryfill, className, ...props }: IconProps) {
-  secondaryfill = secondaryfill || fill;
+function UsersIcon({ fill = "currentColor", secondaryfill, className, ...props }: IconProps) {
+  secondaryfill = secondaryfill ?? fill;
 
   return (
     <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" className={cn("size-[18px]", className)} {...props}>
@@ -30,4 +30,4 @@ function Users({ fill = "currentColor", secondaryfill, className, ...props }: Ic
   );
 }
 
-export default Users;
+export default UsersIcon;

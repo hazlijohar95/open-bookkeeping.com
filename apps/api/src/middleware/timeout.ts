@@ -37,7 +37,7 @@ export function timeout(config: TimeoutConfig) {
 
   return async (c: Context, next: Next) => {
     const controller = new AbortController();
-    const requestId = c.res.headers.get("X-Request-Id") || "unknown";
+    const requestId = c.res.headers.get("X-Request-Id") ?? "unknown";
 
     // Create timeout promise
     const timeoutPromise = new Promise<never>((_, reject) => {

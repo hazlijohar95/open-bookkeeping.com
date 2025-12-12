@@ -144,7 +144,7 @@ export const chartOfAccountsRouter = router({
     .query(async ({ ctx, input }) => {
       const accounts = await chartOfAccountsRepository.findAllAccounts(
         ctx.user.id,
-        input || undefined
+        input ?? undefined
       );
       return accounts;
     }),
@@ -184,7 +184,7 @@ export const chartOfAccountsRouter = router({
         ctx.user.id
       );
 
-      return { ...account, balance: balance?.balance || "0" };
+      return { ...account, balance: balance?.balance ?? "0" };
     }),
 
   createAccount: protectedProcedure
@@ -278,7 +278,7 @@ export const chartOfAccountsRouter = router({
       if (!result.success) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: result.error || "Failed to delete account",
+          message: result.error ?? "Failed to delete account",
         });
       }
 
@@ -293,7 +293,7 @@ export const chartOfAccountsRouter = router({
     .query(async ({ ctx, input }) => {
       const entries = await chartOfAccountsRepository.findAllJournalEntries(
         ctx.user.id,
-        input || undefined
+        input ?? undefined
       );
       return entries;
     }),

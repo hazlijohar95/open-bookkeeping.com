@@ -26,7 +26,7 @@ import { toast } from "sonner";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@/lib/utils";
 import { useEffect, useMemo } from "react";
-import { FileSpreadsheet, Plus, Trash2, AlertCircle } from "@/components/ui/icons";
+import { FileSpreadsheet, Plus, Trash2Icon, AlertCircleIcon } from "@/components/ui/icons";
 import {
   createJournalEntrySchema,
   type CreateJournalEntrySchema,
@@ -66,9 +66,9 @@ export function JournalEntryModal({ isOpen, onClose }: JournalEntryModalProps) {
 
   const createMutation = trpc.chartOfAccounts.createJournalEntry.useMutation({
     onSuccess: (data) => {
-      utils.chartOfAccounts.getAccountTree.invalidate();
-      utils.chartOfAccounts.getAccountSummary.invalidate();
-      utils.chartOfAccounts.listJournalEntries.invalidate();
+      void utils.chartOfAccounts.getAccountTree.invalidate();
+      void utils.chartOfAccounts.getAccountSummary.invalidate();
+      void utils.chartOfAccounts.listJournalEntries.invalidate();
       toast.success(`Journal entry ${data?.entryNumber ?? ""} created`);
       handleClose();
     },
@@ -79,9 +79,9 @@ export function JournalEntryModal({ isOpen, onClose }: JournalEntryModalProps) {
 
   const postMutation = trpc.chartOfAccounts.postJournalEntry.useMutation({
     onSuccess: () => {
-      utils.chartOfAccounts.getAccountTree.invalidate();
-      utils.chartOfAccounts.getAccountSummary.invalidate();
-      utils.chartOfAccounts.listJournalEntries.invalidate();
+      void utils.chartOfAccounts.getAccountTree.invalidate();
+      void utils.chartOfAccounts.getAccountSummary.invalidate();
+      void utils.chartOfAccounts.listJournalEntries.invalidate();
       toast.success("Journal entry posted successfully");
     },
     onError: (error) => {
@@ -115,8 +115,8 @@ export function JournalEntryModal({ isOpen, onClose }: JournalEntryModalProps) {
     let credit = 0;
 
     for (const line of watchLines) {
-      debit += parseFloat(line.debitAmount || "0");
-      credit += parseFloat(line.creditAmount || "0");
+      debit += parseFloat(line.debitAmount ?? "0");
+      credit += parseFloat(line.creditAmount ?? "0");
     }
 
     return {
@@ -243,7 +243,7 @@ export function JournalEntryModal({ isOpen, onClose }: JournalEntryModalProps) {
                       className="grid grid-cols-[1fr_120px_120px_40px] gap-2 px-3 py-2 items-center"
                     >
                       <Select
-                        value={watchLines[index]?.accountId || ""}
+                        value={watchLines[index]?.accountId ?? ""}
                         onValueChange={(v) =>
                           form.setValue(`lines.${index}.accountId`, v)
                         }
@@ -269,7 +269,7 @@ export function JournalEntryModal({ isOpen, onClose }: JournalEntryModalProps) {
                         min="0"
                         placeholder="0.00"
                         className="h-8 text-sm text-right"
-                        value={watchLines[index]?.debitAmount || ""}
+                        value={watchLines[index]?.debitAmount ?? ""}
                         onChange={(e) =>
                           handleDebitChange(index, e.target.value)
                         }
@@ -281,7 +281,7 @@ export function JournalEntryModal({ isOpen, onClose }: JournalEntryModalProps) {
                         min="0"
                         placeholder="0.00"
                         className="h-8 text-sm text-right"
-                        value={watchLines[index]?.creditAmount || ""}
+                        value={watchLines[index]?.creditAmount ?? ""}
                         onChange={(e) =>
                           handleCreditChange(index, e.target.value)
                         }
@@ -295,7 +295,7 @@ export function JournalEntryModal({ isOpen, onClose }: JournalEntryModalProps) {
                         onClick={() => remove(index)}
                         disabled={fields.length <= 2}
                       >
-                        <Trash2 className="size-3.5 text-muted-foreground" />
+                        <Trash2Icon className="size-3.5 text-muted-foreground" />
                       </Button>
                     </div>
                   ))}
@@ -317,7 +317,7 @@ export function JournalEntryModal({ isOpen, onClose }: JournalEntryModalProps) {
               {/* Balance Warning */}
               {!isBalanced && totalDebit > 0 && totalCredit > 0 && (
                 <div className="flex items-center gap-2 text-sm text-warning-foreground dark:text-warning bg-warning/10 rounded-lg px-3 py-2">
-                  <AlertCircle className="size-4" />
+                  <AlertCircleIcon className="size-4" />
                   <span>
                     Entry is not balanced. Difference:{" "}
                     {Math.abs(totalDebit - totalCredit).toFixed(2)}
@@ -345,13 +345,13 @@ export function JournalEntryModal({ isOpen, onClose }: JournalEntryModalProps) {
             onClick={form.handleSubmit(onSubmit)}
             disabled={isPending || !isBalanced}
           >
-            {createMutation.isPending ? "Saving..." : "Save as Draft"}
+            {createMutation.isPending ? "Saving..." : "SaveIcon as Draft"}
           </Button>
           <Button
             onClick={form.handleSubmit(onSubmitAndPost)}
             disabled={isPending || !isBalanced}
           >
-            {isPending ? "Posting..." : "Save & Post"}
+            {isPending ? "Posting..." : "SaveIcon & Post"}
           </Button>
         </DialogFooter>
       </DialogContent>

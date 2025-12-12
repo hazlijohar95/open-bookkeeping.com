@@ -3,7 +3,7 @@ import { DeleteCustomerModal } from "@/components/customers/delete-customer-moda
 import { CustomerFormModal } from "@/components/customers/customer-form-modal";
 import { CustomerDetailModal } from "@/components/customers/customer-detail-modal";
 import { DataTable } from "@/components/ui/data-table";
-import { Customer } from "@/types/common/customer";
+import type { Customer } from "@/types/common/customer";
 import { Button } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page-container";
 import { PageHeader } from "@/components/ui/page-header";

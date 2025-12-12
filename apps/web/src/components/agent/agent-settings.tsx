@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo, memo } from "react";
 import {
   useApprovalSettings,
   useUpdateApprovalSettings,
@@ -12,11 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,17 +27,67 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  Shield,
-  Loader2,
-  AlertTriangle,
-  Settings,
-  Zap,
-  Save,
-  StopCircle,
-  Play,
+  Loader2Icon,
+  SaveIcon,
+  StopCircleIcon,
+  PlayIcon,
+  ChevronRightIcon,
 } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+// Extracted and memoized UsageCard component
+interface UsageCardProps {
+  label: string;
+  used: number;
+  limit: number;
+  format?: "number" | "compact";
+}
+
+const UsageCard = memo(function UsageCard({
+  label,
+  used,
+  limit,
+  format = "number",
+}: UsageCardProps) {
+  const percentage = useMemo(() => Math.min((used / limit) * 100, 100), [used, limit]);
+  const isWarning = useMemo(() => percentage >= 80, [percentage]);
+  const isCritical = useMemo(() => percentage >= 95, [percentage]);
+
+  const formatValue = useCallback((value: number) => {
+    if (format === "compact") {
+      if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+      if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+    }
+    return value.toLocaleString();
+  }, [format]);
+
+  const formattedUsed = useMemo(() => formatValue(used), [formatValue, used]);
+  const formattedLimit = useMemo(() => formatValue(limit), [formatValue, limit]);
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span className={cn(
+          "font-medium jetbrains-mono",
+          isCritical && "text-destructive",
+          isWarning && !isCritical && "text-amber-500"
+        )}>
+          {formattedUsed}/{formattedLimit}
+        </span>
+      </div>
+      <Progress
+        value={percentage}
+        className={cn(
+          "h-1.5 rounded-none",
+          isCritical && "[&>div]:bg-destructive",
+          isWarning && !isCritical && "[&>div]:bg-amber-500"
+        )}
+      />
+    </div>
+  );
+});
 
 export function AgentSettings() {
   const { data: approvalSettings, isLoading: loadingApproval } = useApprovalSettings();
@@ -51,7 +99,6 @@ export function AgentSettings() {
   const enableEmergencyStop = useEnableEmergencyStop();
   const disableEmergencyStop = useDisableEmergencyStop();
 
-  // Local state for form
   const [approvalForm, setApprovalForm] = useState({
     requireApproval: false,
     invoiceThreshold: "",
@@ -77,17 +124,18 @@ export function AgentSettings() {
     maxConcurrentWorkflows: 5,
   });
 
-  // Update form when data loads
+  const [expandedSection, setExpandedSection] = useState<string | null>("approvals");
+
   useEffect(() => {
     if (approvalSettings) {
       setApprovalForm({
         requireApproval: approvalSettings.requireApproval,
-        invoiceThreshold: approvalSettings.invoiceThreshold || "",
-        billThreshold: approvalSettings.billThreshold || "",
-        journalEntryThreshold: approvalSettings.journalEntryThreshold || "",
+        invoiceThreshold: approvalSettings.invoiceThreshold ?? "",
+        billThreshold: approvalSettings.billThreshold ?? "",
+        journalEntryThreshold: approvalSettings.journalEntryThreshold ?? "",
         autoApproveReadOnly: approvalSettings.autoApproveReadOnly,
         autoApproveRecurring: approvalSettings.autoApproveRecurring,
-        approvalTimeoutHours: approvalSettings.approvalTimeoutHours || "24",
+        approvalTimeoutHours: approvalSettings.approvalTimeoutHours ?? "24",
         notifyOnApprovalRequired: approvalSettings.notifyOnApprovalRequired,
         notifyOnAutoApproved: approvalSettings.notifyOnAutoApproved,
       });
@@ -102,35 +150,35 @@ export function AgentSettings() {
         dailyJournalEntryLimit: quotas.dailyJournalEntryLimit,
         dailyQuotationLimit: quotas.dailyQuotationLimit,
         dailyTokenLimit: quotas.dailyTokenLimit,
-        maxSingleInvoiceAmount: quotas.maxSingleInvoiceAmount || "",
-        maxSingleBillAmount: quotas.maxSingleBillAmount || "",
-        maxDailyTotalAmount: quotas.maxDailyTotalAmount || "",
+        maxSingleInvoiceAmount: quotas.maxSingleInvoiceAmount ?? "",
+        maxSingleBillAmount: quotas.maxSingleBillAmount ?? "",
+        maxDailyTotalAmount: quotas.maxDailyTotalAmount ?? "",
         maxActionsPerMinute: quotas.maxActionsPerMinute,
         maxConcurrentWorkflows: quotas.maxConcurrentWorkflows,
       });
     }
   }, [quotas]);
 
-  const handleSaveApprovalSettings = async () => {
+  const handleSaveApprovalSettings = useCallback(async () => {
     try {
       await updateApprovalSettings.mutateAsync({
         requireApproval: approvalForm.requireApproval,
-        invoiceThreshold: approvalForm.invoiceThreshold || null,
-        billThreshold: approvalForm.billThreshold || null,
-        journalEntryThreshold: approvalForm.journalEntryThreshold || null,
+        invoiceThreshold: approvalForm.invoiceThreshold ?? null,
+        billThreshold: approvalForm.billThreshold ?? null,
+        journalEntryThreshold: approvalForm.journalEntryThreshold ?? null,
         autoApproveReadOnly: approvalForm.autoApproveReadOnly,
         autoApproveRecurring: approvalForm.autoApproveRecurring,
         approvalTimeoutHours: approvalForm.approvalTimeoutHours,
         notifyOnApprovalRequired: approvalForm.notifyOnApprovalRequired,
         notifyOnAutoApproved: approvalForm.notifyOnAutoApproved,
       });
-      toast.success("Approval settings saved");
+      toast.success("Settings saved");
     } catch {
-      toast.error("Failed to save approval settings");
+      toast.error("Failed to save");
     }
-  };
+  }, [approvalForm, updateApprovalSettings]);
 
-  const handleSaveQuotas = async () => {
+  const handleSaveQuotas = useCallback(async () => {
     try {
       await updateQuotas.mutateAsync({
         dailyInvoiceLimit: quotaForm.dailyInvoiceLimit,
@@ -138,65 +186,72 @@ export function AgentSettings() {
         dailyJournalEntryLimit: quotaForm.dailyJournalEntryLimit,
         dailyQuotationLimit: quotaForm.dailyQuotationLimit,
         dailyTokenLimit: quotaForm.dailyTokenLimit,
-        maxSingleInvoiceAmount: quotaForm.maxSingleInvoiceAmount || null,
-        maxSingleBillAmount: quotaForm.maxSingleBillAmount || null,
-        maxDailyTotalAmount: quotaForm.maxDailyTotalAmount || null,
+        maxSingleInvoiceAmount: quotaForm.maxSingleInvoiceAmount ?? null,
+        maxSingleBillAmount: quotaForm.maxSingleBillAmount ?? null,
+        maxDailyTotalAmount: quotaForm.maxDailyTotalAmount ?? null,
         maxActionsPerMinute: quotaForm.maxActionsPerMinute,
         maxConcurrentWorkflows: quotaForm.maxConcurrentWorkflows,
       });
-      toast.success("Quota settings saved");
+      toast.success("Quotas saved");
     } catch {
-      toast.error("Failed to save quota settings");
+      toast.error("Failed to save");
     }
-  };
+  }, [quotaForm, updateQuotas]);
 
-  const handleEmergencyStop = async () => {
+  const handleEmergencyStop = useCallback(async () => {
     try {
-      await enableEmergencyStop.mutateAsync("Manual emergency stop activated");
-      toast.success("Emergency stop activated - all AI actions are blocked");
+      await enableEmergencyStop.mutateAsync("Manual stop");
+      toast.success("AI agent stopped");
     } catch {
-      toast.error("Failed to activate emergency stop");
+      toast.error("Failed to stop");
     }
-  };
+  }, [enableEmergencyStop]);
 
-  const handleDisableEmergencyStop = async () => {
+  const handleDisableEmergencyStop = useCallback(async () => {
     try {
       await disableEmergencyStop.mutateAsync();
-      toast.success("Emergency stop disabled - AI actions resumed");
+      toast.success("AI agent resumed");
     } catch {
-      toast.error("Failed to disable emergency stop");
+      toast.error("Failed to resume");
     }
-  };
+  }, [disableEmergencyStop]);
 
   const isLoading = loadingApproval || loadingQuotas || loadingUsage;
 
+  const toggleSection = useCallback((section: string) => {
+    setExpandedSection(expandedSection === section ? null : section);
+  }, [expandedSection]);
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex items-center justify-center py-16">
+        <Loader2Icon className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Emergency Stop Banner */}
       {usage?.emergencyStopEnabled && (
-        <Card className="border-destructive bg-destructive/5">
-          <CardContent className="pt-6">
+        <Card className="rounded-none border-destructive bg-destructive/5">
+          <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <StopCircle className="h-6 w-6 text-destructive" />
+                <StopCircleIcon className="h-5 w-5 text-destructive" />
                 <div>
-                  <h3 className="font-semibold text-destructive">Emergency Stop Active</h3>
-                  <p className="text-sm text-muted-foreground">
-                    All AI agent actions are currently blocked
-                  </p>
+                  <h3 className="text-sm font-medium text-destructive">Emergency Stop Active</h3>
+                  <p className="text-xs text-muted-foreground">All AI actions blocked</p>
                 </div>
               </div>
-              <Button variant="outline" onClick={handleDisableEmergencyStop}>
-                <Play className="h-4 w-4 mr-2" />
-                Resume AI Agent
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDisableEmergencyStop}
+                className="rounded-none h-8 text-xs"
+              >
+                <PlayIcon className="h-3 w-3 mr-1.5" />
+                Resume
               </Button>
             </div>
           </CardContent>
@@ -204,97 +259,61 @@ export function AgentSettings() {
       )}
 
       {/* Usage Overview */}
-      {usage && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Zap className="h-5 w-5" />
-              Today's Usage
-            </CardTitle>
+      {usage?.today && usage.limits && usage.remaining && (
+        <Card className="rounded-none border">
+          <CardHeader className="py-3 px-4 border-b">
+            <CardTitle className="text-sm font-medium jetbrains-mono">Today's Usage</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <CardContent className="p-4">
+            <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
               <UsageCard
                 label="Invoices"
                 used={usage.today.invoicesCreated}
                 limit={usage.limits.dailyInvoiceLimit}
-                remaining={usage.remaining.invoices}
               />
               <UsageCard
                 label="Bills"
                 used={usage.today.billsCreated}
                 limit={usage.limits.dailyBillLimit}
-                remaining={usage.remaining.bills}
               />
               <UsageCard
-                label="Journal Entries"
+                label="Journals"
                 used={usage.today.journalEntriesCreated}
                 limit={usage.limits.dailyJournalEntryLimit}
-                remaining={usage.remaining.journalEntries}
               />
               <UsageCard
                 label="Tokens"
                 used={usage.today.tokensUsed}
                 limit={usage.limits.dailyTokenLimit}
-                remaining={usage.remaining.tokens}
                 format="compact"
               />
             </div>
-            <div className="mt-4 pt-4 border-t flex items-center justify-between text-sm">
-              <div className="flex items-center gap-4">
-                <span className="text-muted-foreground">
-                  Total actions: <span className="font-medium text-foreground">{usage.today.totalActions}</span>
-                </span>
-                <span className="text-muted-foreground">
-                  Mutations: <span className="font-medium text-foreground">{usage.today.totalMutations}</span>
-                </span>
-                <span className="text-muted-foreground">
-                  Reads: <span className="font-medium text-foreground">{usage.today.totalReads}</span>
-                </span>
-              </div>
-              {usage.today.totalAmountProcessed > 0 && (
-                <span className="text-muted-foreground">
-                  Amount processed: <span className="font-medium text-foreground">
-                    MYR {usage.today.totalAmountProcessed.toLocaleString()}
-                  </span>
-                </span>
-              )}
+            <div className="mt-4 pt-3 border-t flex items-center gap-4 text-xs text-muted-foreground">
+              <span>Actions: <span className="font-medium text-foreground jetbrains-mono">{usage.today.totalActions}</span></span>
+              <span>Mutations: <span className="font-medium text-foreground jetbrains-mono">{usage.today.totalMutations}</span></span>
+              <span>Reads: <span className="font-medium text-foreground jetbrains-mono">{usage.today.totalReads}</span></span>
             </div>
           </CardContent>
         </Card>
       )}
 
-      <Tabs defaultValue="approval" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="approval" className="gap-2">
-            <Shield className="h-4 w-4" />
-            Approval Settings
-          </TabsTrigger>
-          <TabsTrigger value="quotas" className="gap-2">
-            <Settings className="h-4 w-4" />
-            Quotas & Limits
-          </TabsTrigger>
-          <TabsTrigger value="safety" className="gap-2">
-            <AlertTriangle className="h-4 w-4" />
-            Safety Controls
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="approval">
-          <Card>
-            <CardHeader>
-              <CardTitle>Approval Settings</CardTitle>
-              <CardDescription>
-                Configure when AI actions require human approval
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Require Approval for All Actions</Label>
-                  <p className="text-sm text-muted-foreground">
-                    All AI mutations will require manual approval
-                  </p>
+      {/* Collapsible Settings Sections */}
+      <div className="space-y-2">
+        {/* Approval Settings */}
+        <Card className="rounded-none border">
+          <button
+            onClick={() => toggleSection("approvals")}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors"
+          >
+            <span className="text-sm font-medium">Approval Settings</span>
+            <ChevronRightIcon className={cn("h-4 w-4 transition-transform", expandedSection === "approvals" && "rotate-90")} />
+          </button>
+          {expandedSection === "approvals" && (
+            <CardContent className="p-4 pt-0 space-y-4">
+              <div className="flex items-center justify-between py-2">
+                <div>
+                  <Label className="text-sm">Require Approval for All</Label>
+                  <p className="text-xs text-muted-foreground">All mutations need approval</p>
                 </div>
                 <Switch
                   checked={approvalForm.requireApproval}
@@ -304,333 +323,305 @@ export function AgentSettings() {
                 />
               </div>
 
-              <Separator />
-
-              <div className="space-y-4">
-                <h4 className="text-sm font-medium">Threshold-Based Approval</h4>
-                <p className="text-sm text-muted-foreground">
-                  Require approval for transactions above these amounts
-                </p>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="invoiceThreshold">Invoice Threshold (MYR)</Label>
+              <div className="space-y-3 pt-2 border-t">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Thresholds (MYR)</Label>
+                <div className="grid gap-3 grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Invoice</Label>
                     <Input
-                      id="invoiceThreshold"
                       type="number"
-                      placeholder="e.g., 10000"
+                      placeholder="10000"
                       value={approvalForm.invoiceThreshold}
                       onChange={(e) =>
                         setApprovalForm((prev) => ({ ...prev, invoiceThreshold: e.target.value }))
                       }
+                      className="h-8 text-sm rounded-none"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="billThreshold">Bill Threshold (MYR)</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Bill</Label>
                     <Input
-                      id="billThreshold"
                       type="number"
-                      placeholder="e.g., 10000"
+                      placeholder="10000"
                       value={approvalForm.billThreshold}
                       onChange={(e) =>
                         setApprovalForm((prev) => ({ ...prev, billThreshold: e.target.value }))
                       }
+                      className="h-8 text-sm rounded-none"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="journalThreshold">Journal Entry Threshold (MYR)</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Journal</Label>
                     <Input
-                      id="journalThreshold"
                       type="number"
-                      placeholder="e.g., 50000"
+                      placeholder="50000"
                       value={approvalForm.journalEntryThreshold}
                       onChange={(e) =>
                         setApprovalForm((prev) => ({ ...prev, journalEntryThreshold: e.target.value }))
+                      }
+                      className="h-8 text-sm rounded-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-2 border-t">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Auto-Approve</Label>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Read-only actions</Label>
+                    <Switch
+                      checked={approvalForm.autoApproveReadOnly}
+                      onCheckedChange={(checked) =>
+                        setApprovalForm((prev) => ({ ...prev, autoApproveReadOnly: checked }))
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Recurring workflows</Label>
+                    <Switch
+                      checked={approvalForm.autoApproveRecurring}
+                      onCheckedChange={(checked) =>
+                        setApprovalForm((prev) => ({ ...prev, autoApproveRecurring: checked }))
                       }
                     />
                   </div>
                 </div>
               </div>
 
-              <Separator />
-
-              <div className="space-y-4">
-                <h4 className="text-sm font-medium">Auto-Approval Rules</h4>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Auto-approve Read-Only Actions</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Data fetching and reporting don't require approval
-                    </p>
-                  </div>
-                  <Switch
-                    checked={approvalForm.autoApproveReadOnly}
-                    onCheckedChange={(checked) =>
-                      setApprovalForm((prev) => ({ ...prev, autoApproveReadOnly: checked }))
-                    }
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Auto-approve Recurring Workflows</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Scheduled tasks run without approval each time
-                    </p>
-                  </div>
-                  <Switch
-                    checked={approvalForm.autoApproveRecurring}
-                    onCheckedChange={(checked) =>
-                      setApprovalForm((prev) => ({ ...prev, autoApproveRecurring: checked }))
-                    }
-                  />
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <h4 className="text-sm font-medium">Notifications</h4>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Notify on Approval Required</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Get notified when actions need your approval
-                    </p>
-                  </div>
-                  <Switch
-                    checked={approvalForm.notifyOnApprovalRequired}
-                    onCheckedChange={(checked) =>
-                      setApprovalForm((prev) => ({ ...prev, notifyOnApprovalRequired: checked }))
-                    }
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Notify on Auto-Approved</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Get notified when actions are auto-approved
-                    </p>
-                  </div>
-                  <Switch
-                    checked={approvalForm.notifyOnAutoApproved}
-                    onCheckedChange={(checked) =>
-                      setApprovalForm((prev) => ({ ...prev, notifyOnAutoApproved: checked }))
-                    }
-                  />
-                </div>
-
+              <div className="space-y-3 pt-2 border-t">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Notifications</Label>
                 <div className="space-y-2">
-                  <Label htmlFor="timeoutHours">Approval Timeout (hours)</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Notify on approval required</Label>
+                    <Switch
+                      checked={approvalForm.notifyOnApprovalRequired}
+                      onCheckedChange={(checked) =>
+                        setApprovalForm((prev) => ({ ...prev, notifyOnApprovalRequired: checked }))
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Notify on auto-approved</Label>
+                    <Switch
+                      checked={approvalForm.notifyOnAutoApproved}
+                      onCheckedChange={(checked) =>
+                        setApprovalForm((prev) => ({ ...prev, notifyOnAutoApproved: checked }))
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Timeout (hours)</Label>
                   <Input
-                    id="timeoutHours"
                     type="number"
-                    className="w-32"
                     value={approvalForm.approvalTimeoutHours}
                     onChange={(e) =>
                       setApprovalForm((prev) => ({ ...prev, approvalTimeoutHours: e.target.value }))
                     }
+                    className="h-8 text-sm rounded-none w-24"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Pending approvals expire after this many hours
-                  </p>
                 </div>
               </div>
 
-              <div className="flex justify-end">
+              <div className="flex justify-end pt-2">
                 <Button
                   onClick={handleSaveApprovalSettings}
                   disabled={updateApprovalSettings.isPending}
+                  size="sm"
+                  className="rounded-none h-8 text-xs"
                 >
-                  {updateApprovalSettings.isPending && (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  )}
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Approval Settings
+                  {updateApprovalSettings.isPending && <Loader2Icon className="h-3 w-3 mr-1.5 animate-spin" />}
+                  <SaveIcon className="h-3 w-3 mr-1.5" />
+                  SaveIcon
                 </Button>
               </div>
             </CardContent>
-          </Card>
-        </TabsContent>
+          )}
+        </Card>
 
-        <TabsContent value="quotas">
-          <Card>
-            <CardHeader>
-              <CardTitle>Quotas & Limits</CardTitle>
-              <CardDescription>
-                Set daily limits for AI agent actions
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="dailyInvoiceLimit">Daily Invoice Limit</Label>
-                  <Input
-                    id="dailyInvoiceLimit"
-                    type="number"
-                    value={quotaForm.dailyInvoiceLimit}
-                    onChange={(e) =>
-                      setQuotaForm((prev) => ({ ...prev, dailyInvoiceLimit: parseInt(e.target.value) || 0 }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dailyBillLimit">Daily Bill Limit</Label>
-                  <Input
-                    id="dailyBillLimit"
-                    type="number"
-                    value={quotaForm.dailyBillLimit}
-                    onChange={(e) =>
-                      setQuotaForm((prev) => ({ ...prev, dailyBillLimit: parseInt(e.target.value) || 0 }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dailyJournalLimit">Daily Journal Entry Limit</Label>
-                  <Input
-                    id="dailyJournalLimit"
-                    type="number"
-                    value={quotaForm.dailyJournalEntryLimit}
-                    onChange={(e) =>
-                      setQuotaForm((prev) => ({ ...prev, dailyJournalEntryLimit: parseInt(e.target.value) || 0 }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dailyQuotationLimit">Daily Quotation Limit</Label>
-                  <Input
-                    id="dailyQuotationLimit"
-                    type="number"
-                    value={quotaForm.dailyQuotationLimit}
-                    onChange={(e) =>
-                      setQuotaForm((prev) => ({ ...prev, dailyQuotationLimit: parseInt(e.target.value) || 0 }))
-                    }
-                  />
+        {/* Quotas & Limits */}
+        <Card className="rounded-none border">
+          <button
+            onClick={() => toggleSection("quotas")}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors"
+          >
+            <span className="text-sm font-medium">Quotas & Limits</span>
+            <ChevronRightIcon className={cn("h-4 w-4 transition-transform", expandedSection === "quotas" && "rotate-90")} />
+          </button>
+          {expandedSection === "quotas" && (
+            <CardContent className="p-4 pt-0 space-y-4">
+              <div className="space-y-3">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Daily Limits</Label>
+                <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Invoices</Label>
+                    <Input
+                      type="number"
+                      value={quotaForm.dailyInvoiceLimit}
+                      onChange={(e) =>
+                        setQuotaForm((prev) => ({ ...prev, dailyInvoiceLimit: parseInt(e.target.value) ?? 0 }))
+                      }
+                      className="h-8 text-sm rounded-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Bills</Label>
+                    <Input
+                      type="number"
+                      value={quotaForm.dailyBillLimit}
+                      onChange={(e) =>
+                        setQuotaForm((prev) => ({ ...prev, dailyBillLimit: parseInt(e.target.value) ?? 0 }))
+                      }
+                      className="h-8 text-sm rounded-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Journals</Label>
+                    <Input
+                      type="number"
+                      value={quotaForm.dailyJournalEntryLimit}
+                      onChange={(e) =>
+                        setQuotaForm((prev) => ({ ...prev, dailyJournalEntryLimit: parseInt(e.target.value) ?? 0 }))
+                      }
+                      className="h-8 text-sm rounded-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Quotations</Label>
+                    <Input
+                      type="number"
+                      value={quotaForm.dailyQuotationLimit}
+                      onChange={(e) =>
+                        setQuotaForm((prev) => ({ ...prev, dailyQuotationLimit: parseInt(e.target.value) ?? 0 }))
+                      }
+                      className="h-8 text-sm rounded-none"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <Separator />
-
-              <div className="space-y-4">
-                <h4 className="text-sm font-medium">Amount Limits</h4>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="maxInvoiceAmount">Max Single Invoice (MYR)</Label>
+              <div className="space-y-3 pt-2 border-t">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Amount Limits (MYR)</Label>
+                <div className="grid gap-3 grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Max Invoice</Label>
                     <Input
-                      id="maxInvoiceAmount"
                       type="number"
                       placeholder="No limit"
                       value={quotaForm.maxSingleInvoiceAmount}
                       onChange={(e) =>
                         setQuotaForm((prev) => ({ ...prev, maxSingleInvoiceAmount: e.target.value }))
                       }
+                      className="h-8 text-sm rounded-none"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="maxBillAmount">Max Single Bill (MYR)</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Max Bill</Label>
                     <Input
-                      id="maxBillAmount"
                       type="number"
                       placeholder="No limit"
                       value={quotaForm.maxSingleBillAmount}
                       onChange={(e) =>
                         setQuotaForm((prev) => ({ ...prev, maxSingleBillAmount: e.target.value }))
                       }
+                      className="h-8 text-sm rounded-none"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="maxDailyAmount">Max Daily Total (MYR)</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Daily Total</Label>
                     <Input
-                      id="maxDailyAmount"
                       type="number"
                       placeholder="No limit"
                       value={quotaForm.maxDailyTotalAmount}
                       onChange={(e) =>
                         setQuotaForm((prev) => ({ ...prev, maxDailyTotalAmount: e.target.value }))
                       }
+                      className="h-8 text-sm rounded-none"
                     />
                   </div>
                 </div>
               </div>
 
-              <Separator />
-
-              <div className="space-y-4">
-                <h4 className="text-sm font-medium">Rate Limits</h4>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="actionsPerMinute">Max Actions per Minute</Label>
+              <div className="space-y-3 pt-2 border-t">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Rate Limits</Label>
+                <div className="grid gap-3 grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Actions/min</Label>
                     <Input
-                      id="actionsPerMinute"
                       type="number"
                       value={quotaForm.maxActionsPerMinute}
                       onChange={(e) =>
-                        setQuotaForm((prev) => ({ ...prev, maxActionsPerMinute: parseInt(e.target.value) || 1 }))
+                        setQuotaForm((prev) => ({ ...prev, maxActionsPerMinute: parseInt(e.target.value) ?? 1 }))
                       }
+                      className="h-8 text-sm rounded-none"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="concurrentWorkflows">Max Concurrent Workflows</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Concurrent</Label>
                     <Input
-                      id="concurrentWorkflows"
                       type="number"
                       value={quotaForm.maxConcurrentWorkflows}
                       onChange={(e) =>
-                        setQuotaForm((prev) => ({ ...prev, maxConcurrentWorkflows: parseInt(e.target.value) || 1 }))
+                        setQuotaForm((prev) => ({ ...prev, maxConcurrentWorkflows: parseInt(e.target.value) ?? 1 }))
                       }
+                      className="h-8 text-sm rounded-none"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="dailyTokenLimit">Daily Token Limit</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Tokens/day</Label>
                     <Input
-                      id="dailyTokenLimit"
                       type="number"
                       value={quotaForm.dailyTokenLimit}
                       onChange={(e) =>
-                        setQuotaForm((prev) => ({ ...prev, dailyTokenLimit: parseInt(e.target.value) || 0 }))
+                        setQuotaForm((prev) => ({ ...prev, dailyTokenLimit: parseInt(e.target.value) ?? 0 }))
                       }
+                      className="h-8 text-sm rounded-none"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="flex justify-end">
-                <Button onClick={handleSaveQuotas} disabled={updateQuotas.isPending}>
-                  {updateQuotas.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Quota Settings
+              <div className="flex justify-end pt-2">
+                <Button
+                  onClick={handleSaveQuotas}
+                  disabled={updateQuotas.isPending}
+                  size="sm"
+                  className="rounded-none h-8 text-xs"
+                >
+                  {updateQuotas.isPending && <Loader2Icon className="h-3 w-3 mr-1.5 animate-spin" />}
+                  <SaveIcon className="h-3 w-3 mr-1.5" />
+                  SaveIcon
                 </Button>
               </div>
             </CardContent>
-          </Card>
-        </TabsContent>
+          )}
+        </Card>
 
-        <TabsContent value="safety">
-          <Card>
-            <CardHeader>
-              <CardTitle>Safety Controls</CardTitle>
-              <CardDescription>
-                Emergency controls and safety features
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-6">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-2">
-                    <h3 className="font-semibold flex items-center gap-2 text-destructive">
-                      <StopCircle className="h-5 w-5" />
+        {/* Safety Controls */}
+        <Card className="rounded-none border">
+          <button
+            onClick={() => toggleSection("safety")}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors"
+          >
+            <span className="text-sm font-medium">Safety Controls</span>
+            <ChevronRightIcon className={cn("h-4 w-4 transition-transform", expandedSection === "safety" && "rotate-90")} />
+          </button>
+          {expandedSection === "safety" && (
+            <CardContent className="p-4 pt-0">
+              <div className="rounded-none border border-destructive/30 bg-destructive/5 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-medium flex items-center gap-2 text-destructive">
+                      <StopCircleIcon className="h-4 w-4" />
                       Emergency Stop
                     </h3>
-                    <p className="text-sm text-muted-foreground max-w-md">
-                      Immediately block all AI agent actions. Use this if you notice unexpected
-                      behavior or need to investigate issues.
+                    <p className="text-xs text-muted-foreground">
+                      Immediately block all AI agent actions
                     </p>
                     {usage?.emergencyStopEnabled && (
-                      <Badge variant="destructive" className="mt-2">
-                        Currently Active
+                      <Badge variant="destructive" className="rounded-none mt-2 text-[10px]">
+                        Active
                       </Badge>
                     )}
                   </div>
@@ -638,38 +629,37 @@ export function AgentSettings() {
                   {usage?.emergencyStopEnabled ? (
                     <Button
                       variant="outline"
+                      size="sm"
                       onClick={handleDisableEmergencyStop}
                       disabled={disableEmergencyStop.isPending}
+                      className="rounded-none h-8 text-xs shrink-0"
                     >
-                      {disableEmergencyStop.isPending && (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      )}
-                      <Play className="h-4 w-4 mr-2" />
-                      Resume AI Agent
+                      {disableEmergencyStop.isPending && <Loader2Icon className="h-3 w-3 mr-1.5 animate-spin" />}
+                      <PlayIcon className="h-3 w-3 mr-1.5" />
+                      Resume
                     </Button>
                   ) : (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="destructive">
-                          <StopCircle className="h-4 w-4 mr-2" />
-                          Activate Emergency Stop
+                        <Button variant="destructive" size="sm" className="rounded-none h-8 text-xs shrink-0">
+                          <StopCircleIcon className="h-3 w-3 mr-1.5" />
+                          Stop
                         </Button>
                       </AlertDialogTrigger>
-                      <AlertDialogContent>
+                      <AlertDialogContent className="rounded-none max-w-sm">
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Activate Emergency Stop?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will immediately block all AI agent actions. Active workflows will
-                            be paused and no new actions can be executed until you manually resume.
+                          <AlertDialogTitle className="text-base">Activate Emergency Stop?</AlertDialogTitle>
+                          <AlertDialogDescription className="text-xs">
+                            This will block all AI agent actions immediately.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogFooter className="gap-2">
+                          <AlertDialogCancel className="rounded-none h-8 text-xs">Cancel</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={handleEmergencyStop}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-none h-8 text-xs"
                           >
-                            Activate Emergency Stop
+                            Activate
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -678,57 +668,9 @@ export function AgentSettings() {
                 </div>
               </div>
             </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
-
-function UsageCard({
-  label,
-  used,
-  limit,
-  remaining,
-  format = "number",
-}: {
-  label: string;
-  used: number;
-  limit: number;
-  remaining: number;
-  format?: "number" | "compact";
-}) {
-  const percentage = Math.min((used / limit) * 100, 100);
-  const isWarning = percentage >= 80;
-  const isCritical = percentage >= 95;
-
-  const formatValue = (value: number) => {
-    if (format === "compact") {
-      if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-      if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
-    }
-    return value.toLocaleString();
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">{label}</span>
-        <span className={cn("font-medium", isCritical && "text-destructive", isWarning && !isCritical && "text-warning")}>
-          {formatValue(used)} / {formatValue(limit)}
-        </span>
+          )}
+        </Card>
       </div>
-      <Progress
-        value={percentage}
-        className={cn(
-          "h-2",
-          isCritical && "[&>div]:bg-destructive",
-          isWarning && !isCritical && "[&>div]:bg-warning"
-        )}
-      />
-      <p className="text-xs text-muted-foreground">
-        {formatValue(remaining)} remaining
-      </p>
     </div>
   );
 }

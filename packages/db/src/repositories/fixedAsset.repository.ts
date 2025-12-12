@@ -390,7 +390,7 @@ export const fixedAssetRepository = {
   },
 
   findMany: async (userId: string, options?: FixedAssetQueryOptions) => {
-    const { limit = 50, offset = 0, status, categoryId, search } = options || {};
+    const { limit = 50, offset = 0, status, categoryId, search } = options ?? {};
 
     const conditions = [
       eq(fixedAssets.userId, userId),
@@ -429,7 +429,7 @@ export const fixedAssetRepository = {
   },
 
   count: async (userId: string, options?: FixedAssetQueryOptions) => {
-    const { status, categoryId } = options || {};
+    const { status, categoryId } = options ?? {};
 
     const conditions = [
       eq(fixedAssets.userId, userId),
@@ -449,13 +449,13 @@ export const fixedAssetRepository = {
       .from(fixedAssets)
       .where(and(...conditions));
 
-    return Number(result[0]?.count || 0);
+    return Number(result[0]?.count ?? 0);
   },
 
   create: async (input: CreateFixedAssetInput) => {
     const assetCode = await generateAssetCode(input.userId);
     const acquisitionCost = new Decimal(input.acquisitionCost);
-    const salvageValue = new Decimal(input.salvageValue || "0");
+    const salvageValue = new Decimal(input.salvageValue ?? "0");
 
     const [asset] = await db
       .insert(fixedAssets)
@@ -467,10 +467,10 @@ export const fixedAssetRepository = {
         categoryId: input.categoryId,
         acquisitionDate: input.acquisitionDate,
         acquisitionCost: input.acquisitionCost,
-        acquisitionMethod: input.acquisitionMethod || "purchase",
+        acquisitionMethod: input.acquisitionMethod ?? "purchase",
         vendorId: input.vendorId,
         invoiceReference: input.invoiceReference,
-        depreciationMethod: input.depreciationMethod || "straight_line",
+        depreciationMethod: input.depreciationMethod ?? "straight_line",
         usefulLifeMonths: input.usefulLifeMonths,
         salvageValue: salvageValue.toString(),
         depreciationStartDate: input.depreciationStartDate,
@@ -769,7 +769,7 @@ export const fixedAssetRepository = {
         throw new Error("Asset already disposed");
       }
 
-      const proceeds = new Decimal(input.proceeds || "0");
+      const proceeds = new Decimal(input.proceeds ?? "0");
       const nbv = new Decimal(asset.netBookValue);
       const gainLoss = proceeds.minus(nbv);
 

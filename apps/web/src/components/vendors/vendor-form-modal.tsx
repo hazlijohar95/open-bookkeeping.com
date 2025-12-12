@@ -16,16 +16,17 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { createVendorSchema, CreateVendorSchema } from "@/zod-schemas/vendor";
+import type { CreateVendorSchema } from "@/zod-schemas/vendor";
+import { createVendorSchema } from "@/zod-schemas/vendor";
 import { useFieldArray, useForm } from "react-hook-form";
 import { TruckIcon, FilePenIcon, TrashIcon } from "@/assets/icons";
 import { FormInput } from "@/components/ui/form/form-input";
 import { zodResolver } from "@/lib/utils";
 import { Form } from "@/components/ui/form/form";
-import { Vendor } from "@/types/common/vendor";
+import type { Vendor } from "@/types/common/vendor";
 import { Button } from "@/components/ui/button";
 import { useCreateVendor, useUpdateVendor } from "@/api";
-import { Building2, Receipt, CreditCard, User } from "@/components/ui/icons";
+import { Building2, Receipt, CreditCard, UserIcon } from "@/components/ui/icons";
 import { toast } from "sonner";
 
 interface VendorFormModalProps {
@@ -63,21 +64,21 @@ function VendorFormContent({ isOpen, onClose, vendor }: VendorFormModalProps) {
     defaultValues: vendor
       ? {
           name: vendor.name,
-          email: vendor.email || "",
-          phone: vendor.phone || "",
-          address: vendor.address || "",
-          website: vendor.website || "",
-          bankName: vendor.bankName || "",
-          bankAccountNumber: vendor.bankAccountNumber || "",
-          bankRoutingNumber: vendor.bankRoutingNumber || "",
-          bankSwiftCode: vendor.bankSwiftCode || "",
-          taxId: vendor.taxId || "",
-          vatNumber: vendor.vatNumber || "",
-          registrationNumber: vendor.registrationNumber || "",
+          email: vendor.email ?? "",
+          phone: vendor.phone ?? "",
+          address: vendor.address ?? "",
+          website: vendor.website ?? "",
+          bankName: vendor.bankName ?? "",
+          bankAccountNumber: vendor.bankAccountNumber ?? "",
+          bankRoutingNumber: vendor.bankRoutingNumber ?? "",
+          bankSwiftCode: vendor.bankSwiftCode ?? "",
+          taxId: vendor.taxId ?? "",
+          vatNumber: vendor.vatNumber ?? "",
+          registrationNumber: vendor.registrationNumber ?? "",
           paymentTermsDays: vendor.paymentTermsDays ?? "",
-          preferredPaymentMethod: vendor.preferredPaymentMethod || "",
-          creditLimit: vendor.creditLimit || "",
-          metadata: vendor.metadata?.map((m) => ({ label: m.label, value: m.value })) || [],
+          preferredPaymentMethod: vendor.preferredPaymentMethod ?? "",
+          creditLimit: vendor.creditLimit ?? "",
+          metadata: vendor.metadata?.map((m) => ({ label: m.label, value: m.value })) ?? [],
         }
       : emptyDefaults,
   });
@@ -154,7 +155,7 @@ function VendorFormContent({ isOpen, onClose, vendor }: VendorFormModalProps) {
                 <AccordionItem value="basic">
                   <AccordionTrigger className="hover:no-underline">
                     <div className="flex items-center gap-2">
-                      <User className="size-4" />
+                      <UserIcon className="size-4" />
                       <span>Basic Information</span>
                     </div>
                   </AccordionTrigger>
@@ -370,7 +371,7 @@ function VendorFormContent({ isOpen, onClose, vendor }: VendorFormModalProps) {
                 </Button>
               </DialogClose>
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Saving..." : isEditing ? "Save Changes" : "Add Vendor"}
+                {isLoading ? "Saving..." : isEditing ? "SaveIcon Changes" : "Add Vendor"}
               </Button>
             </DialogFooter>
           </form>

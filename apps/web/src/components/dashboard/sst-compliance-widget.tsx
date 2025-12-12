@@ -15,8 +15,8 @@ import {
 import {
   Settings,
   ExternalLink,
-  CheckCircle2,
-  AlertTriangle,
+  CheckCircle2Icon,
+  AlertTriangleIcon,
   TrendingUp,
   ShieldCheck,
 } from "@/components/ui/icons";
@@ -84,7 +84,7 @@ export const SstComplianceWidget = memo(function SstComplianceWidget({
           <ComplianceStatusBadge status={status} />
           {data.isRegistered && (
             <span className="flex items-center gap-1 text-xs text-success">
-              <CheckCircle2 className="size-3" />
+              <CheckCircle2Icon className="size-3" />
               {data.registrationNumber}
             </span>
           )}
@@ -126,9 +126,9 @@ export const SstComplianceWidget = memo(function SstComplianceWidget({
         >
           <div className="flex items-start gap-2">
             {status === "registered" ? (
-              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
+              <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-success" />
             ) : status === "exceeded" || status === "approaching" ? (
-              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+              <AlertTriangleIcon className="mt-0.5 size-4 shrink-0 text-warning" />
             ) : (
               <TrendingUp className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             )}

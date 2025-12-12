@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/trpc/provider";
 import { toast } from "sonner";
-import { Sparkles, CheckCircle2 } from "@/components/ui/icons";
+import { Sparkles, CheckCircle2Icon } from "@/components/ui/icons";
 
 interface InitializeDefaultsModalProps {
   isOpen: boolean;
@@ -29,9 +29,9 @@ export function InitializeDefaultsModal({
   const initializeMutation =
     trpc.chartOfAccounts.initializeDefaults.useMutation({
       onSuccess: (result) => {
-        utils.chartOfAccounts.checkHasAccounts.invalidate();
-        utils.chartOfAccounts.getAccountTree.invalidate();
-        utils.chartOfAccounts.getAccountSummary.invalidate();
+        void utils.chartOfAccounts.checkHasAccounts.invalidate();
+        void utils.chartOfAccounts.getAccountTree.invalidate();
+        void utils.chartOfAccounts.getAccountSummary.invalidate();
         toast.success(
           `Successfully created ${result.accountsCreated} accounts`
         );
@@ -75,7 +75,7 @@ export function InitializeDefaultsModal({
             <ul className="space-y-2">
               {features.map((feature, index) => (
                 <li key={index} className="flex items-start gap-2 text-sm">
-                  <CheckCircle2 className="size-4 text-success mt-0.5 shrink-0" />
+                  <CheckCircle2Icon className="size-4 text-success mt-0.5 shrink-0" />
                   <span className="text-muted-foreground">{feature}</span>
                 </li>
               ))}

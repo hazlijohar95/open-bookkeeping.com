@@ -52,8 +52,8 @@ export function NavigationUser() {
     );
   }
 
-  const userName = user.user_metadata?.full_name || user.email?.split("@")[0] || "User";
-  const userEmail = user.email || "";
+  const userName = (user.user_metadata?.full_name || user.email?.split("@")[0]) ?? "UserIcon";
+  const userEmail = user.email ?? "";
 
   return (
     <SidebarMenu>

@@ -188,7 +188,7 @@ export function useCreateQuotation() {
     mutationFn: (input: CreateQuotationInput) =>
       api.post<Quotation>("/quotations", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
     },
   });
 }
@@ -200,8 +200,8 @@ export function useUpdateQuotationStatus() {
     mutationFn: ({ id, ...data }: UpdateQuotationStatusInput) =>
       api.patch<Quotation>(`/quotations/${id}/status`, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: quotationKeys.detail(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: quotationKeys.detail(variables.id) });
     },
   });
 }
@@ -216,9 +216,9 @@ export function useConvertToInvoice() {
         data
       ),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: quotationKeys.detail(variables.quotationId) });
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: quotationKeys.detail(variables.quotationId) });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
     },
   });
 }
@@ -229,7 +229,7 @@ export function useDeleteQuotation() {
   return useMutation({
     mutationFn: (id: string) => api.delete<{ success: boolean }>(`/quotations/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
     },
   });
 }

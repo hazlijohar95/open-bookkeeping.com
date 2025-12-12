@@ -35,16 +35,22 @@ src/
 │   ├── quotations.ts     # Quotation records
 │   ├── creditNotes.ts    # Credit note records
 │   ├── debitNotes.ts     # Debit note records
+│   ├── bills.ts          # Bill records
 │   ├── customers.ts      # Customer records
 │   ├── vendors.ts        # Vendor records
+│   ├── accounts.ts       # Chart of accounts
+│   ├── journalEntries.ts # Journal entries
 │   ├── userSettings.ts   # User preferences
-│   └── vaultDocuments.ts # Document storage
+│   ├── vaultDocuments.ts # Document storage
+│   ├── agent.ts          # Agent approval/audit/quota tables
+│   └── agentMemory.ts    # Agent memory & session tables
 │
 ├── repositories/         # Data access layer
 │   ├── invoice.ts
 │   ├── quotation.ts
 │   ├── creditNote.ts
 │   ├── debitNote.ts
+│   ├── bill.ts
 │   ├── customer.ts
 │   ├── vendor.ts
 │   └── settings.ts
@@ -55,6 +61,7 @@ src/
 drizzle/                  # Generated migrations
 ├── 0000_initial.sql
 ├── 0001_add_vault.sql
+├── ...
 └── meta/
 ```
 
@@ -628,6 +635,56 @@ postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres
 | `yarn db:migrate` | Run pending migrations |
 | `yarn db:studio` | Open Drizzle Studio |
 | `yarn check-types` | TypeScript type checking |
+
+---
+
+## AI Agent Schema
+
+The agent schema provides tables for memory, sessions, approvals, and audit logging.
+
+### Agent Memory Tables
+
+```typescript
+// src/schema/agentMemory.ts
+
+// Long-term memory storage
+export const agentMemories = pgTable('agent_memories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  type: text('type', { enum: ['preference', 'fact', 'pattern', 'instruction'] }).notNull(),
+  content: text('content').notNull(),
+  context: text('context'),           // e.g., "invoice_creation", "customer_management"
+  importance: integer('importance'),   // 1-10 scale
+  source: text('source'),             // Where this memory came from
+  metadata: jsonb('metadata'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  lastAccessedAt: timestamp('last_accessed_at'),
+  accessCount: integer('access_count').default(0),
+});
+
+// Business context per user
+export const agentUserContext = pgTable('agent_user_context', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id).unique(),
+  businessName: text('business_name'),
+  industry: text('industry'),
+  defaultCurrency: text('default_currency'),
+  taxSettings: jsonb('tax_settings'),
+  preferences: jsonb('preferences'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+```
+
+### Memory Types
+
+| Type | Description | Use Case |
+|------|-------------|----------|
+| `preference` | User preferences | "Always use NET 30 payment terms" |
+| `fact` | Business facts | "Main supplier is ABC Corp, TIN: C1234" |
+| `pattern` | Usage patterns | "Usually creates invoices on Fridays" |
+| `instruction` | Standing orders | "Auto-approve invoices under RM500" |
 
 ---
 

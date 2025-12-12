@@ -1,17 +1,18 @@
+import type {
+  ZodCreateInvoiceSchema} from "@/zod-schemas/invoice/create-invoice";
 import {
   createInvoiceSchema,
-  createInvoiceSchemaDefaultValues,
-  ZodCreateInvoiceSchema,
+  createInvoiceSchemaDefaultValues
 } from "@/zod-schemas/invoice/create-invoice";
 import { createBlobUrl, revokeBlobUrl } from "@/lib/invoice/create-blob-url";
 import { invoiceErrorAtom } from "@/global/atoms/invoice-atom";
 import { createPdfBlob } from "@/lib/invoice/create-pdf-blob";
 import { useContainerWidth } from "@/hooks/use-container-width";
 import { useEffect, useRef, useState } from "react";
-import { UseFormReturn } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
 import { Document, Page } from "react-pdf";
 import { useSetAtom } from "jotai";
-import { Loader2, AlertCircle } from "@/components/ui/icons";
+import { Loader2Icon, AlertCircleIcon } from "@/components/ui/icons";
 
 // Native replacement for lodash isEqual - deep comparison via JSON
 const isEqual = (a: unknown, b: unknown): boolean => {
@@ -65,7 +66,7 @@ const PDFViewer = ({ url, width }: { url: string | null; width: number }) => {
       <div className="flex h-full w-full items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="rounded-full bg-destructive/10 p-3">
-            <AlertCircle className="size-6 text-destructive" />
+            <AlertCircleIcon className="size-6 text-destructive" />
           </div>
           <div>
             <p className="font-medium text-destructive">Failed to load PDF</p>
@@ -82,7 +83,7 @@ const PDFViewer = ({ url, width }: { url: string | null; width: number }) => {
         file={url}
         loading={
           <div className="flex h-full w-full items-center justify-center">
-            <Loader2 className="size-8 animate-spin text-muted-foreground" />
+            <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
           </div>
         }
         onLoadSuccess={() => setIsLoading(false)}
@@ -100,7 +101,7 @@ const PDFViewer = ({ url, width }: { url: string | null; width: number }) => {
           renderAnnotationLayer={false}
           loading={
             <div className="flex items-center justify-center" style={{ width: pageWidth, height: pageWidth * 1.414 }}>
-              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
             </div>
           }
         />
@@ -113,7 +114,7 @@ const PDFViewer = ({ url, width }: { url: string | null; width: number }) => {
 const PDFLoading = () => (
   <div className="flex h-full w-full items-center justify-center">
     <div className="flex flex-col items-center gap-3">
-      <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
       <p className="text-sm text-muted-foreground">Generating preview...</p>
     </div>
   </div>
@@ -124,7 +125,7 @@ const PDFError = ({ message }: { message: string }) => (
   <div className="flex h-full w-full items-center justify-center p-4">
     <div className="flex flex-col items-center gap-3 text-center">
       <div className="rounded-full bg-destructive/10 p-3">
-        <AlertCircle className="size-6 text-destructive" />
+        <AlertCircleIcon className="size-6 text-destructive" />
       </div>
       <div>
         <p className="font-medium text-destructive">Failed to generate PDF</p>
@@ -135,7 +136,7 @@ const PDFError = ({ message }: { message: string }) => (
 );
 
 const InvoicePreview = ({ form }: { form: UseFormReturn<ZodCreateInvoiceSchema> }) => {
-  const { ref: containerRef, width: containerWidth } = useContainerWidth<HTMLDivElement>();
+  const { ref: containerRef, width: containerWidth } = useContainerWidth();
   const setInvoiceError = useSetAtom(invoiceErrorAtom);
   const [data, setData] = useState(form.getValues());
   const [pdfError, setPdfError] = useState<string | null>(null);
@@ -184,7 +185,7 @@ const InvoicePreview = ({ form }: { form: UseFormReturn<ZodCreateInvoiceSchema> 
   useEffect(() => {
     setPdfError(null);
 
-    (async () => {
+    void (async () => {
       try {
         const blob = await createPdfBlob({ invoiceData: data, template: form.watch("invoiceDetails.theme.template") });
         const newUrl = createBlobUrl({ blob });

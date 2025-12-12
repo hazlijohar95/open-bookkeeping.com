@@ -1,5 +1,5 @@
-import { debitNoteTypeEnum, debitNoteStatusEnum } from "@open-bookkeeping/db";
-import { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
+import type { debitNoteTypeEnum, debitNoteStatusEnum } from "@open-bookkeeping/db";
+import type { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
 
 export type DebitNoteTypeType = (typeof debitNoteTypeEnum.enumValues)[number];
 export type DebitNoteStatusType = (typeof debitNoteStatusEnum.enumValues)[number];

@@ -1,4 +1,4 @@
-import { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
+import type { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
 import { QuotationDefaultPDF } from "@/components/pdf/quotation";
 import { pdf } from "@react-pdf/renderer";
 

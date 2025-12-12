@@ -72,7 +72,7 @@ vendorRoutes.get("/search", async (c) => {
   const user = authResult;
 
   try {
-    const query = c.req.query("q") || "";
+    const query = c.req.query("q") ?? "";
     const vendors = await vendorRepository.search(user.id, query);
     return c.json(vendors);
   } catch (error) {
@@ -121,20 +121,20 @@ vendorRoutes.post("/", async (c) => {
     const vendor = await vendorRepository.create({
       userId: user.id,
       name: input.name,
-      email: input.email || null,
-      phone: input.phone || null,
-      address: input.address || null,
-      website: input.website || null,
-      bankName: input.bankName || null,
-      bankAccountNumber: input.bankAccountNumber || null,
-      bankRoutingNumber: input.bankRoutingNumber || null,
-      bankSwiftCode: input.bankSwiftCode || null,
-      taxId: input.taxId || null,
-      vatNumber: input.vatNumber || null,
-      registrationNumber: input.registrationNumber || null,
-      paymentTermsDays: input.paymentTermsDays || null,
-      preferredPaymentMethod: input.preferredPaymentMethod || null,
-      creditLimit: input.creditLimit || null,
+      email: input.email ?? null,
+      phone: input.phone ?? null,
+      address: input.address ?? null,
+      website: input.website ?? null,
+      bankName: input.bankName ?? null,
+      bankAccountNumber: input.bankAccountNumber ?? null,
+      bankRoutingNumber: input.bankRoutingNumber ?? null,
+      bankSwiftCode: input.bankSwiftCode ?? null,
+      taxId: input.taxId ?? null,
+      vatNumber: input.vatNumber ?? null,
+      registrationNumber: input.registrationNumber ?? null,
+      paymentTermsDays: input.paymentTermsDays ?? null,
+      preferredPaymentMethod: input.preferredPaymentMethod ?? null,
+      creditLimit: input.creditLimit ?? null,
       metadata: input.metadata,
     });
 
@@ -166,20 +166,20 @@ vendorRoutes.patch("/:id", async (c) => {
     const input = parseResult.data;
     const vendor = await vendorRepository.update(id, user.id, {
       name: input.name,
-      email: input.email !== undefined ? (input.email || null) : undefined,
-      phone: input.phone !== undefined ? (input.phone || null) : undefined,
-      address: input.address !== undefined ? (input.address || null) : undefined,
-      website: input.website !== undefined ? (input.website || null) : undefined,
-      bankName: input.bankName !== undefined ? (input.bankName || null) : undefined,
-      bankAccountNumber: input.bankAccountNumber !== undefined ? (input.bankAccountNumber || null) : undefined,
-      bankRoutingNumber: input.bankRoutingNumber !== undefined ? (input.bankRoutingNumber || null) : undefined,
-      bankSwiftCode: input.bankSwiftCode !== undefined ? (input.bankSwiftCode || null) : undefined,
-      taxId: input.taxId !== undefined ? (input.taxId || null) : undefined,
-      vatNumber: input.vatNumber !== undefined ? (input.vatNumber || null) : undefined,
-      registrationNumber: input.registrationNumber !== undefined ? (input.registrationNumber || null) : undefined,
+      email: input.email !== undefined ? (input.email ?? null) : undefined,
+      phone: input.phone !== undefined ? (input.phone ?? null) : undefined,
+      address: input.address !== undefined ? (input.address ?? null) : undefined,
+      website: input.website !== undefined ? (input.website ?? null) : undefined,
+      bankName: input.bankName !== undefined ? (input.bankName ?? null) : undefined,
+      bankAccountNumber: input.bankAccountNumber !== undefined ? (input.bankAccountNumber ?? null) : undefined,
+      bankRoutingNumber: input.bankRoutingNumber !== undefined ? (input.bankRoutingNumber ?? null) : undefined,
+      bankSwiftCode: input.bankSwiftCode !== undefined ? (input.bankSwiftCode ?? null) : undefined,
+      taxId: input.taxId !== undefined ? (input.taxId ?? null) : undefined,
+      vatNumber: input.vatNumber !== undefined ? (input.vatNumber ?? null) : undefined,
+      registrationNumber: input.registrationNumber !== undefined ? (input.registrationNumber ?? null) : undefined,
       paymentTermsDays: input.paymentTermsDays,
-      preferredPaymentMethod: input.preferredPaymentMethod !== undefined ? (input.preferredPaymentMethod || null) : undefined,
-      creditLimit: input.creditLimit !== undefined ? (input.creditLimit || null) : undefined,
+      preferredPaymentMethod: input.preferredPaymentMethod !== undefined ? (input.preferredPaymentMethod ?? null) : undefined,
+      creditLimit: input.creditLimit !== undefined ? (input.creditLimit ?? null) : undefined,
       metadata: input.metadata,
     });
 

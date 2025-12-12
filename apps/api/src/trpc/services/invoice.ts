@@ -89,7 +89,7 @@ export const invoiceRouter = router({
   list: protectedProcedure
     .input(paginationSchema)
     .query(async ({ ctx, input }) => {
-      const { limit = 50, offset = 0 } = input || {};
+      const { limit = 50, offset = 0 } = input ?? {};
 
       const invoices = await invoiceRepository.findMany(ctx.user.id, {
         limit,
@@ -104,7 +104,7 @@ export const invoiceRouter = router({
   listLight: protectedProcedure
     .input(paginationSchema)
     .query(async ({ ctx, input }) => {
-      const { limit = 50, offset = 0 } = input || {};
+      const { limit = 50, offset = 0 } = input ?? {};
 
       const invoices = await invoiceRepository.findManyLight(ctx.user.id, {
         limit,
@@ -265,8 +265,8 @@ export const invoiceRouter = router({
                 invoiceDetails?: { total?: number; serialNumber?: string };
                 clientDetails?: { name?: string };
               } | null;
-              const paymentAmount = invoiceFields?.invoiceDetails?.total || 0;
-              const clientName = invoiceFields?.clientDetails?.name || "Customer";
+              const paymentAmount = invoiceFields?.invoiceDetails?.total ?? 0;
+              const clientName = invoiceFields?.clientDetails?.name ?? "Customer";
               const serialNumber = invoiceFields?.invoiceDetails?.serialNumber || input.id;
 
               journalEntryIntegration.createPaymentJournalEntry(ctx.user.id, {

@@ -26,7 +26,7 @@ export function LoginRequiredModal({ isOpen }: LoginRequiredModalProps) {
   };
 
   const handleCancel = () => {
-    navigate(-1);
+    void navigate(-1);
   };
 
   return (

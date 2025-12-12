@@ -185,7 +185,7 @@ export function SSTOverviewTab({
                         {s.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{s.referenceNumber || "-"}</TableCell>
+                    <TableCell className="text-muted-foreground">{s.referenceNumber ?? "-"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

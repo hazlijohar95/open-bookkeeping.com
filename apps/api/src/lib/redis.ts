@@ -294,7 +294,7 @@ export async function checkRateLimit(
       pipeline.expire(key, windowSeconds);
 
       const results = await pipeline.exec();
-      const currentCount = (results[1] as number) || 0;
+      const currentCount = (results[1] as number) ?? 0;
 
       recordRedisSuccess();
 

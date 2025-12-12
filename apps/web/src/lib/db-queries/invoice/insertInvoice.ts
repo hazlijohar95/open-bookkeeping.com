@@ -1,4 +1,4 @@
-import { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
+import type { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
 import { ERROR_MESSAGES } from "@/constants/issues";
 import { db, schema } from "@open-bookkeeping/db";
 import { v4 as uuidv4 } from "uuid";

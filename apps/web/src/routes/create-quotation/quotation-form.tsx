@@ -3,7 +3,7 @@ import QuotationFieldKeyNumberValuesSection from "./helpers/quotation-field-key-
 import { Accordion, AccordionItem, AccordionContent, AccordionTrigger } from "@/components/ui/accordion";
 import SheetImageSelectorTrigger from "@/components/ui/image/sheet-image-selector-trigger";
 import { QuotationImageSelectorSheet } from "./helpers/quotation-image-selector-sheet";
-import { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
+import type { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
 import { FormCustomerSelector } from "@/components/ui/form/form-customer-selector";
 import { QuotationTemplateSelector } from "./helpers/quotation-templates";
 import { FormColorPicker } from "@/components/ui/form/form-color-picker";
@@ -18,7 +18,7 @@ import FormRow from "@/components/ui/form/form-row";
 import { SelectItem } from "@/components/ui/select";
 import { Form } from "@/components/ui/form/form";
 import { useQuery } from "@tanstack/react-query";
-import { UseFormReturn } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/providers";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,7 @@ interface QuotationFormProps {
 }
 
 const QuotationForm: React.FC<QuotationFormProps> = ({ form }) => {
-  const { ref: containerRef, width: containerWidth } = useContainerWidth<HTMLDivElement>();
+  const { ref: containerRef, width: containerWidth } = useContainerWidth();
   const { user } = useAuth();
 
   // fetching images from indexedDB
@@ -47,7 +47,7 @@ const QuotationForm: React.FC<QuotationFormProps> = ({ form }) => {
     (customer: { id: string; name: string; email: string | null; phone: string | null; address: string | null } | null) => {
       if (customer) {
         form.setValue("clientDetails.name", customer.name);
-        form.setValue("clientDetails.address", customer.address || "");
+        form.setValue("clientDetails.address", customer.address ?? "");
         // Build metadata from customer info
         const metadata: { label: string; value: string }[] = [];
         if (customer.email) {
@@ -81,7 +81,7 @@ const QuotationForm: React.FC<QuotationFormProps> = ({ form }) => {
                   <QuotationImageSelectorSheet
                     type="logo"
                     isLoading={idbImages.isLoading}
-                    idbImages={idbImages.data || []}
+                    idbImages={idbImages.data ?? []}
                     serverImages={serverImages}
                     user={user}
                     onUrlChange={(url) => {
@@ -104,7 +104,7 @@ const QuotationForm: React.FC<QuotationFormProps> = ({ form }) => {
                   <QuotationImageSelectorSheet
                     type="signature"
                     isLoading={idbImages.isLoading}
-                    idbImages={idbImages.data || []}
+                    idbImages={idbImages.data ?? []}
                     serverImages={serverImages}
                     user={user}
                     onUrlChange={(url) => {

@@ -326,7 +326,7 @@ export const ledgerRouter = router({
         if (!result.success) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: result.error || "Failed to close period",
+            message: result.error ?? "Failed to close period",
           });
         }
 
@@ -359,7 +359,7 @@ export const ledgerRouter = router({
         if (!result.success) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: result.error || "Failed to reopen period",
+            message: result.error ?? "Failed to reopen period",
           });
         }
 
@@ -390,7 +390,7 @@ export const ledgerRouter = router({
         if (!result.success) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: result.error || "Failed to complete year-end close",
+            message: result.error ?? "Failed to complete year-end close",
           });
         }
 

@@ -238,7 +238,7 @@ export const agentSafetyService = {
       amount !== undefined &&
       quotas.maxDailyTotalAmount !== null
     ) {
-      const currentTotal = parseFloat(usage.totalAmountProcessed || "0");
+      const currentTotal = parseFloat(usage.totalAmountProcessed ?? "0");
       const maxTotal = parseFloat(quotas.maxDailyTotalAmount);
 
       if (currentTotal + amount > maxTotal) {
@@ -378,7 +378,7 @@ export const agentSafetyService = {
     userId: string,
     options?: { days?: number }
   ) => {
-    const { days = 30 } = options || {};
+    const { days = 30 } = options ?? {};
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
@@ -407,7 +407,7 @@ export const agentSafetyService = {
         totalActions: today.totalActions,
         totalMutations: today.totalMutations,
         totalReads: today.totalReads,
-        totalAmountProcessed: parseFloat(today.totalAmountProcessed || "0"),
+        totalAmountProcessed: parseFloat(today.totalAmountProcessed ?? "0"),
         tokensUsed: today.tokensUsed,
       },
       limits: {

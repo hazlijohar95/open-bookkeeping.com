@@ -4,7 +4,7 @@ import {
   type ZodCreateInvoiceSchema,
 } from "@/zod-schemas/invoice/create-invoice";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { ImperativePanelHandle } from "react-resizable-panels";
+import type { ImperativePanelHandle } from "react-resizable-panels";
 import { invoiceTabAtom, type InvoiceTab } from "@/global/atoms/invoice-atom";
 import { zodResolver } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";

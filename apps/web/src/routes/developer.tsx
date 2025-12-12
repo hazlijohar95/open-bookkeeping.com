@@ -47,7 +47,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Code2, Key, Webhook as WebhookIcon, Plus, Copy, Trash2, Eye, CheckCircle, Loader2, ExternalLink } from "@/components/ui/icons";
+import { Code2, Key, Webhook as WebhookIcon, Plus, Copy, Trash2Icon, Eye, CheckCircleIcon, Loader2Icon, ExternalLink } from "@/components/ui/icons";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
@@ -56,7 +56,7 @@ function ApiKeyCard({ apiKey, onRevoke }: { apiKey: ApiKey; onRevoke: (id: strin
   const [showKey, setShowKey] = useState(false);
 
   const copyKey = () => {
-    navigator.clipboard.writeText(apiKey.keyPrefix);
+    void navigator.clipboard.writeText(apiKey.keyPrefix);
     toast.success("Key prefix copied to clipboard");
   };
 
@@ -117,7 +117,7 @@ function ApiKeyCard({ apiKey, onRevoke }: { apiKey: ApiKey; onRevoke: (id: strin
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" size="sm" className="w-full">
-                <Trash2 className="mr-2 size-4" />
+                <Trash2Icon className="mr-2 size-4" />
                 Revoke Key
               </Button>
             </AlertDialogTrigger>
@@ -160,7 +160,7 @@ function WebhookCard({
           <div className="flex-1 min-w-0">
             <CardTitle className="text-base font-medium truncate">{webhook.url}</CardTitle>
             <CardDescription className="mt-1">
-              {webhook.description || "No description"}
+              {webhook.description ?? "No description"}
             </CardDescription>
           </div>
           <Badge variant={webhook.isActive ? "default" : "secondary"}>
@@ -208,16 +208,16 @@ function WebhookCard({
             disabled={!webhook.isActive || isTesting}
           >
             {isTesting ? (
-              <Loader2 className="mr-2 size-4 animate-spin" />
+              <Loader2Icon className="mr-2 size-4 animate-spin" />
             ) : (
-              <CheckCircle className="mr-2 size-4" />
+              <CheckCircleIcon className="mr-2 size-4" />
             )}
             Test
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" size="sm" className="flex-1">
-                <Trash2 className="mr-2 size-4" />
+                <Trash2Icon className="mr-2 size-4" />
                 Delete
               </Button>
             </AlertDialogTrigger>
@@ -291,7 +291,7 @@ function CreateApiKeyDialog({ onSuccess }: { onSuccess: (key: string) => void })
             Cancel
           </Button>
           <Button onClick={handleCreate} disabled={!name.trim() || createMutation.isPending}>
-            {createMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+            {createMutation.isPending && <Loader2Icon className="mr-2 size-4 animate-spin" />}
             Create
           </Button>
         </DialogFooter>
@@ -316,7 +316,7 @@ function CreateWebhookDialog() {
       const result = await createMutation.mutateAsync({
         url: url.trim(),
         events: selectedEvents,
-        description: description.trim() || undefined,
+        description: description.trim() ?? undefined,
       });
       toast.success(
         <div>
@@ -433,7 +433,7 @@ function CreateWebhookDialog() {
             onClick={handleCreate}
             disabled={!url.trim() || selectedEvents.length === 0 || createMutation.isPending}
           >
-            {createMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+            {createMutation.isPending && <Loader2Icon className="mr-2 size-4 animate-spin" />}
             Create Webhook
           </Button>
         </DialogFooter>
@@ -446,7 +446,7 @@ function CreateWebhookDialog() {
 function NewKeyDialog({ apiKey, onClose }: { apiKey: string | null; onClose: () => void }) {
   const copyKey = () => {
     if (apiKey) {
-      navigator.clipboard.writeText(apiKey);
+      void navigator.clipboard.writeText(apiKey);
       toast.success("API key copied to clipboard");
     }
   };
@@ -456,7 +456,7 @@ function NewKeyDialog({ apiKey, onClose }: { apiKey: string | null; onClose: () 
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <CheckCircle className="size-5 text-green-500" />
+            <CheckCircleIcon className="size-5 text-green-500" />
             API Key Created
           </DialogTitle>
           <DialogDescription>

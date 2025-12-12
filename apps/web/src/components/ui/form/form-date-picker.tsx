@@ -10,9 +10,9 @@ import {
   useFormField,
 } from "@/components/ui/form/form";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ControllerRenderProps, FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
+import type { ControllerRenderProps, FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
 import { InfoIcon, TriangleAlertIcon } from "@/components/ui/icons";
-import { Calendar } from "@/components/ui/calendar";
+import { CalendarIcon as CalendarComponent } from "@/components/ui/calendar";
 import { CalendarPenIcon } from "@/assets/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "../button";
@@ -55,7 +55,7 @@ function FormDatePickerContent<
         <FormLabel className="flex items-center">
           <span className="text-xs capitalize">{props.label}</span>
           {isOptional ? (
-            <Badge size="xs" variant={Boolean(error) ? "destructive" : "secondary"}>
+            <Badge size="xs" variant={error ? "destructive" : "secondary"}>
               {props.sublabel ?? "Optional"}
             </Badge>
           ) : null}
@@ -77,7 +77,7 @@ function FormDatePickerContent<
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="center">
-            <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+            <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
           </PopoverContent>
         </Popover>
       </FormControl>

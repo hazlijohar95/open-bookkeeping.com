@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import {
   Plus,
   FileSpreadsheet,
-  Search,
+  SearchIcon,
   BookOpen,
   Wallet,
   Scale,
@@ -125,7 +125,7 @@ export function ChartOfAccounts() {
       toast.success(`Account "${accountToDelete.name}" deleted successfully`);
       setAccountToDelete(null);
     } catch (error: any) {
-      toast.error(error?.message || "Failed to delete account");
+      toast.error(error?.message ?? "Failed to delete account");
     }
   };
 
@@ -179,31 +179,31 @@ export function ChartOfAccounts() {
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
             <SummaryCard
               label="Assets"
-              value={formatCurrency(summary?.assets.total || 0)}
+              value={formatCurrency(summary?.assets.total ?? 0)}
               icon={<Wallet className="size-5" />}
               color="text-success"
             />
             <SummaryCard
               label="Liabilities"
-              value={formatCurrency(summary?.liabilities.total || 0)}
+              value={formatCurrency(summary?.liabilities.total ?? 0)}
               icon={<Receipt className="size-5" />}
               color="text-destructive"
             />
             <SummaryCard
               label="Equity"
-              value={formatCurrency(summary?.equity.total || 0)}
+              value={formatCurrency(summary?.equity.total ?? 0)}
               icon={<Scale className="size-5" />}
               color="text-info"
             />
             <SummaryCard
               label="Revenue"
-              value={formatCurrency(summary?.revenue.total || 0)}
+              value={formatCurrency(summary?.revenue.total ?? 0)}
               icon={<TrendingUp className="size-5" />}
               color="text-primary"
             />
             <SummaryCard
               label="Expenses"
-              value={formatCurrency(summary?.expenses.total || 0)}
+              value={formatCurrency(summary?.expenses.total ?? 0)}
               icon={<Receipt className="size-5" />}
               color="text-warning"
             />
@@ -212,7 +212,7 @@ export function ChartOfAccounts() {
           {/* Filter Bar */}
           <div className="flex items-center gap-4">
             <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
               <Input
                 placeholder="Search accounts..."
                 value={searchQuery}

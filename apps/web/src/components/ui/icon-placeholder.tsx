@@ -1,4 +1,5 @@
-import React, { ComponentType, SVGProps } from "react";
+import type { ComponentType, SVGProps } from "react";
+import React from "react";
 import { TriangleWarningIcon } from "@/assets/icons";
 import { cn } from "@/lib/utils";
 

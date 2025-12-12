@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from "motion/react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { ChevronDown } from "@/components/ui/icons";
+import { ChevronDownIcon } from "@/components/ui/icons";
 
 interface FAQItemProps {
   question: string;
@@ -52,7 +52,7 @@ const FAQItem = ({ question, answer, isOpen, onToggle, index }: FAQItemProps) =>
               : "bg-muted/50 text-muted-foreground group-hover:bg-muted group-hover:text-foreground"
           )}
         >
-          <ChevronDown className="size-4" />
+          <ChevronDownIcon className="size-4" />
         </motion.div>
       </button>
 

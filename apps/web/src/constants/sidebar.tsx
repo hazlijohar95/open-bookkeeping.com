@@ -174,7 +174,7 @@ export const SIDEBAR_ITEMS: ISidebar = {
     },
   ],
 
-  // Account - User settings
+  // Account - UserIcon settings
   Account: [
     {
       name: "Settings",

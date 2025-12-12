@@ -151,7 +151,7 @@ export const fixedAssetCategoryRouter = router({
       offset: z.number().min(0).default(0),
     }).optional())
     .query(async ({ ctx, input }) => {
-      const { limit = 50, offset = 0 } = input || {};
+      const { limit = 50, offset = 0 } = input ?? {};
       return fixedAssetCategoryRepository.findMany(ctx.user.id, limit, offset);
     }),
 
@@ -218,7 +218,7 @@ export const fixedAssetRouter = router({
   list: protectedProcedure
     .input(queryOptionsSchema)
     .query(async ({ ctx, input }) => {
-      const options = input || {};
+      const options = input ?? {};
       const [assets, total] = await Promise.all([
         fixedAssetRepository.findMany(ctx.user.id, options),
         fixedAssetRepository.count(ctx.user.id, options),

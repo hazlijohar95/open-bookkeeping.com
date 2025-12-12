@@ -12,11 +12,11 @@ import {
 import {
   ArrowUpRight,
   ArrowDownLeft,
-  MoreHorizontal,
+  MoreHorizontalIcon,
   Link,
-  CheckCircle2,
-  XCircle,
-  User,
+  CheckCircle2Icon,
+  XCircleIcon,
+  UserIcon,
   Building2,
   Sparkles,
   Check,
@@ -183,7 +183,7 @@ export function TransactionList({ bankAccountId }: TransactionListProps) {
                       <div className="flex items-center justify-center gap-1">
                         {transaction.matchedCustomerId && (
                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <User className="size-3" />
+                            <UserIcon className="size-3" />
                             <span className="truncate max-w-[60px]">Customer</span>
                           </div>
                         )}
@@ -217,7 +217,7 @@ export function TransactionList({ bankAccountId }: TransactionListProps) {
                     )}
                     {transaction.matchStatus !== "suggested" && transaction.matchedCustomerId && (
                       <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
-                        <User className="size-3" />
+                        <UserIcon className="size-3" />
                         <span className="truncate max-w-[80px]">Customer Match</span>
                       </div>
                     )}
@@ -240,7 +240,7 @@ export function TransactionList({ bankAccountId }: TransactionListProps) {
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="size-7">
-                          <MoreHorizontal className="size-4" />
+                          <MoreHorizontalIcon className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -250,7 +250,7 @@ export function TransactionList({ bankAccountId }: TransactionListProps) {
                               id: transaction.id,
                               description: transaction.description,
                               amount: transaction.amount,
-                              type: transaction.type as "deposit" | "withdrawal",
+                              type: transaction.type,
                             })
                           }
                         >
@@ -272,7 +272,7 @@ export function TransactionList({ bankAccountId }: TransactionListProps) {
                           onClick={() => reconcileMutation.mutate(transaction.id)}
                           disabled={transaction.isReconciled}
                         >
-                          <CheckCircle2 className="size-4" />
+                          <CheckCircle2Icon className="size-4" />
                           <span>Reconcile</span>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -284,7 +284,7 @@ export function TransactionList({ bankAccountId }: TransactionListProps) {
                             })
                           }
                         >
-                          <XCircle className="size-4" />
+                          <XCircleIcon className="size-4" />
                           <span>Exclude</span>
                         </DropdownMenuItem>
                       </DropdownMenuContent>

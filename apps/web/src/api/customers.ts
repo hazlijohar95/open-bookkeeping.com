@@ -83,7 +83,7 @@ export function useCreateCustomer() {
     mutationFn: (input: CreateCustomerInput) =>
       api.post<Customer>("/customers", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: customerKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: customerKeys.lists() });
     },
   });
 }
@@ -95,8 +95,8 @@ export function useUpdateCustomer() {
     mutationFn: ({ id, ...data }: UpdateCustomerInput) =>
       api.patch<Customer>(`/customers/${id}`, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: customerKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: customerKeys.detail(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: customerKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: customerKeys.detail(variables.id) });
     },
   });
 }
@@ -107,7 +107,7 @@ export function useDeleteCustomer() {
   return useMutation({
     mutationFn: (id: string) => api.delete<{ success: boolean }>(`/customers/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: customerKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: customerKeys.lists() });
     },
   });
 }

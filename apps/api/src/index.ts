@@ -21,6 +21,9 @@ import {
   storageRoutes,
   einvoiceRoutes,
   sstRoutes,
+  chartOfAccountsRoutes,
+  ledgerRoutes,
+  bankFeedRoutes,
 } from "./routes";
 import { v1Router } from "./routes/v1";
 import { docsRouter } from "./routes/docs";
@@ -37,7 +40,7 @@ const sentryDsn = process.env.SENTRY_DSN;
 if (sentryDsn) {
   Sentry.init({
     dsn: sentryDsn,
-    environment: process.env.NODE_ENV || "development",
+    environment: process.env.NODE_ENV ?? "development",
     tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
   });
   console.log("Sentry initialized for error tracking");
@@ -88,7 +91,7 @@ app.use(
     },
     credentials: true,
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization", "X-Request-Id", "X-API-Key"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Request-Id", "X-API-Key", "User-Agent"],
     exposeHeaders: [
       "X-Request-Id",
       "X-RateLimit-Limit",
@@ -99,8 +102,14 @@ app.use(
   })
 );
 
-// 4. Compression for responses
-app.use("/*", compress());
+// 4. Compression for responses (exclude AI streaming routes)
+app.use("/*", async (c, next) => {
+  // Skip compression for AI chat endpoint (streaming)
+  if (c.req.path.startsWith("/api/ai/chat")) {
+    return next();
+  }
+  return compress()(c, next);
+});
 
 // 5. General rate limiting for all routes
 app.use("/*", generalRateLimit);
@@ -218,6 +227,9 @@ app.route("/settings", settingsRoutes);
 app.route("/storage", storageRoutes);
 app.route("/einvoice", einvoiceRoutes);
 app.route("/sst", sstRoutes);
+app.route("/chart-of-accounts", chartOfAccountsRoutes);
+app.route("/ledger", ledgerRoutes);
+app.route("/bank-feed", bankFeedRoutes);
 
 // tRPC handler
 app.use(
@@ -240,7 +252,7 @@ app.use(
 // Global error handler
 app.onError((err, c) => {
   // Get request ID from header (set by security middleware)
-  const requestId = c.res.headers.get("X-Request-Id") || "unknown";
+  const requestId = c.res.headers.get("X-Request-Id") ?? "unknown";
 
   // Log to Sentry
   if (sentryDsn) {
@@ -297,7 +309,7 @@ const server = serve(
   },
   (info) => {
     console.log(`Server running on http://localhost:${info.port}`);
-    console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+    console.log(`Environment: ${process.env.NODE_ENV ?? "development"}`);
     console.log(`Allowed origins: ${allowedOrigins.join(", ")}`);
     console.log(`Workers: ${enableWorkers ? "enabled" : "disabled"}`);
   }

@@ -1,7 +1,5 @@
-/* eslint-disable jsx-a11y/alt-text */
-
 import { GEIST_MONO_FONT, GEIST_FONT } from "@/constants/pdf-fonts";
-import { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
+import type { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
 import { Document, Page, Text, View, Image, Font } from "@react-pdf/renderer";
 import { getCreditNoteSubTotalValue, getCreditNoteTotalValue } from "@/constants/credit-note-helpers";
 import { formatCurrencyText } from "@/constants/currency";

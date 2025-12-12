@@ -1,5 +1,5 @@
 import { CalendarPenIcon } from "@/assets/icons";
-import { User, Mail, Phone, MapPin, Globe, Building2, Eye, Pencil, Trash2 } from "@/components/ui/icons";
+import { UserIcon, MailIcon, Phone, MapPin, Globe, Building2, Eye, Pencil, Trash2Icon } from "@/components/ui/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +10,7 @@ import {
 import { createColumnConfigHelper } from "@/components/ui/data-table-filter/core/filters";
 import { HeaderColumnButton, FormatTableDateObject } from "@/components/ui/data-table";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Vendor } from "@/types/common/vendor";
+import type { Vendor } from "@/types/common/vendor";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -125,7 +125,7 @@ export const createVendorColumns = ({ onEdit, onDelete, onView }: VendorColumnsP
                 className="text-destructive focus:text-destructive"
                 onClick={() => onDelete(vendor)}
               >
-                <Trash2 className="size-4" />
+                <Trash2Icon className="size-4" />
                 <span>Delete</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -143,7 +143,7 @@ export const vendorColumnConfig = [
     .id("name")
     .displayName("Name")
     .accessor((row) => row.name)
-    .icon(User)
+    .icon(UserIcon)
     .build(),
 
   columnConfigHelper
@@ -151,7 +151,7 @@ export const vendorColumnConfig = [
     .id("email")
     .displayName("Email")
     .accessor((row) => row.email ?? "")
-    .icon(Mail)
+    .icon(MailIcon)
     .build(),
 
   columnConfigHelper

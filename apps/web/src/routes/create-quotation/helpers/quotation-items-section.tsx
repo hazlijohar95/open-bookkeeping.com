@@ -11,8 +11,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { createQuotationItemSchema, ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
-import { useFieldArray, useForm, UseFormReturn } from "react-hook-form";
+import type { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
+import { createQuotationItemSchema } from "@/zod-schemas/quotation/create-quotation";
+import type { UseFormReturn } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import { BoxPlusIcon, FilePenIcon, BoxIcon, TrashIcon } from "@/assets/icons";
 import { FormInput } from "@/components/ui/form/form-input";
 import { formatCurrencyText } from "@/constants/currency";
@@ -117,10 +119,10 @@ const HandleItemModal = ({ type, append, update, editingIndex, data, children }:
   const quotationItemForm = useForm<QuotationItem>({
     resolver: zodResolver(createQuotationItemSchema),
     defaultValues: {
-      name: data?.name || "",
-      description: data?.description || "",
-      quantity: data?.quantity || 1,
-      unitPrice: data?.unitPrice || 1,
+      name: data?.name ?? "",
+      description: data?.description ?? "",
+      quantity: data?.quantity ?? 1,
+      unitPrice: data?.unitPrice ?? 1,
     },
   });
 
@@ -190,7 +192,7 @@ const HandleItemModal = ({ type, append, update, editingIndex, data, children }:
               <DialogClose asChild>
                 <Button type="button" variant="outline">Cancel</Button>
               </DialogClose>
-              <Button type="submit">{type === "add" ? "Add Item" : "Save Changes"}</Button>
+              <Button type="submit">{type === "add" ? "Add Item" : "SaveIcon Changes"}</Button>
             </DialogFooter>
           </form>
         </Form>

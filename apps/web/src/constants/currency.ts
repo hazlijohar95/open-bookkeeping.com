@@ -44,7 +44,7 @@ const currencyLocaleMap: Record<string, string> = {
 
 export const formatCurrencyText = (currency: string, amount: number) => {
   try {
-    const locale = currencyLocaleMap[currency] || "en-US";
+    const locale = currencyLocaleMap[currency] ?? "en-US";
 
     return new Intl.NumberFormat(locale, {
       style: "currency",

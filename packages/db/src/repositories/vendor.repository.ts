@@ -61,7 +61,7 @@ export const vendorRepository = {
   },
 
   findMany: async (userId: string, options?: VendorQueryOptions) => {
-    const { limit = 50, offset = 0 } = options || {};
+    const { limit = 50, offset = 0 } = options ?? {};
 
     return db.query.vendors.findMany({
       where: and(
@@ -105,20 +105,20 @@ export const vendorRepository = {
         .values({
           userId: input.userId,
           name: input.name,
-          email: input.email || null,
-          phone: input.phone || null,
-          address: input.address || null,
-          website: input.website || null,
-          bankName: input.bankName || null,
-          bankAccountNumber: input.bankAccountNumber || null,
-          bankRoutingNumber: input.bankRoutingNumber || null,
-          bankSwiftCode: input.bankSwiftCode || null,
-          taxId: input.taxId || null,
-          vatNumber: input.vatNumber || null,
-          registrationNumber: input.registrationNumber || null,
-          paymentTermsDays: input.paymentTermsDays || null,
-          preferredPaymentMethod: input.preferredPaymentMethod || null,
-          creditLimit: input.creditLimit || null,
+          email: input.email ?? null,
+          phone: input.phone ?? null,
+          address: input.address ?? null,
+          website: input.website ?? null,
+          bankName: input.bankName ?? null,
+          bankAccountNumber: input.bankAccountNumber ?? null,
+          bankRoutingNumber: input.bankRoutingNumber ?? null,
+          bankSwiftCode: input.bankSwiftCode ?? null,
+          taxId: input.taxId ?? null,
+          vatNumber: input.vatNumber ?? null,
+          registrationNumber: input.registrationNumber ?? null,
+          paymentTermsDays: input.paymentTermsDays ?? null,
+          preferredPaymentMethod: input.preferredPaymentMethod ?? null,
+          creditLimit: input.creditLimit ?? null,
         })
         .returning();
 

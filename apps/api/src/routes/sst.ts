@@ -85,7 +85,7 @@ sstRoutes.get("/compliance-status", async (c) => {
       where: eq(userSettings.userId, user.id),
     });
 
-    const businessCategory = settings?.sstBusinessCategory || "other_services";
+    const businessCategory = settings?.sstBusinessCategory ?? "other_services";
     const categoryInfo = BUSINESS_CATEGORIES.find((cat) => cat.value === businessCategory) ||
       BUSINESS_CATEGORIES.find((cat) => cat.value === "other_services")!;
 
@@ -106,8 +106,8 @@ sstRoutes.get("/compliance-status", async (c) => {
         )
       );
 
-    const calculatedRevenue = parseFloat(revenueResult?.total || "0");
-    const manualRevenue = parseFloat(settings?.sstManualRevenue || "0");
+    const calculatedRevenue = parseFloat(revenueResult?.total ?? "0");
+    const manualRevenue = parseFloat(settings?.sstManualRevenue ?? "0");
     const useManualRevenue = settings?.sstUseManualRevenue || false;
     const currentRevenue = useManualRevenue ? manualRevenue : calculatedRevenue;
     const progressPercent = Math.min((currentRevenue / categoryInfo.threshold) * 100, 100);
@@ -152,7 +152,7 @@ sstRoutes.get("/compliance-status", async (c) => {
 
       monthlyRevenue.push({
         month,
-        revenue: parseFloat(monthResult?.total || "0"),
+        revenue: parseFloat(monthResult?.total ?? "0"),
       });
     }
 
@@ -167,8 +167,8 @@ sstRoutes.get("/compliance-status", async (c) => {
       progressPercent,
       status,
       isRegistered: !!settings?.sstRegistrationNumber,
-      registrationNumber: settings?.sstRegistrationNumber || null,
-      registrationDate: settings?.sstRegistrationDate?.toISOString() || null,
+      registrationNumber: settings?.sstRegistrationNumber ?? null,
+      registrationDate: settings?.sstRegistrationDate?.toISOString() ?? null,
       monthlyRevenue,
     });
   } catch (error) {
@@ -228,7 +228,7 @@ sstRoutes.get("/summary", async (c) => {
   const user = authResult;
 
   try {
-    const period = c.req.query("period") || "current_month";
+    const period = c.req.query("period") ?? "current_month";
     const now = new Date();
     let startDate: Date;
     let endDate = now;
@@ -267,9 +267,9 @@ sstRoutes.get("/summary", async (c) => {
     let totalTaxableAmount = 0;
 
     for (const inv of periodInvoices) {
-      const taxAmount = parseFloat(inv.taxTotal || "0");
+      const taxAmount = parseFloat(inv.taxTotal ?? "0");
       totalServiceTax += taxAmount;
-      totalTaxableAmount += parseFloat(inv.subtotal || "0");
+      totalTaxableAmount += parseFloat(inv.subtotal ?? "0");
     }
 
     const totalOutputTax = totalSalesTax + totalServiceTax;
@@ -301,7 +301,7 @@ sstRoutes.get("/trend-chart", async (c) => {
   const user = authResult;
 
   try {
-    const period = c.req.query("period") || "6m";
+    const period = c.req.query("period") ?? "6m";
     const months = period === "12m" ? 12 : 6;
 
     const trendData: Array<{ month: string; salesTax: number; serviceTax: number; total: number }> = [];
@@ -326,7 +326,7 @@ sstRoutes.get("/trend-chart", async (c) => {
           )
         );
 
-      const taxTotal = parseFloat(result?.total || "0");
+      const taxTotal = parseFloat(result?.total ?? "0");
 
       trendData.push({
         month,
@@ -371,14 +371,14 @@ sstRoutes.get("/transactions", async (c) => {
       id: inv.id,
       documentType: "invoice",
       documentId: inv.id,
-      documentNumber: inv.serialNumber || "",
-      documentDate: inv.createdAt?.toISOString() || "",
-      customerName: (inv.clientDetails as any)?.name || "Unknown",
-      customerTin: (inv.clientDetails as any)?.taxId || "",
+      documentNumber: inv.serialNumber ?? "",
+      documentDate: inv.createdAt?.toISOString() ?? "",
+      customerName: inv.clientDetails?.name ?? "Unknown",
+      customerTin: inv.clientDetails?.taxId ?? "",
       taxType: "service_tax",
       taxRate: 6,
-      taxableAmount: parseFloat(inv.subtotal || "0"),
-      taxAmount: parseFloat(inv.taxTotal || "0"),
+      taxableAmount: parseFloat(inv.subtotal ?? "0"),
+      taxAmount: parseFloat(inv.taxTotal ?? "0"),
       description: "Invoice",
     }));
 
@@ -387,8 +387,8 @@ sstRoutes.get("/transactions", async (c) => {
       pagination: {
         page,
         pageSize,
-        totalCount: countResult?.count || 0,
-        totalPages: Math.ceil((countResult?.count || 0) / pageSize),
+        totalCount: countResult?.count ?? 0,
+        totalPages: Math.ceil((countResult?.count ?? 0) / pageSize),
       },
     });
   } catch (error) {
@@ -437,7 +437,7 @@ sstRoutes.get("/sst02-return/:taxPeriod", async (c) => {
 
     // Parse period (e.g., "2024-01-02" -> Jan-Feb 2024)
     const [year, monthRange] = taxPeriod.split("-");
-    const [startMonth] = (monthRange || "01-02").split("-").map(Number);
+    const [startMonth] = (monthRange ?? "01-02").split("-").map(Number);
     const endMonth = startMonth + 1;
 
     const periodStart = new Date(Number(year), startMonth - 1, 1);
@@ -458,8 +458,8 @@ sstRoutes.get("/sst02-return/:taxPeriod", async (c) => {
     const byRate8: typeof periodInvoices = []; // No 8% invoices currently
 
     const calculateTotals = (invs: typeof periodInvoices) => ({
-      taxableAmount: invs.reduce((sum, inv) => sum + parseFloat(inv.subtotal || "0"), 0),
-      taxAmount: invs.reduce((sum, inv) => sum + parseFloat(inv.taxTotal || "0"), 0),
+      taxableAmount: invs.reduce((sum, inv) => sum + parseFloat(inv.subtotal ?? "0"), 0),
+      taxAmount: invs.reduce((sum, inv) => sum + parseFloat(inv.taxTotal ?? "0"), 0),
       transactionCount: invs.length,
     });
 
@@ -470,8 +470,8 @@ sstRoutes.get("/sst02-return/:taxPeriod", async (c) => {
 
     return c.json({
       partA: {
-        sstRegistrationNumber: settings?.sstRegistrationNumber || "",
-        tin: settings?.companyTaxId || "",
+        sstRegistrationNumber: settings?.sstRegistrationNumber ?? "",
+        tin: settings?.companyTaxId ?? "",
         brn: "",
         taxPeriod,
         periodStart: periodStart.toISOString(),
@@ -499,13 +499,13 @@ sstRoutes.get("/sst02-return/:taxPeriod", async (c) => {
         id: inv.id,
         documentType: "invoice",
         documentId: inv.id,
-        documentNumber: inv.serialNumber || "",
-        documentDate: inv.createdAt?.toISOString() || "",
-        customerName: (inv.clientDetails as any)?.name || "",
+        documentNumber: inv.serialNumber ?? "",
+        documentDate: inv.createdAt?.toISOString() ?? "",
+        customerName: inv.clientDetails?.name ?? "",
         taxType: "service_tax",
         taxRate: 6,
-        taxableAmount: parseFloat(inv.subtotal || "0"),
-        taxAmount: parseFloat(inv.taxTotal || "0"),
+        taxableAmount: parseFloat(inv.subtotal ?? "0"),
+        taxAmount: parseFloat(inv.taxTotal ?? "0"),
       })),
     });
   } catch (error) {

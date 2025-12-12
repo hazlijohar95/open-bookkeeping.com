@@ -10,13 +10,14 @@ import {
   DialogIcon,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { createBillSchema, CreateBillSchema } from "@/zod-schemas/bill";
+import type { CreateBillSchema } from "@/zod-schemas/bill";
+import { createBillSchema } from "@/zod-schemas/bill";
 import { useFieldArray, useForm } from "react-hook-form";
 import { FilePenIcon, TrashIcon, ReceiptIcon } from "@/assets/icons";
 import { FormInput } from "@/components/ui/form/form-input";
 import { zodResolver } from "@/lib/utils";
 import { Form } from "@/components/ui/form/form";
-import { Bill } from "@/types/common/bill";
+import type { Bill } from "@/types/common/bill";
 import { Button } from "@/components/ui/button";
 import { useCreateBill, useUpdateBill } from "@/api/bills";
 import { useVendors } from "@/api/vendors";
@@ -29,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form/form";
 import { Label } from "@/components/ui/label";
-import { Plus, FileText, Package } from "@/components/ui/icons";
+import { Plus, FileTextIcon, Package } from "@/components/ui/icons";
 import { toast } from "sonner";
 import Decimal from "decimal.js";
 
@@ -71,13 +72,13 @@ function BillFormContent({ isOpen, onClose, bill }: BillFormModalProps) {
       ? {
           vendorId: bill.vendorId,
           billNumber: bill.billNumber,
-          description: bill.description || "",
+          description: bill.description ?? "",
           currency: bill.currency,
           billDate: new Date(bill.billDate),
           dueDate: bill.dueDate ? new Date(bill.dueDate) : null,
           status: bill.status,
-          notes: bill.notes || "",
-          attachmentUrl: bill.attachmentUrl || "",
+          notes: bill.notes ?? "",
+          attachmentUrl: bill.attachmentUrl ?? "",
           items: bill.items?.length
             ? bill.items.map((item) => ({
                 description: item.description,
@@ -121,7 +122,7 @@ function BillFormContent({ isOpen, onClose, bill }: BillFormModalProps) {
             handleClose();
           },
           onError: (error) => {
-            toast.error(error.message || "Failed to update bill");
+            toast.error(error.message ?? "Failed to update bill");
           },
         }
       );
@@ -132,7 +133,7 @@ function BillFormContent({ isOpen, onClose, bill }: BillFormModalProps) {
           handleClose();
         },
         onError: (error) => {
-          toast.error(error.message || "Failed to create bill");
+          toast.error(error.message ?? "Failed to create bill");
         },
       });
     }
@@ -143,8 +144,8 @@ function BillFormContent({ isOpen, onClose, bill }: BillFormModalProps) {
   // Calculate total
   const watchedItems = form.watch("items");
   const total = watchedItems.reduce((sum, item) => {
-    const qty = new Decimal(item.quantity || "0");
-    const price = new Decimal(item.unitPrice || "0");
+    const qty = new Decimal(item.quantity ?? "0");
+    const price = new Decimal(item.unitPrice ?? "0");
     return sum.plus(qty.times(price));
   }, new Decimal(0));
 
@@ -170,7 +171,7 @@ function BillFormContent({ isOpen, onClose, bill }: BillFormModalProps) {
               {/* Bill Details */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-sm font-medium">
-                  <FileText className="size-4" />
+                  <FileTextIcon className="size-4" />
                   <span>Bill Details</span>
                 </div>
 
@@ -191,7 +192,7 @@ function BillFormContent({ isOpen, onClose, bill }: BillFormModalProps) {
                         <FormLabel>Vendor</FormLabel>
                         <Select
                           onValueChange={field.onChange}
-                          defaultValue={field.value || undefined}
+                          defaultValue={field.value ?? undefined}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select vendor" />
@@ -356,8 +357,8 @@ function BillFormContent({ isOpen, onClose, bill }: BillFormModalProps) {
                           Subtotal:{" "}
                           <span className="font-medium text-foreground">
                             {form.watch("currency")}{" "}
-                            {new Decimal(form.watch(`items.${index}.quantity`) || "0")
-                              .times(new Decimal(form.watch(`items.${index}.unitPrice`) || "0"))
+                            {new Decimal(form.watch(`items.${index}.quantity`) ?? "0")
+                              .times(new Decimal(form.watch(`items.${index}.unitPrice`) ?? "0"))
                               .toFixed(2)}
                           </span>
                         </span>
@@ -384,7 +385,7 @@ function BillFormContent({ isOpen, onClose, bill }: BillFormModalProps) {
                 </Button>
               </DialogClose>
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Saving..." : isEditing ? "Save Changes" : "Add Bill"}
+                {isLoading ? "Saving..." : isEditing ? "SaveIcon Changes" : "Add Bill"}
               </Button>
             </DialogFooter>
           </form>

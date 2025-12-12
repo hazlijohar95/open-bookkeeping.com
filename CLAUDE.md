@@ -80,30 +80,137 @@
 
 ### Overview
 
-The AI Agent is an intelligent assistant that can analyze data, create documents, and automate accounting tasks with full audit trails and approval workflows.
+The AI Agent is an intelligent assistant built on the **ReAct (Reasoning + Acting)** framework. It can analyze data, create documents, and automate accounting tasks with full audit trails, approval workflows, and persistent memory systems.
 
 ```
-+--------------------------------------------------------------+
-|                        AI AGENT                              |
-+--------------------------------------------------------------+
-|                                                              |
-|   +---------+    +----------+    +---------+                 |
-|   |  Chat   |--->|  Tools   |--->| Actions |                 |
-|   |Interface|    |  (20+)   |    |         |                 |
-|   +---------+    +----------+    +----+----+                 |
-|                                       |                      |
-|                       +---------------+---------------+      |
-|                       |               |               |      |
-|                       v               v               v      |
-|                 +---------+    +----------+   +---------+    |
-|                 |Approval |    |  Audit   |   | Safety  |    |
-|                 | Queue   |    |  Logs    |   |Controls |    |
-|                 +---------+    +----------+   +---------+    |
-|                                                              |
-+--------------------------------------------------------------+
++------------------------------------------------------------------------+
+|                           AI AGENT (ReAct Framework)                   |
++------------------------------------------------------------------------+
+|                                                                        |
+|   +---------+    +----------+    +-----------+    +----------+         |
+|   |  Chat   |--->| Session  |--->|  Think &  |--->|  Tools   |         |
+|   |Interface|    | Memory   |    |   Plan    |    |  (29+)   |         |
+|   +---------+    +----------+    +-----------+    +----+-----+         |
+|                       |                                |               |
+|                       v                                v               |
+|              +----------------+              +------------------+      |
+|              |  Long-term     |              |     Actions      |      |
+|              |    Memory      |              |                  |      |
+|              | (Preferences,  |              +--------+---------+      |
+|              |  Facts, Rules) |                       |               |
+|              +----------------+                       |               |
+|                                     +-----------------+-------+       |
+|                                     |                 |       |       |
+|                                     v                 v       v       |
+|                               +---------+      +----------+ +-----+   |
+|                               |Approval |      |  Audit   | |Safety|  |
+|                               | Queue   |      |   Logs   | |Ctrls |  |
+|                               +---------+      +----------+ +-----+   |
+|                                                                        |
++------------------------------------------------------------------------+
+```
+
+### ReAct Framework
+
+The agent follows a structured reasoning-action loop:
+
+```
+User Input
+    |
+    v
++------------------+
+|  1. THINK        |  <-- Analyze context, recall memories
+|     - What is    |
+|       being asked|
+|     - What do I  |
+|       know       |
++--------+---------+
+         |
+         v
++------------------+
+|  2. PLAN         |  <-- Decide approach
+|     - Which tools|
+|     - What order |
+|     - Validation |
++--------+---------+
+         |
+         v
++------------------+
+|  3. ACT          |  <-- Execute tools
+|     - Call tool  |
+|     - Get result |
++--------+---------+
+         |
+         v
++------------------+
+|  4. OBSERVE      |  <-- Process results
+|     - Verify     |
+|     - Learn      |
+|     - Remember   |
++--------+---------+
+         |
+         v
+    Response / Next Cycle
+```
+
+### Memory Systems
+
+#### Session Memory (Conversation Persistence)
+
+Sessions persist across browser refreshes and page reloads. Each session maintains:
+- Full conversation history
+- Tool execution context
+- Pending approvals state
+
+```typescript
+// Session automatically created/restored
+// Stored in localStorage + server-side database
+X-Session-Id: "sess_abc123..."
+```
+
+#### Long-term Memory (Persistent Knowledge)
+
+The agent learns and remembers across sessions:
+
+| Memory Type | Description | Example |
+|-------------|-------------|---------|
+| `preference` | User preferences | "Always include SST at 6%" |
+| `fact` | Business facts | "Main supplier is ABC Corp" |
+| `pattern` | Usage patterns | "Usually invoices on Fridays" |
+| `instruction` | Standing orders | "Auto-approve invoices under RM500" |
+
+```typescript
+// Agent can store memories
+await rememberPreference({
+  type: "preference",
+  content: "User prefers payment terms of NET 30",
+  context: "invoice_creation",
+  importance: 8
+});
+
+// Agent can recall relevant memories
+const memories = await recallMemories({
+  query: "invoice creation preferences",
+  limit: 5
+});
 ```
 
 ### Available Tools
+
+#### Reasoning Tools (ReAct)
+
+| Tool | Description |
+|------|-------------|
+| `thinkStep` | Record explicit thinking/reasoning before acting |
+| `validateAction` | Validate planned action before execution |
+
+#### Memory Tools
+
+| Tool | Description |
+|------|-------------|
+| `rememberPreference` | Store user preferences/facts/patterns |
+| `recallMemories` | Retrieve relevant memories for context |
+| `updateUserContext` | Update business context information |
 
 #### Read Operations
 
@@ -131,10 +238,19 @@ The AI Agent is an intelligent assistant that can analyze data, create documents
 | Tool | Description | Approval |
 |------|-------------|----------|
 | `createInvoice` | Generate new invoice | Threshold |
+| `updateInvoice` | Update existing invoice | Threshold |
 | `createBill` | Record new bill | Threshold |
+| `updateBill` | Update existing bill | Threshold |
 | `createJournalEntry` | Manual journal entry | Threshold |
 | `postJournalEntry` | Post to ledger | Required |
 | `reverseJournalEntry` | Reverse posted entry | Required |
+| `createCustomer` | Add new customer | Auto |
+| `updateCustomer` | Update customer details | Auto |
+| `createVendor` | Add new vendor | Auto |
+| `updateVendor` | Update vendor details | Auto |
+| `createQuotation` | Create price quotation | Auto |
+| `updateQuotation` | Update quotation | Auto |
+| `convertQuotation` | Convert quotation to invoice | Threshold |
 
 ### Approval Workflow
 
@@ -413,6 +529,7 @@ invoicely-v2/
 |           |   +-- approval.service.ts
 |           |   +-- agent-audit.service.ts
 |           |   +-- agent-safety.service.ts
+|           |   +-- agent-memory.service.ts   # Session & long-term memory
 |           |   +-- workflow-engine.service.ts
 |           +-- middleware/     # Auth, rate limiting
 |           +-- workers/        # Background jobs
@@ -422,7 +539,8 @@ invoicely-v2/
 |   |
 |   +-- db/                     # Database Package
 |   |   +-- src/
-|   |   |   +-- schema/         # Drizzle schemas (20 files)
+|   |   |   +-- schema/         # Drizzle schemas (21 files)
+|   |   |   |   +-- agentMemory.ts  # Agent memory tables
 |   |   |   +-- repositories/   # Data access layer
 |   |   +-- migrations/         # SQL migrations
 |   |
@@ -620,6 +738,9 @@ export function InvoicePDF({ invoice }) {
 | `agent_workflows` | Multi-step workflow definitions |
 | `agent_workflow_steps` | Workflow step configurations |
 | `agent_sessions` | Chat session tracking |
+| `agent_messages` | Conversation message history |
+| `agent_memories` | Long-term memory storage (preferences, facts, patterns) |
+| `agent_user_context` | Business context per user |
 
 ---
 

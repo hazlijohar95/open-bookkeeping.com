@@ -13,12 +13,12 @@ import {
   HardDriveIcon,
   DatabaseIcon,
 } from "@/assets/icons";
-import { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
+import type { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
 import { forceInsertDebitNote } from "@/lib/indexdb-queries/debit-note";
 import DebitNoteErrorsModal from "./debit-note-errors-modal";
 import DebitNoteTabSwitch from "./debit-note-tab-switch";
 import { Button } from "@/components/ui/button";
-import { UseFormReturn } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers";
 import { useCreateDebitNote } from "@/api/debit-notes";
@@ -49,15 +49,15 @@ const DebitNoteOptions = ({ form, onTabChange }: DebitNoteOptionsProps) => {
     switch (action) {
       case "view-pdf":
         await DebitNoteDownloadManagerInstance.initialize(formValues);
-        DebitNoteDownloadManagerInstance.previewPdf();
+        void DebitNoteDownloadManagerInstance.previewPdf();
         break;
       case "download-pdf":
         await DebitNoteDownloadManagerInstance.initialize(formValues);
-        DebitNoteDownloadManagerInstance.downloadPdf();
+        void DebitNoteDownloadManagerInstance.downloadPdf();
         break;
       case "download-png":
         await DebitNoteDownloadManagerInstance.initialize(formValues);
-        DebitNoteDownloadManagerInstance.downloadPng();
+        void DebitNoteDownloadManagerInstance.downloadPng();
         break;
       case "save-local":
         await handleSaveLocal(formValues);
@@ -74,7 +74,7 @@ const DebitNoteOptions = ({ form, onTabChange }: DebitNoteOptionsProps) => {
     setIsSaving(true);
     try {
       await forceInsertDebitNote(formValues);
-      queryClient.invalidateQueries({ queryKey: ["idb-debit-notes"] });
+      void queryClient.invalidateQueries({ queryKey: ["idb-debit-notes"] });
       toast.success("Debit Note saved locally!");
     } catch (error) {
       toast.error("Failed to save debit note locally");
@@ -111,7 +111,7 @@ const DebitNoteOptions = ({ form, onTabChange }: DebitNoteOptionsProps) => {
         },
         {
           onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["debitNote"] });
+            void queryClient.invalidateQueries({ queryKey: ["debitNote"] });
             toast.success("Debit Note saved to server successfully!");
           },
           onError: (error) => {
@@ -160,15 +160,15 @@ const DebitNoteOptions = ({ form, onTabChange }: DebitNoteOptionsProps) => {
 
             <DropdownMenuSeparator />
 
-            {/* Save Options */}
+            {/* SaveIcon Options */}
             <DropdownMenuItem onClick={() => handleDropDownAction("save-local")}>
               <HardDriveIcon className="size-4" />
-              <span>Save Locally</span>
+              <span>SaveIcon Locally</span>
             </DropdownMenuItem>
             {user && (
               <DropdownMenuItem onClick={() => handleDropDownAction("save-server")}>
                 <DatabaseIcon className="size-4" />
-                <span>Save to Server</span>
+                <span>SaveIcon to Server</span>
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>

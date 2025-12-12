@@ -62,25 +62,25 @@ export const agentAuditService = {
         .insert(agentAuditLogs)
         .values({
           userId: input.userId,
-          sessionId: input.sessionId || null,
-          workflowId: input.workflowId || null,
+          sessionId: input.sessionId ?? null,
+          workflowId: input.workflowId ?? null,
           action: input.action,
           resourceType: input.resourceType,
-          resourceId: input.resourceId || null,
-          previousState: input.previousState || null,
-          newState: input.newState || null,
-          reasoning: input.reasoning || null,
+          resourceId: input.resourceId ?? null,
+          previousState: input.previousState ?? null,
+          newState: input.newState ?? null,
+          reasoning: input.reasoning ?? null,
           confidence: input.confidence !== undefined ? String(input.confidence) : null,
-          approvedBy: input.approvedBy || null,
-          approvalType: input.approvalType || null,
-          approvalId: input.approvalId || null,
-          isReversible: input.isReversible || "yes",
-          ipAddress: input.ipAddress || null,
-          userAgent: input.userAgent || null,
+          approvedBy: input.approvedBy ?? null,
+          approvalType: input.approvalType ?? null,
+          approvalId: input.approvalId ?? null,
+          isReversible: input.isReversible ?? "yes",
+          ipAddress: input.ipAddress ?? null,
+          userAgent: input.userAgent ?? null,
           success: input.success !== false ? "yes" : "no",
-          errorMessage: input.errorMessage || null,
-          errorDetails: input.errorDetails || null,
-          financialImpact: input.financialImpact || null,
+          errorMessage: input.errorMessage ?? null,
+          errorDetails: input.errorDetails ?? null,
+          financialImpact: input.financialImpact ?? null,
         })
         .returning();
 
@@ -133,7 +133,7 @@ export const agentAuditService = {
       success,
       limit = 50,
       offset = 0,
-    } = options || {};
+    } = options ?? {};
 
     const conditions = [eq(agentAuditLogs.userId, userId)];
 
@@ -250,7 +250,7 @@ export const agentAuditService = {
     userId: string,
     options?: { startDate?: string; endDate?: string }
   ) => {
-    const { startDate, endDate } = options || {};
+    const { startDate, endDate } = options ?? {};
 
     const conditions = [eq(agentAuditLogs.userId, userId)];
 
@@ -282,7 +282,7 @@ export const agentAuditService = {
     for (const log of logs) {
       // Count by action type
       stats.actionsByType[log.action] =
-        (stats.actionsByType[log.action] || 0) + 1;
+        (stats.actionsByType[log.action] ?? 0) + 1;
 
       // Sum financial impact
       const impact = log.financialImpact as { amount?: number } | null;
@@ -301,7 +301,7 @@ export const agentAuditService = {
     userId: string,
     options?: { startDate?: string; endDate?: string; format?: "json" | "csv" }
   ) => {
-    const { startDate, endDate, format = "json" } = options || {};
+    const { startDate, endDate, format = "json" } = options ?? {};
 
     const logs = await agentAuditService.getAuditLogs(userId, {
       startDate,
@@ -329,12 +329,12 @@ export const agentAuditService = {
         log.createdAt.toISOString(),
         log.action,
         log.resourceType,
-        log.resourceId || "",
+        log.resourceId ?? "",
         log.success,
-        log.reasoning || "",
-        log.confidence || "",
-        log.approvalType || "",
-        JSON.stringify(log.financialImpact || {}),
+        log.reasoning ?? "",
+        log.confidence ?? "",
+        log.approvalType ?? "",
+        JSON.stringify(log.financialImpact ?? {}),
       ]);
 
       const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join(

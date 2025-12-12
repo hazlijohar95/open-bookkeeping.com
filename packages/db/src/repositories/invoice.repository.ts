@@ -126,7 +126,7 @@ export const invoiceRepository = {
   },
 
   findMany: async (userId: string, options?: InvoiceQueryOptions) => {
-    const { limit = 50, offset = 0 } = options || {};
+    const { limit = 50, offset = 0 } = options ?? {};
 
     const userInvoices = await db.query.invoices.findMany({
       where: and(
@@ -170,7 +170,7 @@ export const invoiceRepository = {
    * Much faster than findMany for large invoice counts.
    */
   findManyLight: async (userId: string, options?: InvoiceQueryOptions): Promise<InvoiceListItem[]> => {
-    const { limit = 50, offset = 0 } = options || {};
+    const { limit = 50, offset = 0 } = options ?? {};
 
     const userInvoices = await db.query.invoices.findMany({
       where: and(
@@ -209,7 +209,7 @@ export const invoiceRepository = {
       const amount = invoice.invoiceFields?.items?.reduce(
         (sum, item) => sum + Number(item.quantity) * Number(item.unitPrice),
         0
-      ) || 0;
+      ) ?? 0;
 
       return {
         id: invoice.id,
@@ -217,12 +217,12 @@ export const invoiceRepository = {
         createdAt: invoice.createdAt,
         paidAt: invoice.paidAt,
         customerId: invoice.customerId,
-        serialNumber: invoice.invoiceFields?.invoiceDetails?.serialNumber || null,
-        prefix: invoice.invoiceFields?.invoiceDetails?.prefix || null,
-        clientName: invoice.invoiceFields?.clientDetails?.name || null,
+        serialNumber: invoice.invoiceFields?.invoiceDetails?.serialNumber ?? null,
+        prefix: invoice.invoiceFields?.invoiceDetails?.prefix ?? null,
+        clientName: invoice.invoiceFields?.clientDetails?.name ?? null,
         amount,
-        currency: invoice.invoiceFields?.invoiceDetails?.currency || null,
-        dueDate: invoice.invoiceFields?.invoiceDetails?.dueDate || null,
+        currency: invoice.invoiceFields?.invoiceDetails?.currency ?? null,
+        dueDate: invoice.invoiceFields?.invoiceDetails?.dueDate ?? null,
       };
     });
   },
@@ -449,7 +449,7 @@ export const invoiceRepository = {
   },
 
   findByCustomer: async (customerId: string, userId: string, options?: InvoiceQueryOptions) => {
-    const { limit = 50, offset = 0 } = options || {};
+    const { limit = 50, offset = 0 } = options ?? {};
 
     return db.query.invoices.findMany({
       where: and(

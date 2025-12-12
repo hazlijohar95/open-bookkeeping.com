@@ -81,8 +81,8 @@ export const sstRouter = router({
       let totalTaxableAmount = new Decimal(0);
 
       transactions.forEach((t) => {
-        const taxAmount = new Decimal(t.taxAmount || 0);
-        const taxableAmount = new Decimal(t.taxableAmount || 0);
+        const taxAmount = new Decimal(t.taxAmount ?? 0);
+        const taxableAmount = new Decimal(t.taxableAmount ?? 0);
 
         if (t.taxType === "sales_tax") {
           totalSalesTax = totalSalesTax.plus(taxAmount);
@@ -107,7 +107,7 @@ export const sstRouter = router({
 
       let prevTotalTax = new Decimal(0);
       prevTransactions.forEach((t) => {
-        prevTotalTax = prevTotalTax.plus(new Decimal(t.taxAmount || 0));
+        prevTotalTax = prevTotalTax.plus(new Decimal(t.taxAmount ?? 0));
       });
 
       const totalTax = totalSalesTax.plus(totalServiceTax);
@@ -158,12 +158,12 @@ export const sstRouter = router({
       transactions.forEach((t) => {
         const date = new Date(t.documentDate);
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-        const existing = monthlyData.get(key) || { salesTax: new Decimal(0), serviceTax: new Decimal(0) };
+        const existing = monthlyData.get(key) ?? { salesTax: new Decimal(0), serviceTax: new Decimal(0) };
 
         if (t.taxType === "sales_tax") {
-          existing.salesTax = existing.salesTax.plus(new Decimal(t.taxAmount || 0));
+          existing.salesTax = existing.salesTax.plus(new Decimal(t.taxAmount ?? 0));
         } else {
-          existing.serviceTax = existing.serviceTax.plus(new Decimal(t.taxAmount || 0));
+          existing.serviceTax = existing.serviceTax.plus(new Decimal(t.taxAmount ?? 0));
         }
 
         monthlyData.set(key, existing);
@@ -175,7 +175,7 @@ export const sstRouter = router({
 
       while (current <= now) {
         const key = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}`;
-        const values = monthlyData.get(key) || { salesTax: new Decimal(0), serviceTax: new Decimal(0) };
+        const values = monthlyData.get(key) ?? { salesTax: new Decimal(0), serviceTax: new Decimal(0) };
 
         data.push({
           month: key,
@@ -232,7 +232,7 @@ export const sstRouter = router({
         .from(sstTransactions)
         .where(and(...conditions));
 
-      const totalCount = Number(countResult[0]?.count || 0);
+      const totalCount = Number(countResult[0]?.count ?? 0);
 
       // Get transactions
       const transactions = await db.query.sstTransactions.findMany({
@@ -303,10 +303,10 @@ export const sstRouter = router({
       transactions.forEach((t) => {
         const rate = Number(t.taxRate);
         const map = t.taxType === "sales_tax" ? salesTaxByRate : serviceTaxByRate;
-        const existing = map.get(rate) || { taxableAmount: new Decimal(0), taxAmount: new Decimal(0), count: 0 };
+        const existing = map.get(rate) ?? { taxableAmount: new Decimal(0), taxAmount: new Decimal(0), count: 0 };
 
-        existing.taxableAmount = existing.taxableAmount.plus(new Decimal(t.taxableAmount || 0));
-        existing.taxAmount = existing.taxAmount.plus(new Decimal(t.taxAmount || 0));
+        existing.taxableAmount = existing.taxableAmount.plus(new Decimal(t.taxableAmount ?? 0));
+        existing.taxAmount = existing.taxAmount.plus(new Decimal(t.taxAmount ?? 0));
         existing.count++;
 
         map.set(rate, existing);
@@ -331,9 +331,9 @@ export const sstRouter = router({
       return {
         // Part A: Taxable Person Details
         partA: {
-          sstRegistrationNumber: settings?.sstRegistration || "",
-          tin: settings?.tin || "",
-          brn: settings?.brn || "",
+          sstRegistrationNumber: settings?.sstRegistration ?? "",
+          tin: settings?.tin ?? "",
+          brn: settings?.brn ?? "",
           taxPeriod: input.taxPeriod,
           periodStart,
           periodEnd,
@@ -435,11 +435,11 @@ export const sstRouter = router({
 
       transactions.forEach((t) => {
         if (t.taxType === "sales_tax") {
-          totalSalesTax = totalSalesTax.plus(new Decimal(t.taxAmount || 0));
+          totalSalesTax = totalSalesTax.plus(new Decimal(t.taxAmount ?? 0));
         } else {
-          totalServiceTax = totalServiceTax.plus(new Decimal(t.taxAmount || 0));
+          totalServiceTax = totalServiceTax.plus(new Decimal(t.taxAmount ?? 0));
         }
-        totalTaxableAmount = totalTaxableAmount.plus(new Decimal(t.taxableAmount || 0));
+        totalTaxableAmount = totalTaxableAmount.plus(new Decimal(t.taxableAmount ?? 0));
       });
 
       // Check if submission exists
@@ -502,8 +502,8 @@ export const sstRouter = router({
     });
 
     return submissions.map((s) => {
-      const salesTax = new Decimal(s.totalSalesTax || 0);
-      const serviceTax = new Decimal(s.totalServiceTax || 0);
+      const salesTax = new Decimal(s.totalSalesTax ?? 0);
+      const serviceTax = new Decimal(s.totalServiceTax ?? 0);
       return {
         id: s.id,
         taxPeriodCode: s.taxPeriodCode,
@@ -569,14 +569,14 @@ export const sstRouter = router({
     });
 
     // Get threshold based on business category
-    const businessCategory = settings?.sstBusinessCategory || "other_services";
+    const businessCategory = settings?.sstBusinessCategory ?? "other_services";
     const categoryInfo = SST_BUSINESS_CATEGORIES.find((c) => c.value === businessCategory)
       || SST_BUSINESS_CATEGORIES.find((c) => c.value === "other_services")!;
     const threshold = categoryInfo.threshold;
 
     // Determine which revenue to use
     const useManualRevenue = settings?.sstUseManualRevenue || false;
-    const manualRevenue = new Decimal(settings?.sstManualRevenue || 0);
+    const manualRevenue = new Decimal(settings?.sstManualRevenue ?? 0);
     const currentRevenue = useManualRevenue ? manualRevenue : calculatedRevenue;
 
     // Calculate progress percentage
@@ -637,8 +637,8 @@ export const sstRouter = router({
       progressPercent,
       status,
       isRegistered: !!settings?.sstRegistrationNumber,
-      registrationNumber: settings?.sstRegistrationNumber || null,
-      registrationDate: settings?.sstRegistrationDate || null,
+      registrationNumber: settings?.sstRegistrationNumber ?? null,
+      registrationDate: settings?.sstRegistrationDate ?? null,
       monthlyRevenue,
     };
   }),

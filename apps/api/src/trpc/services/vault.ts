@@ -132,7 +132,7 @@ export const vaultRouter = router({
       if (!mimeValidation.valid) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: mimeValidation.error || "Invalid file type",
+          message: mimeValidation.error ?? "Invalid file type",
         });
       }
 
@@ -156,7 +156,7 @@ export const vaultRouter = router({
       const category = determineCategory(input.fileName, validatedMimeType);
 
       // Generate unique filename and path
-      const ext = input.fileName.split(".").pop() || "bin";
+      const ext = input.fileName.split(".").pop() ?? "bin";
       const uniqueName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
       const storagePath = `${ctx.user.id}/${category}/${uniqueName}`;
 
@@ -199,7 +199,7 @@ export const vaultRouter = router({
         if (fallbackError) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
-            message: "Failed to upload document: " + (fallbackError.message || "Unknown error"),
+            message: "Failed to upload document: " + (fallbackError.message ?? "Unknown error"),
           });
         }
       }
@@ -456,7 +456,7 @@ export const vaultRouter = router({
       const category = doc.category;
       if (category && Object.prototype.hasOwnProperty.call(counts, category)) {
         const key = category as keyof typeof counts;
-        counts[key] = (counts[key] || 0) + 1;
+        counts[key] = (counts[key] ?? 0) + 1;
       }
     }
 
@@ -508,7 +508,7 @@ export const vaultRouter = router({
       if (result.status === "failed") {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: result.error || "Processing failed",
+          message: result.error ?? "Processing failed",
         });
       }
 
@@ -670,7 +670,7 @@ export const vaultRouter = router({
       if (result.status === "failed") {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: result.error || "Reprocessing failed",
+          message: result.error ?? "Reprocessing failed",
         });
       }
 

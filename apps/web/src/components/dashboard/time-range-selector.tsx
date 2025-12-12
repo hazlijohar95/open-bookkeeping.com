@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar } from "@/components/ui/icons";
+import { CalendarIcon } from "@/components/ui/icons";
 import {
   Select,
   SelectContent,
@@ -34,7 +34,7 @@ export function TimeRangeSelector({
   return (
     <Select value={value} onValueChange={(v) => onChange(v as TimeRange)}>
       <SelectTrigger className={cn("h-8 gap-1.5", className)}>
-        <Calendar className="size-3.5 text-muted-foreground" />
+        <CalendarIcon className="size-3.5 text-muted-foreground" />
         <SelectValue placeholder="Select time range" />
       </SelectTrigger>
       <SelectContent align="end">

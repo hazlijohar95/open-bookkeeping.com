@@ -17,7 +17,7 @@ import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { SyncIcon, CircleCheckIcon, FileFeatherIcon } from "@/assets/icons";
 import { useConvertToInvoice } from "@/api/quotations";
 import { toast } from "sonner";
-import { QuotationStatusType, QuotationTypeType } from "@/types/common/quotation";
+import type { QuotationStatusType, QuotationTypeType } from "@/types/common/quotation";
 import { useNavigate } from "react-router-dom";
 
 interface ConvertToInvoiceModalProps {
@@ -58,7 +58,7 @@ export default function ConvertToInvoiceModal({
   const handleViewInvoice = () => {
     if (invoiceId) {
       setOpen(false);
-      navigate(`/edit/server/${invoiceId}`);
+      void navigate(`/edit/server/${invoiceId}`);
     }
   };
 

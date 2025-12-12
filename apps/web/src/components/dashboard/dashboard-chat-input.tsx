@@ -21,7 +21,7 @@ import {
 } from "@/assets/icons";
 
 // Minimal lucide icons for UI controls only
-import { ArrowLeft, Send, Loader2 } from "@/components/ui/icons";
+import { ArrowLeft, SendIcon, Loader2Icon } from "@/components/ui/icons";
 
 // Tool configuration with custom icons
 const TOOL_CONFIG: Record<string, { icon: React.ComponentType<{ className?: string }>; label: string }> = {
@@ -57,9 +57,9 @@ export function DashboardChatInput({ className }: DashboardChatInputProps) {
 
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({
-      api: `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/ai/chat`,
+      api: `${import.meta.env.VITE_API_URL ?? "http://localhost:3001"}/api/ai/chat`,
       headers: {
-        Authorization: `Bearer ${session?.access_token || ""}`,
+        Authorization: `Bearer ${session?.access_token ?? ""}`,
       },
     }),
   });
@@ -95,14 +95,14 @@ export function DashboardChatInput({ className }: DashboardChatInputProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && status === "ready") {
-      sendMessage({ text: input });
+      void sendMessage({ text: input });
       setInput("");
     }
   };
 
   const handleQuickPrompt = (prompt: string) => {
     if (status === "ready") {
-      sendMessage({ text: prompt });
+      void sendMessage({ text: prompt });
     }
   };
 
@@ -133,7 +133,7 @@ export function DashboardChatInput({ className }: DashboardChatInputProps) {
       if (part.type.startsWith("tool-")) {
         // AI SDK v5: properties are directly on part, not nested in toolInvocation
         const toolName = "toolName" in part ? String(part.toolName) : "tool";
-        const config = TOOL_CONFIG[toolName] || { icon: SyncIcon, label: toolName };
+        const config = TOOL_CONFIG[toolName] ?? { icon: SyncIcon, label: toolName };
         const Icon = config.icon;
         const isComplete = "state" in part && part.state === "done";
 
@@ -150,7 +150,7 @@ export function DashboardChatInput({ className }: DashboardChatInputProps) {
             {isComplete ? (
               <CircleCheckIcon className="size-3" />
             ) : (
-              <Loader2 className="size-3 animate-spin" />
+              <Loader2Icon className="size-3 animate-spin" />
             )}
             <Icon className="size-3" />
             <span>{config.label}</span>
@@ -268,9 +268,9 @@ export function DashboardChatInput({ className }: DashboardChatInputProps) {
                 className="size-8 shrink-0"
               >
                 {isLoading ? (
-                  <Loader2 className="size-4 animate-spin" />
+                  <Loader2Icon className="size-4 animate-spin" />
                 ) : (
-                  <Send className="size-4" />
+                  <SendIcon className="size-4" />
                 )}
               </Button>
             </div>
@@ -326,9 +326,9 @@ export function DashboardChatInput({ className }: DashboardChatInputProps) {
             className="size-8 shrink-0"
           >
             {isLoading ? (
-              <Loader2 className="size-4 animate-spin" />
+              <Loader2Icon className="size-4 animate-spin" />
             ) : (
-              <Send className="size-4" />
+              <SendIcon className="size-4" />
             )}
           </Button>
         </div>

@@ -20,13 +20,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Clock,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  FileText,
-  Loader2,
-  DollarSign,
+  ClockIcon,
+  CheckCircle2Icon,
+  XCircleIcon,
+  AlertTriangleIcon,
+  FileTextIcon,
+  Loader2Icon,
+  CurrencyDollarIcon,
 } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
@@ -34,24 +34,24 @@ const ACTION_LABELS: Record<string, string> = {
   create_invoice: "Create Invoice",
   update_invoice: "Update Invoice",
   send_invoice: "Send Invoice",
-  mark_invoice_paid: "Mark Invoice Paid",
+  mark_invoice_paid: "Mark Paid",
   void_invoice: "Void Invoice",
   create_bill: "Create Bill",
   update_bill: "Update Bill",
-  mark_bill_paid: "Mark Bill Paid",
+  mark_bill_paid: "Mark Paid",
   schedule_bill_payment: "Schedule Payment",
-  create_journal_entry: "Create Journal Entry",
-  reverse_journal_entry: "Reverse Journal Entry",
+  create_journal_entry: "Journal Entry",
+  reverse_journal_entry: "Reverse Entry",
   create_quotation: "Create Quotation",
   update_quotation: "Update Quotation",
   send_quotation: "Send Quotation",
-  convert_quotation: "Convert Quotation",
+  convert_quotation: "Convert to Invoice",
   create_customer: "Create Customer",
   update_customer: "Update Customer",
   create_vendor: "Create Vendor",
   update_vendor: "Update Vendor",
   match_transaction: "Match Transaction",
-  create_matching_entry: "Create Matching Entry",
+  create_matching_entry: "Matching Entry",
 };
 
 interface ApprovalCardProps {
@@ -71,16 +71,31 @@ function ApprovalCard({ approval, onApprove, onReject }: ApprovalCardProps) {
   const isExpiringSoon = new Date(approval.expiresAt).getTime() - Date.now() < 3600000; // 1 hour
   const confidence = approval.confidence ? parseFloat(approval.confidence) : null;
 
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const handleAction = async () => {
-    if (actionType === "approve") {
-      await approveAction.mutateAsync({ approvalId: approval.id, notes: notes || undefined });
-      onApprove();
-    } else if (actionType === "reject") {
-      await rejectAction.mutateAsync({ approvalId: approval.id, notes: notes || undefined });
-      onReject();
+    setActionError(null);
+    try {
+      if (actionType === "approve") {
+        await approveAction.mutateAsync({ approvalId: approval.id, notes: notes ?? undefined });
+        onApprove();
+        setActionType(null);
+        setNotes("");
+      } else if (actionType === "reject") {
+        await rejectAction.mutateAsync({ approvalId: approval.id, notes: notes ?? undefined });
+        onReject();
+        setActionType(null);
+        setNotes("");
+      }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Action failed. Please try again.");
     }
+  };
+
+  const handleDialogClose = () => {
     setActionType(null);
     setNotes("");
+    setActionError(null);
   };
 
   const impact = approval.estimatedImpact as {
@@ -91,71 +106,71 @@ function ApprovalCard({ approval, onApprove, onReject }: ApprovalCardProps) {
 
   return (
     <>
-      <Card className="border-l-4 border-l-warning">
-        <CardHeader className="pb-2">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4" />
+      <Card className="rounded-none border border-l-2 border-l-amber-500">
+        <CardHeader className="pb-2 px-4 pt-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1 min-w-0">
+              <CardTitle className="text-sm font-medium flex items-center gap-2 jetbrains-mono">
+                <FileTextIcon className="h-3.5 w-3.5 shrink-0" />
                 {ACTION_LABELS[approval.actionType] || approval.actionType}
               </CardTitle>
               <CardDescription className="text-xs">
-                Requested {formatDistanceToNow(new Date(approval.createdAt), { addSuffix: true })}
+                {formatDistanceToNow(new Date(approval.createdAt), { addSuffix: true })}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 shrink-0">
               {confidence !== null && (
-                <Badge variant={confidence >= 0.8 ? "default" : confidence >= 0.5 ? "secondary" : "outline"}>
-                  {Math.round(confidence * 100)}% confidence
+                <Badge variant="outline" className="rounded-none text-[10px] px-1.5 py-0.5">
+                  {Math.round(confidence * 100)}%
                 </Badge>
               )}
               {isExpiringSoon && (
-                <Badge variant="destructive" className="gap-1">
-                  <Clock className="h-3 w-3" />
-                  Expiring soon
+                <Badge variant="destructive" className="rounded-none text-[10px] px-1.5 py-0.5 gap-1">
+                  <ClockIcon className="h-2.5 w-2.5" />
+                  Expiring
                 </Badge>
               )}
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-3 px-4 pb-4">
           {approval.reasoning && (
-            <p className="text-sm text-muted-foreground">{approval.reasoning}</p>
+            <p className="text-xs text-muted-foreground line-clamp-2">{approval.reasoning}</p>
           )}
 
-          {impact && impact.amount && (
-            <div className="flex items-center gap-2 text-sm">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              <span className="font-medium">
-                {impact.currency || "MYR"} {impact.amount.toLocaleString()}
+          {impact && typeof impact.amount === "number" && !isNaN(impact.amount) && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <CurrencyDollarIcon className="h-3 w-3 text-muted-foreground" />
+              <span className="font-medium jetbrains-mono">
+                {impact.currency ?? "MYR"} {impact.amount.toLocaleString()}
               </span>
-              <span className="text-muted-foreground">estimated impact</span>
             </div>
           )}
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pt-1">
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
               onClick={() => setShowDetails(true)}
+              className="h-7 text-xs rounded-none"
             >
-              View Details
+              Details
             </Button>
             <Button
               size="sm"
-              variant="default"
-              className="bg-success hover:bg-success/90"
               onClick={() => setActionType("approve")}
+              className="h-7 text-xs rounded-none bg-emerald-600 hover:bg-emerald-700"
             >
-              <CheckCircle2 className="h-4 w-4 mr-1" />
+              <CheckCircle2Icon className="h-3 w-3 mr-1" />
               Approve
             </Button>
             <Button
               size="sm"
               variant="destructive"
               onClick={() => setActionType("reject")}
+              className="h-7 text-xs rounded-none"
             >
-              <XCircle className="h-4 w-4 mr-1" />
+              <XCircleIcon className="h-3 w-3 mr-1" />
               Reject
             </Button>
           </div>
@@ -164,56 +179,56 @@ function ApprovalCard({ approval, onApprove, onReject }: ApprovalCardProps) {
 
       {/* Details Dialog */}
       <Dialog open={showDetails} onOpenChange={setShowDetails}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+        <DialogContent className="max-w-lg rounded-none">
           <DialogHeader>
-            <DialogTitle>{ACTION_LABELS[approval.actionType] || approval.actionType}</DialogTitle>
-            <DialogDescription>Review the action details before approving or rejecting</DialogDescription>
+            <DialogTitle className="text-base jetbrains-mono">{ACTION_LABELS[approval.actionType] || approval.actionType}</DialogTitle>
+            <DialogDescription className="text-xs">Review action details</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             {approval.reasoning && (
               <div>
-                <h4 className="text-sm font-medium mb-1">AI Reasoning</h4>
-                <p className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
+                <h4 className="text-xs font-medium mb-1.5 text-muted-foreground uppercase tracking-wide">Reasoning</h4>
+                <p className="text-sm bg-muted/50 p-3 rounded-none border">
                   {approval.reasoning}
                 </p>
               </div>
             )}
 
             <div>
-              <h4 className="text-sm font-medium mb-1">Action Payload</h4>
-              <pre className="text-xs bg-muted p-3 rounded-lg overflow-auto max-h-48">
+              <h4 className="text-xs font-medium mb-1.5 text-muted-foreground uppercase tracking-wide">Payload</h4>
+              <pre className="text-xs bg-muted/50 p-3 rounded-none border overflow-auto max-h-40 jetbrains-mono">
                 {JSON.stringify(approval.actionPayload, null, 2)}
               </pre>
             </div>
 
             {approval.previewData && (
               <div>
-                <h4 className="text-sm font-medium mb-1">Preview</h4>
-                <pre className="text-xs bg-muted p-3 rounded-lg overflow-auto max-h-48">
+                <h4 className="text-xs font-medium mb-1.5 text-muted-foreground uppercase tracking-wide">Preview</h4>
+                <pre className="text-xs bg-muted/50 p-3 rounded-none border overflow-auto max-h-40 jetbrains-mono">
                   {JSON.stringify(approval.previewData, null, 2)}
                 </pre>
               </div>
             )}
 
-            <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-4 text-xs pt-2 border-t">
               <div>
-                <span className="text-muted-foreground">Expires:</span>{" "}
-                <span className={cn(isExpiringSoon && "text-destructive font-medium")}>
+                <span className="text-muted-foreground">Expires</span>{" "}
+                <span className={cn("jetbrains-mono", isExpiringSoon && "text-destructive font-medium")}>
                   {formatDistanceToNow(new Date(approval.expiresAt), { addSuffix: true })}
                 </span>
               </div>
               {confidence !== null && (
                 <div>
-                  <span className="text-muted-foreground">Confidence:</span>{" "}
-                  <span>{Math.round(confidence * 100)}%</span>
+                  <span className="text-muted-foreground">Confidence</span>{" "}
+                  <span className="jetbrains-mono">{Math.round(confidence * 100)}%</span>
                 </div>
               )}
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDetails(false)}>
+            <Button variant="outline" onClick={() => setShowDetails(false)} className="rounded-none h-8 text-xs">
               Close
             </Button>
           </DialogFooter>
@@ -221,39 +236,46 @@ function ApprovalCard({ approval, onApprove, onReject }: ApprovalCardProps) {
       </Dialog>
 
       {/* Action Confirmation Dialog */}
-      <Dialog open={actionType !== null} onOpenChange={() => setActionType(null)}>
-        <DialogContent>
+      <Dialog open={actionType !== null} onOpenChange={handleDialogClose}>
+        <DialogContent className="max-w-sm rounded-none">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-base">
               {actionType === "approve" ? "Approve Action" : "Reject Action"}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs">
               {actionType === "approve"
-                ? "This will execute the AI action. Add optional notes for the audit log."
-                : "This will reject the AI action. Add a reason for the rejection."}
+                ? "Add optional notes for the audit log."
+                : "Provide a reason for rejection."}
             </DialogDescription>
           </DialogHeader>
+
+          {actionError && (
+            <div className="bg-destructive/10 text-destructive text-xs p-3 rounded-none border border-destructive/20">
+              {actionError}
+            </div>
+          )}
 
           <Textarea
             placeholder={actionType === "approve" ? "Optional notes..." : "Reason for rejection..."}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="min-h-[80px]"
+            className="min-h-[60px] rounded-none text-sm resize-none"
           />
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setActionType(null)}>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={handleDialogClose} className="rounded-none h-8 text-xs">
               Cancel
             </Button>
             <Button
               variant={actionType === "approve" ? "default" : "destructive"}
               onClick={handleAction}
               disabled={approveAction.isPending || rejectAction.isPending}
+              className={cn("rounded-none h-8 text-xs", actionType === "approve" && "bg-emerald-600 hover:bg-emerald-700")}
             >
               {(approveAction.isPending || rejectAction.isPending) && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2Icon className="h-3 w-3 mr-1.5 animate-spin" />
               )}
-              {actionType === "approve" ? "Confirm Approval" : "Confirm Rejection"}
+              {actionType === "approve" ? "Approve" : "Reject"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -265,74 +287,45 @@ function ApprovalCard({ approval, onApprove, onReject }: ApprovalCardProps) {
 export function ApprovalQueue() {
   const { data: approvals, isLoading, error } = usePendingApprovals(20);
 
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-warning" />
-            Pending Approvals
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-warning" />
-            Pending Approvals
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-destructive">Failed to load pending approvals</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const pendingApprovals = approvals?.filter((a) => a.status === "pending") || [];
+  const approvalsList = Array.isArray(approvals) ? approvals : [];
+  const pendingApprovals = approvalsList.filter((a) => a.status === "pending");
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="rounded-none border">
+      <CardHeader className="py-3 px-4 border-b">
         <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-warning" />
-              Pending Approvals
-              {pendingApprovals.length > 0 && (
-                <Badge variant="secondary">{pendingApprovals.length}</Badge>
-              )}
-            </CardTitle>
-            <CardDescription>
-              AI actions waiting for your approval
-            </CardDescription>
+          <div className="flex items-center gap-2">
+            <AlertTriangleIcon className="h-4 w-4 text-amber-500" />
+            <CardTitle className="text-sm font-medium jetbrains-mono">Pending Approvals</CardTitle>
+            {pendingApprovals.length > 0 && (
+              <Badge variant="secondary" className="rounded-none text-[10px] px-1.5 py-0 h-5">{pendingApprovals.length}</Badge>
+            )}
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        {pendingApprovals.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <CheckCircle2 className="h-12 w-12 text-success mb-3" />
-            <p className="text-sm text-muted-foreground">
-              No pending approvals
-            </p>
+      <CardContent className="p-0">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2Icon className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+            <XCircleIcon className="h-8 w-8 text-destructive mb-2" />
+            <p className="text-xs text-destructive">Failed to load approvals</p>
+          </div>
+        ) : pendingApprovals.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-none bg-emerald-500/10 mb-3">
+              <CheckCircle2Icon className="h-5 w-5 text-emerald-500" />
+            </div>
+            <p className="text-sm font-medium">All clear</p>
             <p className="text-xs text-muted-foreground mt-1">
-              All AI actions have been processed
+              No actions waiting for approval
             </p>
           </div>
         ) : (
-          <ScrollArea className="h-[400px] pr-4">
-            <div className="space-y-3">
+          <ScrollArea className="h-[400px]">
+            <div className="space-y-2 p-3">
               {pendingApprovals.map((approval) => (
                 <ApprovalCard
                   key={approval.id}

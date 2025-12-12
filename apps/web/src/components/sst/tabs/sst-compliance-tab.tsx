@@ -15,12 +15,12 @@ import {
 import {
   ShieldCheck,
   ExternalLink,
-  CheckCircle2,
+  CheckCircle2Icon,
   Phone,
   BookOpen,
   ClipboardList,
-  Save,
-  Loader2,
+  SaveIcon,
+  Loader2Icon,
 } from "@/components/ui/icons";
 import {
   ComplianceProgress,
@@ -161,7 +161,7 @@ export function SSTComplianceTab({
                 </p>
                 {complianceStatus.isRegistered && complianceStatus.registrationNumber && (
                   <p className="mt-2 flex items-center gap-2 text-sm font-medium text-success">
-                    <CheckCircle2 className="size-4" />
+                    <CheckCircle2Icon className="size-4" />
                     Registration No: {complianceStatus.registrationNumber}
                   </p>
                 )}
@@ -271,7 +271,7 @@ export function SSTComplianceTab({
             </p>
           </div>
 
-          {/* Save Button */}
+          {/* SaveIcon Button */}
           <div className="flex items-center gap-3 pt-2">
             <Button
               onClick={onSaveCompliance}
@@ -279,13 +279,13 @@ export function SSTComplianceTab({
             >
               {isSaving ? (
                 <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  <Loader2Icon className="mr-2 size-4 animate-spin" />
                   Saving...
                 </>
               ) : (
                 <>
-                  <Save className="mr-2 size-4" />
-                  Save Settings
+                  <SaveIcon className="mr-2 size-4" />
+                  SaveIcon Settings
                 </>
               )}
             </Button>

@@ -52,7 +52,7 @@ export class ReconciliationService {
     }
 
     const lastNumber = rows[0].entry_number;
-    const sequence = parseInt(lastNumber.split("-").pop() || "0", 10);
+    const sequence = parseInt(lastNumber.split("-").pop() ?? "0", 10);
     return `${prefix}${String(sequence + 1).padStart(5, "0")}`;
   }
 
@@ -74,9 +74,9 @@ export class ReconciliationService {
     });
 
     return {
-      suspenseAccountId: defaultAccounts.find(a => a.code === "2900")?.id || null, // Suspense
-      accountsReceivableId: defaultAccounts.find(a => a.code === "1200")?.id || null, // AR
-      accountsPayableId: defaultAccounts.find(a => a.code === "2100")?.id || null, // AP
+      suspenseAccountId: defaultAccounts.find(a => a.code === "2900")?.id ?? null, // Suspense
+      accountsReceivableId: defaultAccounts.find(a => a.code === "1200")?.id ?? null, // AR
+      accountsPayableId: defaultAccounts.find(a => a.code === "2100")?.id ?? null, // AP
     };
   }
 
@@ -165,7 +165,7 @@ export class ReconciliationService {
       // 4. Create the journal entry within a transaction
       const journalEntryId = await db.transaction(async (tx) => {
         const entryNumber = await this.getNextEntryNumber(userId);
-        const amount = new Decimal(transaction.amount || "0").abs();
+        const amount = new Decimal(transaction.amount ?? "0").abs();
         const isDeposit = transaction.type === "deposit";
         const entryDate = transaction.transactionDate.toISOString().split("T")[0] ?? new Date().toISOString().split("T")[0]!;
 
@@ -177,7 +177,7 @@ export class ReconciliationService {
             entryNumber,
             entryDate,
             description: `Bank transaction: ${transaction.description}`,
-            reference: transaction.reference || undefined,
+            reference: transaction.reference ?? undefined,
             status: "posted", // Auto-post reconciliation entries
             sourceType: "bank_transaction",
             sourceId: transactionId,
@@ -244,9 +244,9 @@ export class ReconciliationService {
             reconciledAt: new Date(),
             journalEntryId: journalEntry.id,
             matchStatus: "matched",
-            categoryId: categoryId || undefined,
-            matchedInvoiceId: matchedInvoiceId || undefined,
-            matchedBillId: matchedBillId || undefined,
+            categoryId: categoryId ?? undefined,
+            matchedInvoiceId: matchedInvoiceId ?? undefined,
+            matchedBillId: matchedBillId ?? undefined,
             updatedAt: new Date(),
           })
           .where(eq(bankTransactions.id, transactionId));

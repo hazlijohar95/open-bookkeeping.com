@@ -11,8 +11,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { createDebitNoteItemSchema, ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
-import { useFieldArray, useForm, UseFormReturn } from "react-hook-form";
+import type { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
+import { createDebitNoteItemSchema } from "@/zod-schemas/debit-note/create-debit-note";
+import type { UseFormReturn } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import { BoxPlusIcon, FilePenIcon, BoxIcon, TrashIcon } from "@/assets/icons";
 import { FormInput } from "@/components/ui/form/form-input";
 import { formatCurrencyText } from "@/constants/currency";
@@ -115,10 +117,10 @@ const HandleItemModal = ({ type, append, update, editingIndex, data, children }:
   const debitNoteItemForm = useForm<DebitNoteItem>({
     resolver: zodResolver(createDebitNoteItemSchema),
     defaultValues: {
-      name: data?.name || "",
-      description: data?.description || "",
-      quantity: data?.quantity || 1,
-      unitPrice: data?.unitPrice || 1,
+      name: data?.name ?? "",
+      description: data?.description ?? "",
+      quantity: data?.quantity ?? 1,
+      unitPrice: data?.unitPrice ?? 1,
     },
   });
 
@@ -186,7 +188,7 @@ const HandleItemModal = ({ type, append, update, editingIndex, data, children }:
               <DialogClose asChild>
                 <Button type="button" variant="outline">Cancel</Button>
               </DialogClose>
-              <Button type="submit">{type === "add" ? "Add Item" : "Save Changes"}</Button>
+              <Button type="submit">{type === "add" ? "Add Item" : "SaveIcon Changes"}</Button>
             </DialogFooter>
           </form>
         </Form>

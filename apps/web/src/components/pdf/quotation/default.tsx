@@ -1,7 +1,5 @@
-/* eslint-disable jsx-a11y/alt-text */
-
 import { GEIST_MONO_FONT, GEIST_FONT } from "@/constants/pdf-fonts";
-import { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
+import type { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
 import { Document, Page, Text, View, Image, Font } from "@react-pdf/renderer";
 import { getQuotationSubTotalValue, getQuotationTotalValue } from "@/constants/quotation-helpers";
 import { formatCurrencyText } from "@/constants/currency";

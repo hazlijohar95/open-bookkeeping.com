@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { streamText, generateObject, convertToModelMessages, UIMessage, tool } from "ai";
+import { streamText, generateObject, convertToModelMessages, UIMessage, tool, stepCountIs } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import {
@@ -21,6 +21,10 @@ import {
 } from "../schemas/extraction";
 import { authenticateRequest } from "../lib/auth-helpers";
 import { createLogger } from "@open-bookkeeping/shared";
+import { agentMemoryService } from "../services/agent-memory.service";
+import { documentProcessorService } from "../services/document-processor.service";
+import { db, vaultDocuments, vaultProcessingJobs } from "@open-bookkeeping/db";
+import { eq, and, desc, ilike, or, gte, lte, sql } from "drizzle-orm";
 
 const logger = createLogger("ai-routes");
 
@@ -48,6 +52,20 @@ const TOOL_LIMITS = {
   toolTimeoutMs: 10_000,
 } as const;
 
+/**
+ * Limit message history to prevent exceeding token limits
+ * Keeps last N messages, prioritizing recent context
+ */
+function limitMessageHistory(messages: UIMessage[], maxMessages: number = 10): UIMessage[] {
+  if (messages.length <= maxMessages) {
+    return messages;
+  }
+
+  // Keep last N messages for recent context
+  // Simply slice without modifying content - AIMessage types are complex
+  return messages.slice(-maxMessages);
+}
+
 // Helper to format currency
 function formatCurrency(amount: number, currency: string = "MYR"): string {
   return new Intl.NumberFormat("en-MY", {
@@ -56,9 +74,17 @@ function formatCurrency(amount: number, currency: string = "MYR"): string {
   }).format(amount);
 }
 
-// Helper to calculate invoice total
+// Helper to calculate invoice total with NaN protection
 function calculateInvoiceTotal(items: Array<{ quantity: number | string; unitPrice: number | string }>) {
-  return items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+  return items.reduce((sum, item) => {
+    const quantity = Number(item.quantity);
+    const unitPrice = Number(item.unitPrice);
+    // Skip items with invalid numbers
+    if (isNaN(quantity) || isNaN(unitPrice)) {
+      return sum;
+    }
+    return sum + quantity * unitPrice;
+  }, 0);
 }
 
 /**
@@ -91,6 +117,7 @@ const aiRoutes = new Hono();
 
 /**
  * Chat endpoint - Agentic AI with tool calling and deep data integration
+ * Features: Session Memory, Long-term Memory, Planning Phase, ReAct Loop
  */
 aiRoutes.post("/chat", async (c) => {
   const authHeader = c.req.header("Authorization");
@@ -100,7 +127,31 @@ aiRoutes.post("/chat", async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  const { messages }: { messages: UIMessage[] } = await c.req.json();
+  const { messages, sessionId }: { messages: UIMessage[]; sessionId?: string } = await c.req.json();
+
+  // ============================================
+  // SESSION MEMORY - Load or create session
+  // ============================================
+  let session: Awaited<ReturnType<typeof agentMemoryService.getOrCreateSession>> | undefined;
+  try {
+    session = await agentMemoryService.getOrCreateSession(user.id, sessionId);
+    logger.debug({ userId: user.id, sessionId: session.id }, "Session loaded/created");
+  } catch (error) {
+    logger.error({ error, userId: user.id }, "Failed to load session, continuing without persistence");
+  }
+
+  // ============================================
+  // LONG-TERM MEMORY - Build context from memories
+  // ============================================
+  let memoryContext = "";
+  try {
+    memoryContext = await agentMemoryService.buildAgentContext(user.id);
+    if (memoryContext) {
+      logger.debug({ userId: user.id }, "Memory context built successfully");
+    }
+  } catch (error) {
+    logger.error({ error, userId: user.id }, "Failed to build memory context");
+  }
 
   // Define tools for data access using AI SDK v5 tool() helper
   const tools = {
@@ -173,9 +224,9 @@ aiRoutes.post("/chat", async (c) => {
             return {
               invoices: filtered.slice(0, effectiveLimit).map(inv => ({
                 id: inv.id,
-                serialNumber: `${inv.prefix || ""}${inv.serialNumber || "N/A"}`,
-                clientName: inv.clientName || "Unknown",
-                amount: formatCurrency(inv.amount, inv.currency || "MYR"),
+                serialNumber: `${inv.prefix ?? ""}${inv.serialNumber ?? "N/A"}`,
+                clientName: inv.clientName ?? "Unknown",
+                amount: formatCurrency(inv.amount, inv.currency ?? "MYR"),
                 amountRaw: inv.amount,
                 status: inv.status,
                 dueDate: inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "No due date",
@@ -204,17 +255,17 @@ aiRoutes.post("/chat", async (c) => {
             return { error: "Invoice not found" };
           }
 
-          const items = invoice.invoiceFields?.items || [];
+          const items = invoice.invoiceFields?.items ?? [];
           const total = calculateInvoiceTotal(items);
-          const currency = invoice.invoiceFields?.invoiceDetails?.currency || "MYR";
+          const currency = invoice.invoiceFields?.invoiceDetails?.currency ?? "MYR";
 
           return {
             id: invoice.id,
-            serialNumber: `${invoice.invoiceFields?.invoiceDetails?.prefix || ""}${invoice.invoiceFields?.invoiceDetails?.serialNumber || ""}`,
+            serialNumber: `${invoice.invoiceFields?.invoiceDetails?.prefix ?? ""}${invoice.invoiceFields?.invoiceDetails?.serialNumber ?? ""}`,
             status: invoice.status,
-            clientName: invoice.invoiceFields?.clientDetails?.name || "Unknown",
-            clientAddress: invoice.invoiceFields?.clientDetails?.address || "",
-            companyName: invoice.invoiceFields?.companyDetails?.name || "",
+            clientName: invoice.invoiceFields?.clientDetails?.name ?? "Unknown",
+            clientAddress: invoice.invoiceFields?.clientDetails?.address ?? "",
+            companyName: invoice.invoiceFields?.companyDetails?.name ?? "",
             date: invoice.invoiceFields?.invoiceDetails?.date
               ? new Date(invoice.invoiceFields.invoiceDetails.date).toLocaleDateString()
               : "",
@@ -231,8 +282,8 @@ aiRoutes.post("/chat", async (c) => {
             subtotal: formatCurrency(total, currency),
             total: formatCurrency(total, currency),
             currency,
-            notes: invoice.invoiceFields?.metadata?.notes || "",
-            terms: invoice.invoiceFields?.metadata?.terms || "",
+            notes: invoice.invoiceFields?.metadata?.notes ?? "",
+            terms: invoice.invoiceFields?.metadata?.terms ?? "",
             paidAt: invoice.paidAt ? new Date(invoice.paidAt).toLocaleDateString() : null,
             createdAt: new Date(invoice.createdAt).toLocaleDateString(),
           };
@@ -280,9 +331,9 @@ aiRoutes.post("/chat", async (c) => {
             customers: customers.map(c => ({
               id: c.id,
               name: c.name,
-              email: c.email || "No email",
-              phone: c.phone || "No phone",
-              address: c.address || "No address",
+              email: c.email ?? "No email",
+              phone: c.phone ?? "No phone",
+              address: c.address ?? "No address",
               createdAt: new Date(c.createdAt).toLocaleDateString(),
             })),
             total: customers.length,
@@ -305,8 +356,8 @@ aiRoutes.post("/chat", async (c) => {
             customers: customers.map(c => ({
               id: c.id,
               name: c.name,
-              email: c.email || "No email",
-              phone: c.phone || "No phone",
+              email: c.email ?? "No email",
+              phone: c.phone ?? "No phone",
             })),
             total: customers.length,
             query,
@@ -341,12 +392,12 @@ aiRoutes.post("/chat", async (c) => {
               email: customer.email,
             },
             invoices: invoices.map(inv => {
-              const items = inv.invoiceFields?.items || [];
+              const items = inv.invoiceFields?.items ?? [];
               const total = calculateInvoiceTotal(items);
-              const currency = inv.invoiceFields?.invoiceDetails?.currency || "MYR";
+              const currency = inv.invoiceFields?.invoiceDetails?.currency ?? "MYR";
               return {
                 id: inv.id,
-                serialNumber: `${inv.invoiceFields?.invoiceDetails?.prefix || ""}${inv.invoiceFields?.invoiceDetails?.serialNumber || ""}`,
+                serialNumber: `${inv.invoiceFields?.invoiceDetails?.prefix ?? ""}${inv.invoiceFields?.invoiceDetails?.serialNumber ?? ""}`,
                 amount: formatCurrency(total, currency),
                 status: inv.status,
                 dueDate: inv.invoiceFields?.invoiceDetails?.dueDate
@@ -379,13 +430,13 @@ aiRoutes.post("/chat", async (c) => {
 
           return {
             quotations: filtered.slice(0, limit).map(q => {
-              const items = q.quotationFields?.items || [];
+              const items = q.quotationFields?.items ?? [];
               const total = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
-              const currency = q.quotationFields?.quotationDetails?.currency || "MYR";
+              const currency = q.quotationFields?.quotationDetails?.currency ?? "MYR";
               return {
                 id: q.id,
-                serialNumber: `${q.quotationFields?.quotationDetails?.prefix || ""}${q.quotationFields?.quotationDetails?.serialNumber || ""}`,
-                clientName: q.quotationFields?.clientDetails?.name || "Unknown",
+                serialNumber: `${q.quotationFields?.quotationDetails?.prefix ?? ""}${q.quotationFields?.quotationDetails?.serialNumber ?? ""}`,
+                clientName: q.quotationFields?.clientDetails?.name ?? "Unknown",
                 amount: formatCurrency(total, currency),
                 status: q.status,
                 validUntil: q.quotationFields?.quotationDetails?.validUntil
@@ -553,7 +604,7 @@ aiRoutes.post("/chat", async (c) => {
     }),
 
     getAccountingPeriodStatus: tool({
-      description: "Get the status of accounting periods (open, closed, or locked). Use this to check if a period is available for posting transactions.",
+      description: "Get the status of accounting periods (open, closed, or locked). IMPORTANT: In this system, accounting periods are IMPLICITLY OPEN by default - you do NOT need to create them. If no period records exist, all periods are open and ready for posting. Period records are only created when periods are explicitly closed.",
       inputSchema: z.object({
         year: z.number().optional().describe("Filter periods by year (defaults to showing all)"),
       }),
@@ -565,6 +616,9 @@ aiRoutes.post("/chat", async (c) => {
             "January", "February", "March", "April", "May", "June",
             "July", "August", "September", "October", "November", "December"
           ];
+
+          // IMPORTANT: No periods = all periods are implicitly open
+          const isAllOpen = periods.length === 0;
 
           return {
             periods: periods.map(p => ({
@@ -579,6 +633,11 @@ aiRoutes.post("/chat", async (c) => {
             openPeriods: periods.filter(p => p.status === "open").length,
             closedPeriods: periods.filter(p => p.status === "closed").length,
             lockedPeriods: periods.filter(p => p.status === "locked").length,
+            // Helpful context for the AI
+            message: isAllOpen
+              ? "No period records found. This means ALL periods are implicitly OPEN and ready for posting transactions. You can post journal entries and transactions for any date without needing to create periods first."
+              : `Found ${periods.length} period record(s). Periods without explicit records are implicitly open.`,
+            canPostToAnyDate: isAllOpen || periods.some(p => p.status === "open"),
           };
         } catch (error) {
           return { error: "Failed to fetch accounting period status" };
@@ -638,9 +697,9 @@ aiRoutes.post("/chat", async (c) => {
           const customer = await customerRepository.create({
             userId: user.id,
             name,
-            email: email || null,
-            phone: phone || null,
-            address: address || null,
+            email: email ?? null,
+            phone: phone ?? null,
+            address: address ?? null,
           });
 
           return {
@@ -673,9 +732,9 @@ aiRoutes.post("/chat", async (c) => {
           const vendor = await vendorRepository.create({
             userId: user.id,
             name,
-            email: email || null,
-            phone: phone || null,
-            address: address || null,
+            email: email ?? null,
+            phone: phone ?? null,
+            address: address ?? null,
           });
 
           return {
@@ -715,7 +774,7 @@ aiRoutes.post("/chat", async (c) => {
             return { error: "Failed to update invoice status" };
           }
 
-          const serialNumber = `${invoice.invoiceFields?.invoiceDetails?.prefix || ""}${invoice.invoiceFields?.invoiceDetails?.serialNumber || ""}`;
+          const serialNumber = `${invoice.invoiceFields?.invoiceDetails?.prefix ?? ""}${invoice.invoiceFields?.invoiceDetails?.serialNumber ?? ""}`;
 
           return {
             success: true,
@@ -756,7 +815,7 @@ aiRoutes.post("/chat", async (c) => {
             return { error: result.error };
           }
 
-          const quotationNumber = `${quotation.quotationFields?.quotationDetails?.prefix || ""}${quotation.quotationFields?.quotationDetails?.serialNumber || ""}`;
+          const quotationNumber = `${quotation.quotationFields?.quotationDetails?.prefix ?? ""}${quotation.quotationFields?.quotationDetails?.serialNumber ?? ""}`;
 
           return {
             success: true,
@@ -796,7 +855,7 @@ aiRoutes.post("/chat", async (c) => {
             return { error: "Failed to update invoice status" };
           }
 
-          const serialNumber = `${invoice.invoiceFields?.invoiceDetails?.prefix || ""}${invoice.invoiceFields?.invoiceDetails?.serialNumber || ""}`;
+          const serialNumber = `${invoice.invoiceFields?.invoiceDetails?.prefix ?? ""}${invoice.invoiceFields?.invoiceDetails?.serialNumber ?? ""}`;
 
           return {
             success: true,
@@ -841,7 +900,7 @@ aiRoutes.post("/chat", async (c) => {
             return { error: updated.error };
           }
 
-          const serialNumber = `${quotation.quotationFields?.quotationDetails?.prefix || ""}${quotation.quotationFields?.quotationDetails?.serialNumber || ""}`;
+          const serialNumber = `${quotation.quotationFields?.quotationDetails?.prefix ?? ""}${quotation.quotationFields?.quotationDetails?.serialNumber ?? ""}`;
 
           return {
             success: true,
@@ -872,9 +931,9 @@ aiRoutes.post("/chat", async (c) => {
             vendors: vendors.map(v => ({
               id: v.id,
               name: v.name,
-              email: v.email || "No email",
-              phone: v.phone || "No phone",
-              address: v.address || "No address",
+              email: v.email ?? "No email",
+              phone: v.phone ?? "No phone",
+              address: v.address ?? "No address",
             })),
             total: vendors.length,
           };
@@ -897,8 +956,8 @@ aiRoutes.post("/chat", async (c) => {
             bills: bills.map(b => ({
               id: b.id,
               billNumber: b.billNumber,
-              vendorName: b.vendor?.name || "Unknown vendor",
-              amount: formatCurrency(Number(b.total || 0), b.currency),
+              vendorName: b.vendor?.name ?? "Unknown vendor",
+              amount: formatCurrency(Number(b.total ?? 0), b.currency),
               status: b.status,
               dueDate: b.dueDate ? new Date(b.dueDate).toLocaleDateString() : "No due date",
               billDate: new Date(b.billDate).toLocaleDateString(),
@@ -920,14 +979,14 @@ aiRoutes.post("/chat", async (c) => {
         try {
           const bills = await billRepository.getUnpaidBills(user.id, vendorId);
 
-          const totalUnpaid = bills.reduce((sum, b) => sum + Number(b.total || 0), 0);
+          const totalUnpaid = bills.reduce((sum, b) => sum + Number(b.total ?? 0), 0);
 
           return {
             bills: bills.map(b => ({
               id: b.id,
               billNumber: b.billNumber,
-              vendorName: b.vendor?.name || "Unknown vendor",
-              amount: formatCurrency(Number(b.total || 0), b.currency),
+              vendorName: b.vendor?.name ?? "Unknown vendor",
+              amount: formatCurrency(Number(b.total ?? 0), b.currency),
               status: b.status,
               dueDate: b.dueDate ? new Date(b.dueDate).toLocaleDateString() : "No due date",
               isOverdue: b.status === "overdue" || (b.dueDate && new Date(b.dueDate) < new Date()),
@@ -1018,7 +1077,7 @@ aiRoutes.post("/chat", async (c) => {
 
           const invoice = await invoiceRepository.create({
             userId: user.id,
-            customerId: customerId || undefined,
+            customerId: customerId ?? undefined,
             companyDetails: {
               name: companyName,
               address: companyAddress,
@@ -1041,8 +1100,8 @@ aiRoutes.post("/chat", async (c) => {
               unitPrice: item.unitPrice,
             })),
             metadata: {
-              notes: notes || undefined,
-              terms: terms || undefined,
+              notes: notes ?? undefined,
+              terms: terms ?? undefined,
             },
           });
 
@@ -1059,7 +1118,7 @@ aiRoutes.post("/chat", async (c) => {
               amountRaw: total,
               currency,
               date,
-              dueDate: dueDate || null,
+              dueDate: dueDate ?? null,
               itemCount: items.length,
               status: "pending",
             },
@@ -1101,14 +1160,14 @@ aiRoutes.post("/chat", async (c) => {
 
           const bill = await billRepository.create({
             userId: user.id,
-            vendorId: vendorId || null,
+            vendorId: vendorId ?? null,
             billNumber,
-            description: description || null,
+            description: description ?? null,
             currency,
             billDate: new Date(billDate),
             dueDate: dueDate ? new Date(dueDate) : null,
             status: "pending",
-            notes: notes || null,
+            notes: notes ?? null,
             items: items.map(item => ({
               description: item.description,
               quantity: String(item.quantity),
@@ -1129,7 +1188,7 @@ aiRoutes.post("/chat", async (c) => {
               amountRaw: total,
               currency,
               billDate,
-              dueDate: dueDate || null,
+              dueDate: dueDate ?? null,
               itemCount: items.length,
               status: "pending",
             },
@@ -1169,35 +1228,722 @@ aiRoutes.post("/chat", async (c) => {
       },
     }),
 
-    createJournalEntry: tool({
-      description: "Create a manual journal entry with debit and credit lines. Debits must equal credits. Use listAccounts first to get valid account IDs.",
+    // ==========================================
+    // SMART ACCOUNTING TOOLS - Built-in Double-Entry Logic
+    // The breakthrough: AI just says WHAT happened, tools handle the HOW
+    // ==========================================
+
+    recordSalesRevenue: tool({
+      description: `Record sales revenue with AUTOMATIC double-entry. Use this when user says "record sale", "made a sale", "revenue from", etc.
+The tool automatically: DR appropriate Asset account, CR Sales Revenue account.`,
       inputSchema: z.object({
-        entryDate: z.string().describe("Journal entry date (YYYY-MM-DD format)"),
-        description: z.string().describe("Description of the journal entry"),
-        reference: z.string().optional().describe("Optional reference number"),
+        amount: z.number().describe("Sale amount"),
+        description: z.string().describe("Description (e.g., 'Sales to ABC Corp')"),
+        entryDate: z.string().describe("Date (YYYY-MM-DD)"),
+        paymentMethod: z.enum(["cash", "bank", "credit"]).describe("cash=DR Cash, bank=DR Bank, credit=DR Accounts Receivable"),
+        reference: z.string().optional().describe("Invoice number or reference"),
+      }),
+      execute: async ({ amount, description, entryDate, paymentMethod, reference }) => {
+        try {
+          // Get standard accounts based on payment method
+          const accounts = await accountRepository.findAll(user.id, { isHeader: false });
+
+          // Find the appropriate debit account
+          let debitAccount;
+          if (paymentMethod === "cash") {
+            debitAccount = accounts.find(a => a.code === "1100" || a.name.toLowerCase().includes("cash"));
+          } else if (paymentMethod === "bank") {
+            debitAccount = accounts.find(a => a.code === "1110" || a.name.toLowerCase().includes("bank"));
+          } else {
+            debitAccount = accounts.find(a => a.code === "1200" || a.name.toLowerCase().includes("accounts receivable"));
+          }
+
+          // Find sales revenue account
+          const revenueAccount = accounts.find(a =>
+            a.code === "4100" || a.code === "4000" ||
+            (a.accountType === "revenue" && a.name.toLowerCase().includes("sales"))
+          );
+
+          if (!debitAccount || !revenueAccount) {
+            return {
+              error: "Could not find required accounts. Please ensure Chart of Accounts has Cash/Bank/AR and Sales Revenue accounts.",
+              suggestion: "Use listAccounts to see available accounts, then use createJournalEntry for custom entries.",
+            };
+          }
+
+          const entry = await journalEntryRepository.create({
+            userId: user.id,
+            entryDate,
+            description: `Sales: ${description}`,
+            reference: reference ?? undefined,
+            sourceType: "manual",
+            lines: [
+              { accountId: debitAccount.id, debitAmount: String(amount), description: `${paymentMethod === "credit" ? "AR" : paymentMethod} received` },
+              { accountId: revenueAccount.id, creditAmount: String(amount), description: "Sales revenue" },
+            ],
+          });
+
+          // Auto-post the entry
+          await journalEntryRepository.post(entry.id, user.id);
+
+          return {
+            success: true,
+            message: `Sales revenue recorded and posted: ${formatCurrency(amount)}`,
+            entry: {
+              id: entry.id,
+              entryNumber: entry.entryNumber,
+              debitAccount: `${debitAccount.code} - ${debitAccount.name}`,
+              creditAccount: `${revenueAccount.code} - ${revenueAccount.name}`,
+              amount: formatCurrency(amount),
+              status: "posted",
+            },
+          };
+        } catch (error) {
+          logger.error({ error }, "recordSalesRevenue failed");
+          return { error: "Failed to record sales revenue", details: String(error) };
+        }
+      },
+    }),
+
+    recordExpense: tool({
+      description: `Record an expense with AUTOMATIC double-entry. Use this when user says "paid for", "expense", "bought", etc.
+The tool automatically: DR Expense account, CR Cash/Bank/AP.`,
+      inputSchema: z.object({
+        amount: z.number().describe("Expense amount"),
+        description: z.string().describe("What was the expense for"),
+        entryDate: z.string().describe("Date (YYYY-MM-DD)"),
+        expenseType: z.enum(["office", "utilities", "rent", "salary", "supplies", "other"]).describe("Type of expense"),
+        paymentMethod: z.enum(["cash", "bank", "credit"]).describe("cash/bank=paid now, credit=on account"),
+        reference: z.string().optional().describe("Bill number or reference"),
+      }),
+      execute: async ({ amount, description, entryDate, expenseType, paymentMethod, reference }) => {
+        try {
+          const accounts = await accountRepository.findAll(user.id, { isHeader: false });
+
+          // Map expense type to account
+          const expenseAccountMap: Record<string, string[]> = {
+            office: ["6100", "office"],
+            utilities: ["6200", "utilities"],
+            rent: ["6300", "rent"],
+            salary: ["6400", "salary", "wages"],
+            supplies: ["6500", "supplies"],
+            other: ["6900", "other expense", "miscellaneous"],
+          };
+
+          const searchTerms = expenseAccountMap[expenseType];
+          let expenseAccount = accounts.find(a =>
+            searchTerms.some(term => a.code === term || a.name.toLowerCase().includes(term))
+          );
+
+          // Fallback to any expense account
+          if (!expenseAccount) {
+            expenseAccount = accounts.find(a => a.accountType === "expense");
+          }
+
+          // Find credit account based on payment method
+          let creditAccount;
+          if (paymentMethod === "cash") {
+            creditAccount = accounts.find(a => a.code === "1100" || a.name.toLowerCase().includes("cash"));
+          } else if (paymentMethod === "bank") {
+            creditAccount = accounts.find(a => a.code === "1110" || a.name.toLowerCase().includes("bank"));
+          } else {
+            creditAccount = accounts.find(a => a.code === "2100" || a.name.toLowerCase().includes("accounts payable"));
+          }
+
+          if (!expenseAccount || !creditAccount) {
+            return {
+              error: "Could not find required accounts.",
+              suggestion: "Use listAccounts to see available accounts.",
+            };
+          }
+
+          const entry = await journalEntryRepository.create({
+            userId: user.id,
+            entryDate,
+            description: `Expense: ${description}`,
+            reference: reference ?? undefined,
+            sourceType: "manual",
+            lines: [
+              { accountId: expenseAccount.id, debitAmount: String(amount), description },
+              { accountId: creditAccount.id, creditAmount: String(amount), description: `Payment via ${paymentMethod}` },
+            ],
+          });
+
+          await journalEntryRepository.post(entry.id, user.id);
+
+          return {
+            success: true,
+            message: `Expense recorded and posted: ${formatCurrency(amount)}`,
+            entry: {
+              id: entry.id,
+              entryNumber: entry.entryNumber,
+              debitAccount: `${expenseAccount.code} - ${expenseAccount.name}`,
+              creditAccount: `${creditAccount.code} - ${creditAccount.name}`,
+              amount: formatCurrency(amount),
+              status: "posted",
+            },
+          };
+        } catch (error) {
+          logger.error({ error }, "recordExpense failed");
+          return { error: "Failed to record expense", details: String(error) };
+        }
+      },
+    }),
+
+    recordPaymentReceived: tool({
+      description: `Record payment received from customer. Use when "customer paid", "received payment", "collected".
+Automatically: DR Cash/Bank, CR Accounts Receivable.`,
+      inputSchema: z.object({
+        amount: z.number().describe("Payment amount"),
+        customerName: z.string().describe("Who paid"),
+        entryDate: z.string().describe("Date (YYYY-MM-DD)"),
+        depositTo: z.enum(["cash", "bank"]).describe("Where deposited"),
+        reference: z.string().optional().describe("Invoice or receipt number"),
+      }),
+      execute: async ({ amount, customerName, entryDate, depositTo, reference }) => {
+        try {
+          const accounts = await accountRepository.findAll(user.id, { isHeader: false });
+
+          const cashOrBank = depositTo === "cash"
+            ? accounts.find(a => a.code === "1100" || a.name.toLowerCase().includes("cash"))
+            : accounts.find(a => a.code === "1110" || a.name.toLowerCase().includes("bank"));
+
+          const ar = accounts.find(a => a.code === "1200" || a.name.toLowerCase().includes("accounts receivable"));
+
+          if (!cashOrBank || !ar) {
+            return { error: "Could not find Cash/Bank or Accounts Receivable accounts." };
+          }
+
+          const entry = await journalEntryRepository.create({
+            userId: user.id,
+            entryDate,
+            description: `Payment received from ${customerName}`,
+            reference: reference ?? undefined,
+            sourceType: "manual",
+            lines: [
+              { accountId: cashOrBank.id, debitAmount: String(amount), description: `Deposited to ${depositTo}` },
+              { accountId: ar.id, creditAmount: String(amount), description: `Payment from ${customerName}` },
+            ],
+          });
+
+          await journalEntryRepository.post(entry.id, user.id);
+
+          return {
+            success: true,
+            message: `Payment received: ${formatCurrency(amount)} from ${customerName}`,
+            entry: {
+              id: entry.id,
+              entryNumber: entry.entryNumber,
+              amount: formatCurrency(amount),
+              status: "posted",
+            },
+          };
+        } catch (error) {
+          logger.error({ error }, "recordPaymentReceived failed");
+          return { error: "Failed to record payment", details: String(error) };
+        }
+      },
+    }),
+
+    recordPaymentMade: tool({
+      description: `Record payment made to vendor/supplier. Use when "paid vendor", "paid bill", "settled account".
+Automatically: DR Accounts Payable, CR Cash/Bank.`,
+      inputSchema: z.object({
+        amount: z.number().describe("Payment amount"),
+        vendorName: z.string().describe("Who was paid"),
+        entryDate: z.string().describe("Date (YYYY-MM-DD)"),
+        paidFrom: z.enum(["cash", "bank"]).describe("Paid from cash or bank"),
+        reference: z.string().optional().describe("Bill or check number"),
+      }),
+      execute: async ({ amount, vendorName, entryDate, paidFrom, reference }) => {
+        try {
+          const accounts = await accountRepository.findAll(user.id, { isHeader: false });
+
+          const ap = accounts.find(a => a.code === "2100" || a.name.toLowerCase().includes("accounts payable"));
+          const cashOrBank = paidFrom === "cash"
+            ? accounts.find(a => a.code === "1100" || a.name.toLowerCase().includes("cash"))
+            : accounts.find(a => a.code === "1110" || a.name.toLowerCase().includes("bank"));
+
+          if (!ap || !cashOrBank) {
+            return { error: "Could not find Accounts Payable or Cash/Bank accounts." };
+          }
+
+          const entry = await journalEntryRepository.create({
+            userId: user.id,
+            entryDate,
+            description: `Payment to ${vendorName}`,
+            reference: reference ?? undefined,
+            sourceType: "manual",
+            lines: [
+              { accountId: ap.id, debitAmount: String(amount), description: `Paid to ${vendorName}` },
+              { accountId: cashOrBank.id, creditAmount: String(amount), description: `From ${paidFrom}` },
+            ],
+          });
+
+          await journalEntryRepository.post(entry.id, user.id);
+
+          return {
+            success: true,
+            message: `Payment made: ${formatCurrency(amount)} to ${vendorName}`,
+            entry: {
+              id: entry.id,
+              entryNumber: entry.entryNumber,
+              amount: formatCurrency(amount),
+              status: "posted",
+            },
+          };
+        } catch (error) {
+          logger.error({ error }, "recordPaymentMade failed");
+          return { error: "Failed to record payment", details: String(error) };
+        }
+      },
+    }),
+
+    postInvoiceToLedger: tool({
+      description: `Post an invoice to the accounting ledger. Creates proper journal entry: DR Accounts Receivable, CR Sales Revenue.
+Use when user wants to "record invoice in books", "post invoice to accounting", "do accounting for invoice".`,
+      inputSchema: z.object({
+        invoiceId: z.string().describe("Invoice ID to post"),
+        entryDate: z.string().optional().describe("Date (YYYY-MM-DD), defaults to invoice date"),
+      }),
+      execute: async ({ invoiceId, entryDate }) => {
+        try {
+          const invoice = await invoiceRepository.findById(invoiceId, user.id);
+          if (!invoice) {
+            return { error: "Invoice not found" };
+          }
+
+          const items = invoice.invoiceFields?.items ?? [];
+          const total = calculateInvoiceTotal(items);
+          const invoiceNumber = `${invoice.invoiceFields?.invoiceDetails?.prefix ?? ""}${invoice.invoiceFields?.invoiceDetails?.serialNumber ?? ""}`;
+          const clientName = invoice.invoiceFields?.clientDetails?.name ?? "Unknown";
+          const invoiceDate = invoice.invoiceFields?.invoiceDetails?.date
+            ? new Date(invoice.invoiceFields.invoiceDetails.date).toISOString().split("T")[0]
+            : new Date().toISOString().split("T")[0];
+
+          const accounts = await accountRepository.findAll(user.id, { isHeader: false });
+          const ar = accounts.find(a => a.code === "1200" || a.name.toLowerCase().includes("accounts receivable"));
+          const revenue = accounts.find(a =>
+            a.code === "4100" || a.code === "4000" ||
+            (a.accountType === "revenue" && a.name.toLowerCase().includes("sales"))
+          );
+
+          if (!ar || !revenue) {
+            return { error: "Could not find AR or Sales Revenue accounts in Chart of Accounts." };
+          }
+
+          const entry = await journalEntryRepository.create({
+            userId: user.id,
+            entryDate: entryDate || invoiceDate,
+            description: `Invoice ${invoiceNumber} - ${clientName}`,
+            reference: invoiceNumber,
+            sourceType: "invoice",
+            sourceId: invoiceId,
+            lines: [
+              { accountId: ar.id, debitAmount: String(total), description: `AR - ${clientName}` },
+              { accountId: revenue.id, creditAmount: String(total), description: `Sales - ${invoiceNumber}` },
+            ],
+          });
+
+          await journalEntryRepository.post(entry.id, user.id);
+
+          return {
+            success: true,
+            message: `Invoice ${invoiceNumber} posted to ledger`,
+            entry: {
+              id: entry.id,
+              entryNumber: entry.entryNumber,
+              invoiceNumber,
+              clientName,
+              amount: formatCurrency(total),
+              debitAccount: `${ar.code} - ${ar.name}`,
+              creditAccount: `${revenue.code} - ${revenue.name}`,
+              status: "posted",
+            },
+          };
+        } catch (error) {
+          logger.error({ error }, "postInvoiceToLedger failed");
+          return { error: "Failed to post invoice to ledger", details: String(error) };
+        }
+      },
+    }),
+
+    // ==========================================
+    // DOCUMENT PROCESSING TOOLS (Cabinet System)
+    // ==========================================
+
+    processDocuments: tool({
+      description: `Process documents from the vault with AI extraction (Reducto). Extracts vendor info, amounts, line items, dates.
+Use when user wants to "process documents", "extract from documents", "read these invoices/bills".
+After processing, ALWAYS ask user what to do: create entries, show summary, or go through each.`,
+      inputSchema: z.object({
+        documentIds: z.array(z.string().uuid()).min(1).max(20).describe("Document IDs from vault to process"),
+      }),
+      execute: async ({ documentIds }) => {
+        try {
+          const results = [];
+          const errors = [];
+
+          // Process documents (sync for 1-5, could be batched for more)
+          for (const documentId of documentIds) {
+            try {
+              const result = await documentProcessorService.processDocument(documentId, user.id);
+
+              if (result.status === "completed" && result.extractedData) {
+                const data = result.extractedData;
+                results.push({
+                  documentId,
+                  status: "success",
+                  documentType: result.documentType,
+                  vendor: "vendor" in data ? data.vendor?.name : undefined,
+                  total: "total" in data ? data.total : undefined,
+                  currency: "currency" in data ? data.currency : "MYR",
+                  date: "invoiceDate" in data ? data.invoiceDate : ("date" in data ? data.date : undefined),
+                  invoiceNumber: "invoiceNumber" in data ? data.invoiceNumber : undefined,
+                  lineItemCount: "lineItems" in data ? data.lineItems?.length ?? 0 : 0,
+                  matchedVendor: result.matchedVendor?.name,
+                  confidence: result.confidenceScore,
+                });
+              } else {
+                errors.push({ documentId, error: result.error ?? "Processing failed" });
+              }
+            } catch (error) {
+              errors.push({ documentId, error: error instanceof Error ? error.message : "Unknown error" });
+            }
+          }
+
+          const totalAmount = results.reduce((sum, r) => sum + (r.total ?? 0), 0);
+
+          return {
+            processed: results.length,
+            failed: errors.length,
+            totalAmount: formatCurrency(totalAmount),
+            results,
+            errors: errors.length > 0 ? errors : undefined,
+            nextStep: results.length > 0
+              ? "Documents processed. Would you like me to: a) Create bills/entries for all, b) Show a detailed summary first, c) Go through each one individually?"
+              : undefined,
+          };
+        } catch (error) {
+          logger.error({ error }, "processDocuments failed");
+          return { error: "Failed to process documents", details: String(error) };
+        }
+      },
+    }),
+
+    getDocumentDetails: tool({
+      description: `Get full extracted data from a processed document. Shows all line items, vendor details, totals.
+Use when user wants to see "details of document", "what's in this invoice", or "show extracted data".`,
+      inputSchema: z.object({
+        documentId: z.string().uuid().describe("Document ID to get details for"),
+      }),
+      execute: async ({ documentId }) => {
+        try {
+          const result = await documentProcessorService.getLatestProcessingResult(documentId, user.id);
+
+          if (!result) {
+            return { error: "Document not found or not yet processed" };
+          }
+
+          if (result.status === "failed") {
+            return {
+              error: "Document processing failed",
+              details: result.error,
+              suggestion: "You can try reprocessing the document.",
+            };
+          }
+
+          const data = result.extractedData;
+
+          return {
+            documentId,
+            documentType: result.documentType,
+            status: result.status,
+            confidence: result.confidenceScore,
+            extractedData: {
+              vendor: "vendor" in (data ?? {}) ? (data as { vendor?: { name?: string; address?: string; taxId?: string; email?: string; phone?: string } }).vendor : undefined,
+              invoiceNumber: "invoiceNumber" in (data ?? {}) ? (data as { invoiceNumber?: string }).invoiceNumber : undefined,
+              date: "invoiceDate" in (data ?? {}) ? (data as { invoiceDate?: string }).invoiceDate : ("date" in (data ?? {}) ? (data as { date?: string }).date : undefined),
+              dueDate: "dueDate" in (data ?? {}) ? (data as { dueDate?: string }).dueDate : undefined,
+              currency: "currency" in (data ?? {}) ? (data as { currency?: string }).currency : "MYR",
+              subtotal: "subtotal" in (data ?? {}) ? (data as { subtotal?: number }).subtotal : undefined,
+              taxRate: "taxRate" in (data ?? {}) ? (data as { taxRate?: number }).taxRate : undefined,
+              taxAmount: "taxAmount" in (data ?? {}) ? (data as { taxAmount?: number }).taxAmount : undefined,
+              total: "total" in (data ?? {}) ? (data as { total?: number }).total : undefined,
+              lineItems: "lineItems" in (data ?? {}) ? (data as { lineItems?: Array<{ description: string; quantity: number; unitPrice: number; amount: number }> }).lineItems : undefined,
+              paymentTerms: "paymentTerms" in (data ?? {}) ? (data as { paymentTerms?: string }).paymentTerms : undefined,
+            },
+            matchedVendor: result.matchedVendor,
+            suggestedVendorUpdates: result.suggestedVendorUpdates,
+          };
+        } catch (error) {
+          logger.error({ error }, "getDocumentDetails failed");
+          return { error: "Failed to get document details", details: String(error) };
+        }
+      },
+    }),
+
+    createEntriesFromDocument: tool({
+      description: `Create accounting entries (bills, journal entries) from processed document data.
+ALWAYS ask user first what they want to do with extracted data. Use after processDocuments or getDocumentDetails.`,
+      inputSchema: z.object({
+        documentId: z.string().uuid().describe("Processed document ID"),
+        action: z.enum(["create_bill", "skip"]).describe("What to create: create_bill (creates bill from invoice/receipt data) or skip"),
+        options: z.object({
+          vendorId: z.string().uuid().optional().describe("Override matched vendor with specific vendor ID"),
+          createVendorIfNotFound: z.boolean().default(true).describe("Create new vendor if no match found"),
+        }).optional(),
+      }),
+      execute: async ({ documentId, action, options }) => {
+        try {
+          if (action === "skip") {
+            return {
+              success: true,
+              message: "Document skipped. No entries created.",
+              documentId,
+            };
+          }
+
+          if (action === "create_bill") {
+            const result = await documentProcessorService.createBillFromDocument(
+              user.id,
+              documentId,
+              {
+                vendorId: options?.vendorId,
+                createVendorIfNotFound: options?.createVendorIfNotFound ?? true,
+              }
+            );
+
+            return {
+              success: true,
+              message: `Bill created successfully`,
+              billId: result.billId,
+              vendorId: result.vendorId,
+              vendorCreated: result.vendorCreated,
+              total: formatCurrency(result.total, result.currency),
+              currency: result.currency,
+              nextStep: "Would you like me to explain the accounting implications?",
+            };
+          }
+
+          return { error: "Invalid action" };
+        } catch (error) {
+          logger.error({ error }, "createEntriesFromDocument failed");
+          return { error: "Failed to create entries", details: String(error) };
+        }
+      },
+    }),
+
+    queryDocumentCabinet: tool({
+      description: `Search through processed documents in the document cabinet. Filter by vendor, date, type, status.
+Use when user asks "what documents do we have", "find invoices from X", "show processed bills".`,
+      inputSchema: z.object({
+        filters: z.object({
+          vendorName: z.string().optional().describe("Filter by vendor name (partial match)"),
+          documentType: z.enum(["bill", "invoice", "receipt", "statement"]).optional().describe("Filter by document type"),
+          category: z.enum(["bills", "invoices", "receipts", "statements", "contracts", "tax_documents", "other"]).optional().describe("Filter by vault category"),
+          processingStatus: z.enum(["unprocessed", "processed", "failed"]).optional().describe("Filter by processing status"),
+          dateFrom: z.string().optional().describe("Filter from date (YYYY-MM-DD)"),
+          dateTo: z.string().optional().describe("Filter to date (YYYY-MM-DD)"),
+        }).optional(),
+        limit: z.number().max(50).default(20).describe("Maximum results to return"),
+      }),
+      execute: async ({ filters, limit }) => {
+        try {
+          // Build query conditions
+          const conditions = [eq(vaultDocuments.userId, user.id)];
+
+          if (filters?.category) {
+            conditions.push(eq(vaultDocuments.category, filters.category));
+          }
+          if (filters?.processingStatus) {
+            conditions.push(eq(vaultDocuments.processingStatus, filters.processingStatus));
+          }
+          if (filters?.dateFrom) {
+            conditions.push(gte(vaultDocuments.createdAt, new Date(filters.dateFrom)));
+          }
+          if (filters?.dateTo) {
+            conditions.push(lte(vaultDocuments.createdAt, new Date(filters.dateTo)));
+          }
+
+          // Query documents
+          const documents = await db.query.vaultDocuments.findMany({
+            where: and(...conditions),
+            orderBy: [desc(vaultDocuments.createdAt)],
+            limit,
+          });
+
+          // Get processing results for processed documents
+          const results = await Promise.all(
+            documents.map(async (doc) => {
+              let extractedSummary = null;
+
+              if (doc.processingStatus === "processed") {
+                const job = await db.query.vaultProcessingJobs.findFirst({
+                  where: and(
+                    eq(vaultProcessingJobs.documentId, doc.id),
+                    eq(vaultProcessingJobs.status, "completed")
+                  ),
+                  orderBy: [desc(vaultProcessingJobs.createdAt)],
+                });
+
+                if (job?.extractedData) {
+                  try {
+                    const data = JSON.parse(job.extractedData);
+                    extractedSummary = {
+                      vendor: data.vendor?.name,
+                      total: data.total,
+                      currency: data.currency ?? "MYR",
+                      date: data.invoiceDate || data.date,
+                      invoiceNumber: data.invoiceNumber,
+                    };
+                  } catch {
+                    // Ignore parse error
+                  }
+                }
+              }
+
+              return {
+                id: doc.id,
+                name: doc.displayName || doc.name,
+                category: doc.category,
+                processingStatus: doc.processingStatus,
+                createdAt: doc.createdAt.toISOString().split("T")[0],
+                extracted: extractedSummary,
+              };
+            })
+          );
+
+          // Filter by vendor name if specified (post-query filter on extracted data)
+          let filteredResults = results;
+          if (filters?.vendorName) {
+            const searchTerm = filters.vendorName.toLowerCase();
+            filteredResults = results.filter(
+              (r) => r.extracted?.vendor?.toLowerCase().includes(searchTerm)
+            );
+          }
+
+          // Filter by document type if specified
+          if (filters?.documentType) {
+            // This would need extracted documentType, simplify for now based on category
+            const categoryMap: Record<string, string> = {
+              bill: "bills",
+              invoice: "invoices",
+              receipt: "receipts",
+              statement: "statements",
+            };
+            const targetCategory = categoryMap[filters.documentType];
+            if (targetCategory) {
+              filteredResults = filteredResults.filter((r) => r.category === targetCategory);
+            }
+          }
+
+          const totalValue = filteredResults.reduce(
+            (sum, r) => sum + (r.extracted?.total ?? 0),
+            0
+          );
+
+          return {
+            count: filteredResults.length,
+            totalValue: formatCurrency(totalValue),
+            documents: filteredResults,
+            summary: filteredResults.length > 0
+              ? `Found ${filteredResults.length} documents with total value ${formatCurrency(totalValue)}`
+              : "No documents found matching your criteria",
+          };
+        } catch (error) {
+          logger.error({ error }, "queryDocumentCabinet failed");
+          return { error: "Failed to query document cabinet", details: String(error) };
+        }
+      },
+    }),
+
+    listVaultDocuments: tool({
+      description: `List all documents in the user's vault. Shows unprocessed and processed documents.
+Use when user asks "show my documents", "what's in the vault", "list uploaded files".`,
+      inputSchema: z.object({
+        category: z.enum(["all", "bills", "invoices", "receipts", "statements", "contracts", "tax_documents", "other"]).default("all").describe("Filter by category"),
+        limit: z.number().max(50).default(20).describe("Maximum results"),
+      }),
+      execute: async ({ category, limit }) => {
+        try {
+          const conditions = [eq(vaultDocuments.userId, user.id)];
+          if (category !== "all") {
+            conditions.push(eq(vaultDocuments.category, category));
+          }
+
+          const documents = await db.query.vaultDocuments.findMany({
+            where: and(...conditions),
+            orderBy: [desc(vaultDocuments.createdAt)],
+            limit,
+          });
+
+          const summary = {
+            total: documents.length,
+            unprocessed: documents.filter((d) => d.processingStatus === "unprocessed").length,
+            processed: documents.filter((d) => d.processingStatus === "processed").length,
+            failed: documents.filter((d) => d.processingStatus === "failed").length,
+          };
+
+          return {
+            summary,
+            documents: documents.map((doc) => ({
+              id: doc.id,
+              name: doc.displayName || doc.name,
+              category: doc.category,
+              processingStatus: doc.processingStatus,
+              size: `${Math.round(doc.size / 1024)}KB`,
+              uploadedAt: doc.createdAt.toISOString().split("T")[0],
+            })),
+            hint: summary.unprocessed > 0
+              ? `You have ${summary.unprocessed} unprocessed document(s). Would you like me to process them?`
+              : undefined,
+          };
+        } catch (error) {
+          logger.error({ error }, "listVaultDocuments failed");
+          return { error: "Failed to list documents", details: String(error) };
+        }
+      },
+    }),
+
+    // ==========================================
+    // MANUAL JOURNAL ENTRY - For Complex/Custom Entries
+    // ==========================================
+
+    createJournalEntry: tool({
+      description: `Create a CUSTOM journal entry. Only use this for complex entries not covered by smart tools above.
+For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymentReceived, recordPaymentMade, postInvoiceToLedger.`,
+      inputSchema: z.object({
+        entryDate: z.string().describe("Date (YYYY-MM-DD)"),
+        description: z.string().describe("Entry description"),
+        reference: z.string().optional().describe("Reference number"),
         lines: z.array(z.object({
-          accountId: z.string().describe("Account ID (use listAccounts to get valid IDs)"),
-          debitAmount: z.number().optional().describe("Debit amount (leave empty for credit)"),
-          creditAmount: z.number().optional().describe("Credit amount (leave empty for debit)"),
+          accountId: z.string().describe("Account ID from listAccounts"),
+          debitAmount: z.number().optional().describe("Debit amount"),
+          creditAmount: z.number().optional().describe("Credit amount"),
           description: z.string().optional().describe("Line description"),
-        })).min(2).describe("Journal entry lines (at least 2 required - one debit, one credit)"),
+        })).min(2).describe("Entry lines - must use different accounts for debit/credit"),
       }),
       execute: async ({ entryDate, description, reference, lines }) => {
         try {
-          // Validate debits equal credits
           let totalDebit = 0;
           let totalCredit = 0;
 
           for (const line of lines) {
-            totalDebit += line.debitAmount || 0;
-            totalCredit += line.creditAmount || 0;
+            totalDebit += line.debitAmount ?? 0;
+            totalCredit += line.creditAmount ?? 0;
           }
 
           if (Math.abs(totalDebit - totalCredit) > 0.01) {
             return {
               error: `Debits (${formatCurrency(totalDebit)}) must equal credits (${formatCurrency(totalCredit)})`,
-              totalDebit,
-              totalCredit,
+            };
+          }
+
+          const uniqueAccountIds = new Set(lines.map(l => l.accountId));
+          if (uniqueAccountIds.size < 2) {
+            return {
+              error: "Must use at least 2 different accounts. Use smart tools instead: recordSalesRevenue, recordExpense, etc.",
             };
           }
 
@@ -1205,7 +1951,7 @@ aiRoutes.post("/chat", async (c) => {
             userId: user.id,
             entryDate,
             description,
-            reference: reference || undefined,
+            reference: reference ?? undefined,
             sourceType: "manual",
             lines: lines.map(line => ({
               accountId: line.accountId,
@@ -1217,15 +1963,12 @@ aiRoutes.post("/chat", async (c) => {
 
           return {
             success: true,
-            message: `Journal entry ${entry.entryNumber} created successfully`,
+            message: `Journal entry ${entry.entryNumber} created (draft - use postJournalEntry to post)`,
             entry: {
               id: entry.id,
               entryNumber: entry.entryNumber,
-              entryDate,
-              description,
               totalDebit: formatCurrency(totalDebit),
               totalCredit: formatCurrency(totalCredit),
-              lineCount: lines.length,
               status: entry.status,
             },
           };
@@ -1312,81 +2055,263 @@ aiRoutes.post("/chat", async (c) => {
         }
       },
     }),
+
+    // ==========================================
+    // MEMORY & LEARNING TOOLS
+    // ==========================================
+
+    rememberPreference: tool({
+      description: "Store a user preference or instruction that should be remembered for future interactions. Use this when the user expresses a preference, gives instructions, or provides information that should persist.",
+      inputSchema: z.object({
+        key: z.string().describe("A short descriptive key for the memory (e.g., 'invoice_prefix', 'preferred_currency')"),
+        value: z.string().describe("The value or content to remember"),
+        category: z.enum(["preference", "fact", "instruction"]).describe("Type of memory: preference (user likes/dislikes), fact (business info), instruction (how to do things)"),
+      }),
+      execute: async ({ key, value, category }) => {
+        try {
+          const memory = await agentMemoryService.storeMemory(user.id, {
+            category,
+            key,
+            value,
+            sourceType: "conversation",
+            sourceSessionId: session?.id,
+            confidence: 0.9,
+          });
+
+          return {
+            success: true,
+            message: `I'll remember that: "${key}" = "${value}"`,
+            memoryId: memory?.id,
+          };
+        } catch (error) {
+          return { error: "Failed to store memory", details: String(error) };
+        }
+      },
+    }),
+
+    recallMemories: tool({
+      description: "Search and recall stored memories about user preferences, facts, or instructions. Use this to find relevant context before taking actions.",
+      inputSchema: z.object({
+        query: z.string().describe("Search term to find relevant memories"),
+      }),
+      execute: async ({ query }) => {
+        try {
+          const memories = await agentMemoryService.searchMemories(user.id, query, 5);
+
+          if (memories.length === 0) {
+            return { message: "No relevant memories found", memories: [] };
+          }
+
+          return {
+            message: `Found ${memories.length} relevant memories`,
+            memories: memories.map((m) => ({
+              category: m.category,
+              key: m.key,
+              value: m.value,
+            })),
+          };
+        } catch (error) {
+          return { error: "Failed to recall memories", details: String(error) };
+        }
+      },
+    }),
+
+    updateUserContext: tool({
+      description: "Update business context like company name, default currency, invoice prefix. Use when user provides business configuration info.",
+      inputSchema: z.object({
+        companyName: z.string().optional().describe("Company/business name"),
+        defaultCurrency: z.string().optional().describe("Default currency code (e.g., MYR, USD)"),
+        invoicePrefix: z.string().optional().describe("Default invoice number prefix"),
+        quotationPrefix: z.string().optional().describe("Default quotation number prefix"),
+        fiscalYearEnd: z.string().optional().describe("Fiscal year end date (MM-DD format)"),
+        industry: z.string().optional().describe("Business industry"),
+      }),
+      execute: async (updates) => {
+        try {
+          const filtered = Object.fromEntries(
+            Object.entries(updates).filter(([_, v]) => v !== undefined)
+          );
+
+          if (Object.keys(filtered).length === 0) {
+            return { error: "No updates provided" };
+          }
+
+          await agentMemoryService.upsertUserContext(user.id, filtered);
+
+          return {
+            success: true,
+            message: "Business context updated successfully",
+            updated: filtered,
+          };
+        } catch (error) {
+          return { error: "Failed to update context", details: String(error) };
+        }
+      },
+    }),
+
+    // ==========================================
+    // PLANNING & REASONING TOOLS
+    // ==========================================
+
+    thinkStep: tool({
+      description: "Use this tool to think through complex problems step by step. Call this BEFORE taking any action to plan your approach. IMPORTANT: After calling this tool, you MUST continue to execute the planned steps - do not stop here.",
+      inputSchema: z.object({
+        thought: z.string().describe("Your reasoning about the current situation"),
+        plan: z.array(z.string()).describe("List of steps you plan to take"),
+        uncertainties: z.array(z.string()).optional().describe("Things you're unsure about that might need clarification"),
+      }),
+      execute: async ({ thought, plan, uncertainties }) => {
+        // This is a planning tool - it's used for the AI to externalize its reasoning
+        // The AI MUST continue to execute the plan after this tool returns
+        return {
+          status: "planning_complete",
+          message: "Planning complete. NOW EXECUTE the first step in your plan by calling the appropriate tool. Do NOT stop here - continue with the actual data retrieval or action.",
+          reasoning: thought,
+          plannedSteps: plan,
+          uncertainties: uncertainties ?? [],
+          nextAction: plan[0] ?? "No action planned",
+          instruction: "IMPORTANT: Call the next tool now to execute your plan. Do not respond to the user until you have actual data.",
+        };
+      },
+    }),
+
+    validateAction: tool({
+      description: "Validate an action before executing it. Use this before write operations to double-check the action is correct.",
+      inputSchema: z.object({
+        action: z.string().describe("The action you're about to take"),
+        target: z.string().describe("What you're acting on (e.g., invoice ID, customer name)"),
+        expectedOutcome: z.string().describe("What you expect to happen"),
+        risks: z.array(z.string()).optional().describe("Potential risks or issues"),
+      }),
+      execute: async ({ action, target, expectedOutcome, risks }) => {
+        return {
+          validated: true,
+          action,
+          target,
+          expectedOutcome,
+          risks: risks ?? [],
+          proceed: true,
+        };
+      },
+    }),
   };
+
+  // Build the enhanced system prompt - OPTIMIZED for token efficiency
+  const systemPrompt = `You are an intelligent bookkeeping assistant (MFRS-compliant).
+
+USER: ${user.name || user.email} | DATE: ${new Date().toISOString().split("T")[0]} | SESSION: ${session?.id ?? "transient"}
+${memoryContext ? `\nCONTEXT:\n${memoryContext}\n` : ""}
+=====================================
+ACCOUNTING TOOL SELECTION (CRITICAL)
+=====================================
+For accounting entries, ALWAYS use smart tools - they handle double-entry automatically:
+
+| User Says                          | Use Tool              |
+|------------------------------------|----------------------|
+| "record sale", "revenue", "sold"   | recordSalesRevenue   |
+| "expense", "paid for", "bought"    | recordExpense        |
+| "customer paid", "received"        | recordPaymentReceived|
+| "paid vendor", "paid bill"         | recordPaymentMade    |
+| "post invoice to books"            | postInvoiceToLedger  |
+
+These tools AUTO-POST and handle correct DR/CR. Only use createJournalEntry for unusual transactions.
+
+=====================================
+EXECUTION RULES
+=====================================
+1. Call tools → Get data → Respond with results
+2. Never fabricate numbers - always use tool data
+3. Simple queries: call tool directly, no thinkStep needed
+4. Use thinkStep only for multi-step complex workflows
+
+=====================================
+TOOL CATEGORIES
+=====================================
+READ: getDashboardStats, listInvoices, listCustomers, listVendors, listBills, listQuotations, getTrialBalance, getProfitAndLoss, getBalanceSheet, listAccounts
+
+ACCOUNTING (smart): recordSalesRevenue, recordExpense, recordPaymentReceived, recordPaymentMade, postInvoiceToLedger
+
+CREATE: createInvoice, createBill, createCustomer, createVendor, createJournalEntry
+
+UPDATE: markInvoiceAsPaid, markBillAsPaid, updateInvoiceStatus, postJournalEntry
+
+MEMORY: rememberPreference, recallMemories, updateUserContext
+
+DOCUMENTS: listVaultDocuments, processDocuments, getDocumentDetails, queryDocumentCabinet, createEntriesFromDocument
+
+=====================================
+DOCUMENT PROCESSING WORKFLOW
+=====================================
+When user uploads or mentions documents:
+1. Use listVaultDocuments to see available documents
+2. Use processDocuments with document IDs to extract data
+3. ALWAYS ask user what to do after processing:
+   - "Would you like me to: a) Create bills for all, b) Show summary first, c) Go through each?"
+4. Use createEntriesFromDocument to create bills
+5. Only offer to explain accounting implications ON DEMAND or for amounts >RM 10,000
+
+SUMMARY TABLE FORMAT (for multiple documents):
+| # | Vendor | Type | Date | Amount | Status |
+
+Be concise. Use proper accounting format. Verify data before acting.`;
+
+  logger.info({ userId: user.id, messageCount: messages.length }, "Starting streamText with multi-step tool calling");
+
+  // Limit message history to prevent exceeding OpenAI token limits (30k TPM)
+  const limitedMessages = limitMessageHistory(messages, 8);
+  logger.debug({ original: messages.length, limited: limitedMessages.length }, "Message history limited");
 
   const result = streamText({
     model: openai("gpt-4o"),
-    system: `You are an intelligent bookkeeping assistant for Open-Bookkeeping, a comprehensive invoicing and financial management platform.
-
-CURRENT USER: ${user.name || user.email}
-CURRENT DATE: ${new Date().toLocaleDateString()}
-
-YOUR CAPABILITIES:
-You are an AGENTIC assistant that can both READ data AND TAKE ACTIONS on behalf of the user.
-
-READ OPERATIONS:
-- Access to real-time business data through tools
-- Query invoices, customers, vendors, quotations, bills
-- Generate full financial reports: Trial Balance, Profit & Loss, Balance Sheet
-- Search and analyze ledger transactions
-- Check accounting period status
-
-ACTION OPERATIONS:
-- Create new customers and vendors
-- Create invoices with line items
-- Create bills (accounts payable) with line items
-- Create journal entries with debit/credit lines
-- Mark invoices as paid
-- Update invoice and quotation statuses
-- Convert quotations to invoices
-- Mark bills as paid
-- Post and reverse journal entries
-
-GUIDELINES:
-1. Always use the available tools to fetch real data - never make up numbers
-2. When asked to perform actions (create, update, mark as paid), use the appropriate action tool
-3. For multi-step workflows, chain tools together (e.g., find invoice → mark as paid → confirm)
-4. Be concise but informative in your responses
-5. Proactively offer insights when you notice patterns (e.g., overdue invoices, unpaid bills)
-6. Confirm successful actions and show the result to the user
-7. When presenting financial data, use proper accounting format
-8. Always verify data exists before taking action on it
-
-AVAILABLE TOOLS:
-
-Data Access:
-- Dashboard stats, invoice lists, customer lists, vendor lists
-- Invoice details, customer invoice history, aging reports
-- Quotation lists, bill lists, unpaid bills
-- Trial Balance, P&L Statement, Balance Sheet
-- Ledger transaction search, accounting period status
-
-Actions:
-- createCustomer, createVendor - Add new entities
-- createInvoice - Create full invoice with items
-- createBill - Create bill (accounts payable) with items
-- createJournalEntry - Create manual journal entry
-- postJournalEntry, reverseJournalEntry - Journal entry management
-- markInvoiceAsPaid, markBillAsPaid - Payment tracking
-- updateInvoiceStatus, updateQuotationStatus - Status management
-- convertQuotationToInvoice - Quotation conversion
-- listAccounts - Get chart of accounts for journal entries
-
-MULTI-STEP WORKFLOW EXAMPLES:
-1. "Add customer John and show all customers" → createCustomer → listCustomers
-2. "Mark invoice INV-001 as paid" → getInvoiceDetails (to find ID) → markInvoiceAsPaid
-3. "Convert the latest quotation" → listQuotations → convertQuotationToInvoice
-4. "What bills need payment and mark the first one paid" → getUnpaidBills → markBillAsPaid
-
-When the user asks about their business or wants to perform actions, use the appropriate tools proactively.
-
-IMPORTANT: Be efficient with tool calls. Avoid redundant queries.`,
-    messages: convertToModelMessages(messages),
+    system: systemPrompt,
+    messages: convertToModelMessages(limitedMessages),
     tools,
+    // AI SDK v5: Use stopWhen instead of maxSteps for multi-step tool calling
+    // Default is stepCountIs(1) which stops after first tool call
+    // This allows the AI to: call tool → get result → continue (call more tools or generate text)
+    stopWhen: stepCountIs(10),
+    onStepFinish: async ({ text, toolCalls, toolResults, usage }) => {
+      logger.info({
+        stepText: text?.substring(0, 200) ?? "(no text)",
+        toolCallsCount: toolCalls?.length ?? 0,
+        toolResultsCount: toolResults?.length ?? 0,
+        hasText: !!text,
+        usage,
+      }, "=== AI STEP FINISHED ===");
+    },
   });
 
-  logger.debug({ userId: user.id }, "AI chat request processed");
-  return result.toUIMessageStreamResponse();
+  logger.debug({ userId: user.id, sessionId: session?.id }, "AI chat request processed");
+
+  // Save user message to session if we have one
+  if (session && messages.length > 0) {
+    const lastUserMessage = messages[messages.length - 1];
+    if (lastUserMessage.role === "user") {
+      // Extract text content from the message
+      const textContent = lastUserMessage.parts
+        ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
+        .map((p) => p.text)
+        .join("\n") ?? "";
+
+      agentMemoryService.saveMessage(session.id, {
+        role: "user",
+        content: textContent,
+      }).catch((err) => logger.error({ err }, "Failed to save user message"));
+
+      // Update session title from first message
+      if (messages.length === 1 && textContent) {
+        const title = textContent.slice(0, 100);
+        agentMemoryService.updateSessionTitle(session.id, title).catch((err) =>
+          logger.error({ err }, "Failed to update session title")
+        );
+      }
+    }
+  }
+
+  // Create response with sessionId header
+  const response = result.toUIMessageStreamResponse();
+  response.headers.set("X-Session-Id", session?.id ?? "");
+  return response;
 });
 
 /**
@@ -1407,7 +2332,7 @@ aiRoutes.post("/extract/invoice", async (c) => {
   }
 
   const result = await generateObject({
-    model: openai.chat("gpt-4o"),
+    model: openai("gpt-4o-mini"),
     schema: extractedInvoiceSchema,
     prompt: `Extract invoice data from the following document content.
 Be precise with numbers, dates, and currency values.
@@ -1438,7 +2363,7 @@ aiRoutes.post("/extract/receipt", async (c) => {
   }
 
   const result = await generateObject({
-    model: openai.chat("gpt-4o"),
+    model: openai("gpt-4o-mini"),
     schema: extractedReceiptSchema,
     prompt: `Extract receipt data from the following document content.
 Be precise with numbers and dates.
@@ -1469,7 +2394,7 @@ aiRoutes.post("/extract/bank-statement", async (c) => {
   }
 
   const result = await generateObject({
-    model: openai.chat("gpt-4o"),
+    model: openai("gpt-4o-mini"),
     schema: extractedBankStatementSchema,
     prompt: `Extract bank statement data from the following document content.
 Parse all transactions carefully, noting whether each is a credit or debit.

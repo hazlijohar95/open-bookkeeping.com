@@ -1,5 +1,5 @@
 import { CircleCheckIcon, CircleXmarkIcon, LabelInfoIcon, TriangleWarningIcon } from "@/assets/icons";
-import { ToasterProps } from "sonner";
+import type { ToasterProps } from "sonner";
 
 export const TOAST_OPTIONS = {
   unstyled: true,

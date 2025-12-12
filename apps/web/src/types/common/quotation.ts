@@ -1,4 +1,4 @@
-import { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
+import type { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
 
 // Quotation type values (local or server storage)
 export const quotationTypeValues = ["local", "server"] as const;

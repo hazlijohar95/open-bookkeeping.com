@@ -19,9 +19,9 @@ import {
 import {
   TrendingUp,
   TrendingDown,
-  Calendar,
+  CalendarIcon,
   Download,
-  ChevronRight,
+  ChevronRightIcon,
 } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
@@ -89,7 +89,7 @@ export function ProfitLoss() {
         action={
           <Link to="/trial-balance">
             <Button variant="outline">
-              <ChevronRight className="size-4" />
+              <ChevronRightIcon className="size-4" />
               Trial Balance
             </Button>
           </Link>
@@ -99,7 +99,7 @@ export function ProfitLoss() {
       {/* Date Range Filter */}
       <div className="flex items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <Calendar className="size-4 text-muted-foreground" />
+          <CalendarIcon className="size-4 text-muted-foreground" />
           <span className="text-sm text-muted-foreground">From:</span>
           <Input
             type="date"

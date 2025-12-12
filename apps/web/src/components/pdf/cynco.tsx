@@ -1,6 +1,4 @@
-/* eslint-disable jsx-a11y/alt-text */
-
-import { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
+import type { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
 import { Document, Page, Text, View, Image, Font } from "@react-pdf/renderer";
 import { getSubTotalValue, getTotalValue } from "@/constants/pdf-helpers";
 import { GEIST_MONO_FONT } from "@/constants/pdf-fonts";

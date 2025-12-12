@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Calendar, Download } from "@/components/ui/icons";
+import { CalendarIcon, Download } from "@/components/ui/icons";
 import { formatPeriodLabel } from "./types";
 
 interface SST02Return {
@@ -99,10 +99,10 @@ export function SSTReturnTab({
 
     const rows = sst02Return.transactions.map((t) => [
       t.documentType,
-      t.documentNumber || "",
+      t.documentNumber ?? "",
       new Date(t.documentDate).toLocaleDateString("en-MY"),
-      t.customerName || "",
-      t.customerTin || "",
+      t.customerName ?? "",
+      t.customerTin ?? "",
       t.taxType === "sales_tax" ? "Sales Tax" : "Service Tax",
       t.taxRate.toFixed(2),
       t.taxableAmount.toFixed(2),
@@ -132,7 +132,7 @@ export function SSTReturnTab({
             <div className="flex gap-2">
               <Select value={selectedReturnPeriod} onValueChange={setSelectedReturnPeriod}>
                 <SelectTrigger className="w-[180px]">
-                  <Calendar className="mr-2 size-4" />
+                  <CalendarIcon className="mr-2 size-4" />
                   <SelectValue placeholder="Select Period" />
                 </SelectTrigger>
                 <SelectContent>
@@ -169,15 +169,15 @@ export function SSTReturnTab({
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <p className="text-sm text-muted-foreground">SST Registration No.</p>
-                    <p className="font-medium">{sst02Return.partA.sstRegistrationNumber || "Not registered"}</p>
+                    <p className="font-medium">{sst02Return.partA.sstRegistrationNumber ?? "Not registered"}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">TIN</p>
-                    <p className="font-medium">{sst02Return.partA.tin || "-"}</p>
+                    <p className="font-medium">{sst02Return.partA.tin ?? "-"}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">BRN</p>
-                    <p className="font-medium">{sst02Return.partA.brn || "-"}</p>
+                    <p className="font-medium">{sst02Return.partA.brn ?? "-"}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Tax Period</p>

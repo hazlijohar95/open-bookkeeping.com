@@ -1,7 +1,5 @@
-/* eslint-disable jsx-a11y/alt-text */
-
 import { GEIST_MONO_FONT, GEIST_FONT } from "@/constants/pdf-fonts";
-import { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
+import type { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
 import { Document, Page, Text, View, Image, Font } from "@react-pdf/renderer";
 import { getDebitNoteSubTotalValue, getDebitNoteTotalValue } from "@/constants/debit-note-helpers";
 import { formatCurrencyText } from "@/constants/currency";

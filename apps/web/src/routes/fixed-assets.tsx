@@ -144,7 +144,7 @@ export function FixedAssets() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {formatCurrency(parseFloat(summary.totalCost || "0"))}
+                {formatCurrency(parseFloat(summary.totalCost ?? "0"))}
               </div>
               <p className="text-xs text-muted-foreground">Original acquisition cost</p>
             </CardContent>
@@ -157,7 +157,7 @@ export function FixedAssets() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {formatCurrency(parseFloat(summary.totalAccumulatedDepreciation || "0"))}
+                {formatCurrency(parseFloat(summary.totalAccumulatedDepreciation ?? "0"))}
               </div>
               <p className="text-xs text-muted-foreground">Total depreciation to date</p>
             </CardContent>
@@ -168,7 +168,7 @@ export function FixedAssets() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {formatCurrency(parseFloat(summary.totalNetBookValue || "0"))}
+                {formatCurrency(parseFloat(summary.totalNetBookValue ?? "0"))}
               </div>
               <p className="text-xs text-muted-foreground">Current carrying value</p>
             </CardContent>

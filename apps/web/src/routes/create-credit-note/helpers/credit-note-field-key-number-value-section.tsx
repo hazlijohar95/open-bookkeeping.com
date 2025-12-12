@@ -1,11 +1,12 @@
-import { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
-import { useFieldArray, UseFormReturn } from "react-hook-form";
+import type { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
+import type { UseFormReturn } from "react-hook-form";
+import { useFieldArray } from "react-hook-form";
 import { FormSelect } from "@/components/ui/form/form-select";
 import { FormInput } from "@/components/ui/form/form-input";
 import { SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Trash2 } from "@/components/ui/icons";
+import { Trash2Icon } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import React from "react";
 
@@ -68,7 +69,7 @@ const CreditNoteFieldKeyNumberValuesSection: React.FC<CreditNoteFieldKeyNumberVa
               placeholder="e.g. 6"
             />
             <Button variant="destructive" size="icon" onClick={() => remove(index)} type="button">
-              <Trash2 className="size-4" />
+              <Trash2Icon className="size-4" />
             </Button>
           </div>
         </div>

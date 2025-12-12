@@ -1,4 +1,4 @@
-import { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
+import type { ZodCreateCreditNoteSchema } from "@/zod-schemas/credit-note/create-credit-note";
 
 // Credit note type values (local or server storage)
 export const creditNoteTypeValues = ["local", "server"] as const;

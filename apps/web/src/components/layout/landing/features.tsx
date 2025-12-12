@@ -106,7 +106,7 @@ const features = [
     icon: <FileFeatherIcon className="size-5" />,
     title: "Quotations",
     description:
-      "Send quotes, track acceptance, convert to invoices with one click.",
+      "SendIcon quotes, track acceptance, convert to invoices with one click.",
     accentColor: "#8b5cf6", // violet
   },
   {

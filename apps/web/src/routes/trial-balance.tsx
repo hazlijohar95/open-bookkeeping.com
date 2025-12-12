@@ -17,7 +17,7 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table";
-import { Scale, CheckCircle, XCircle, Calendar, Download } from "@/components/ui/icons";
+import { Scale, CheckCircleIcon, XCircleIcon, CalendarIcon, Download } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 
@@ -106,7 +106,7 @@ export function TrialBalance() {
       {/* Date Filter and Balance Status */}
       <div className="flex items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <Calendar className="size-4 text-muted-foreground" />
+          <CalendarIcon className="size-4 text-muted-foreground" />
           <span className="text-sm text-muted-foreground">As of:</span>
           <Input
             type="date"
@@ -129,12 +129,12 @@ export function TrialBalance() {
             >
               {trialBalance.isBalanced ? (
                 <>
-                  <CheckCircle className="size-4" />
+                  <CheckCircleIcon className="size-4" />
                   <span>Balanced</span>
                 </>
               ) : (
                 <>
-                  <XCircle className="size-4" />
+                  <XCircleIcon className="size-4" />
                   <span>Unbalanced</span>
                 </>
               )}

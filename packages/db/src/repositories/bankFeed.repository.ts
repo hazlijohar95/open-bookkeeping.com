@@ -95,11 +95,11 @@ export const bankFeedRepository = {
       .values({
         userId: input.userId,
         accountName: input.accountName,
-        bankName: input.bankName || null,
-        accountNumber: input.accountNumber || null,
-        currency: input.currency || "MYR",
-        openingBalance: input.openingBalance || "0",
-        openingBalanceDate: input.openingBalanceDate || null,
+        bankName: input.bankName ?? null,
+        accountNumber: input.accountNumber ?? null,
+        currency: input.currency ?? "MYR",
+        openingBalance: input.openingBalance ?? "0",
+        openingBalanceDate: input.openingBalanceDate ?? null,
       })
       .returning();
 
@@ -173,10 +173,10 @@ export const bankFeedRepository = {
         bankAccountId: input.bankAccountId,
         fileName: input.fileName,
         fileType: input.fileType,
-        bankPreset: input.bankPreset || null,
-        transactionCount: input.transactionCount || null,
-        startDate: input.startDate || null,
-        endDate: input.endDate || null,
+        bankPreset: input.bankPreset ?? null,
+        transactionCount: input.transactionCount ?? null,
+        startDate: input.startDate ?? null,
+        endDate: input.endDate ?? null,
       })
       .returning();
 
@@ -201,13 +201,13 @@ export const bankFeedRepository = {
       .values({
         userId: input.userId,
         bankAccountId: input.bankAccountId,
-        uploadId: input.uploadId || null,
+        uploadId: input.uploadId ?? null,
         transactionDate: input.transactionDate,
         description: input.description,
-        reference: input.reference || null,
+        reference: input.reference ?? null,
         amount: input.amount,
         type: input.type,
-        balance: input.balance || null,
+        balance: input.balance ?? null,
         matchStatus: "unmatched",
       })
       .returning();
@@ -224,13 +224,13 @@ export const bankFeedRepository = {
         transactions.map((t) => ({
           userId: t.userId,
           bankAccountId: t.bankAccountId,
-          uploadId: t.uploadId || null,
+          uploadId: t.uploadId ?? null,
           transactionDate: t.transactionDate,
           description: t.description,
-          reference: t.reference || null,
+          reference: t.reference ?? null,
           amount: t.amount,
           type: t.type,
-          balance: t.balance || null,
+          balance: t.balance ?? null,
           matchStatus: "unmatched" as const,
         }))
       )
@@ -265,7 +265,7 @@ export const bankFeedRepository = {
     userId: string,
     options?: TransactionQueryOptions
   ) => {
-    const { limit = 50, offset = 0, matchStatus, startDate, endDate, type } = options || {};
+    const { limit = 50, offset = 0, matchStatus, startDate, endDate, type } = options ?? {};
 
     const conditions = [
       eq(bankTransactions.bankAccountId, bankAccountId),
@@ -385,7 +385,7 @@ export const bankFeedRepository = {
         userId: input.userId,
         name: input.name,
         type: input.type,
-        color: input.color || null,
+        color: input.color ?? null,
       })
       .returning();
 
@@ -468,8 +468,8 @@ export const bankFeedRepository = {
     const deposits = transactions.filter((t) => t.type === "deposit");
     const withdrawals = transactions.filter((t) => t.type === "withdrawal");
 
-    const totalDeposits = deposits.reduce((sum, t) => sum + parseFloat(t.amount || "0"), 0);
-    const totalWithdrawals = withdrawals.reduce((sum, t) => sum + Math.abs(parseFloat(t.amount || "0")), 0);
+    const totalDeposits = deposits.reduce((sum, t) => sum + parseFloat(t.amount ?? "0"), 0);
+    const totalWithdrawals = withdrawals.reduce((sum, t) => sum + Math.abs(parseFloat(t.amount ?? "0")), 0);
 
     const stats = {
       total: transactions.length,

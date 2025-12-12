@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Users } from "@/components/ui/icons";
+import { ArrowRightIcon, UsersIcon } from "@/components/ui/icons";
 import { cn, formatCurrency, getInitials } from "@/lib/utils";
 
 interface TopCustomer {
@@ -82,14 +82,14 @@ export const TopCustomers = memo(function TopCustomers({
         <Button variant="ghost" size="sm" asChild>
           <Link to="/customers" className="flex items-center gap-1">
             View all
-            <ArrowRight className="size-3" />
+            <ArrowRightIcon className="size-3" />
           </Link>
         </Button>
       </CardHeader>
       <CardContent>
         {customers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Users className="mb-2 size-10 text-muted-foreground/50" />
+            <UsersIcon className="mb-2 size-10 text-muted-foreground/50" />
             <p className="text-sm text-muted-foreground">No customers yet</p>
             <Button variant="outline" size="sm" className="mt-4" asChild>
               <Link to="/customers">Add your first customer</Link>

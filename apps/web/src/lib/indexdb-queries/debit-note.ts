@@ -1,6 +1,6 @@
-import { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
+import type { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
 import { IDB_SCHEMA_DEBIT_NOTES } from "@/constants/indexed-db";
-import { IDBDebitNote } from "@/types/indexdb/debit-note";
+import type { IDBDebitNote } from "@/types/indexdb/debit-note";
 import { ERROR_MESSAGES } from "@/constants/issues";
 import { initIndexedDB } from "@/global/indexdb";
 import { v4 as uuidv4 } from "uuid";

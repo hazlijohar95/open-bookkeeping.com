@@ -1,6 +1,6 @@
-import { invoiceTypeEnum, invoiceStatusEnum } from "@open-bookkeeping/db";
-import { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
-import { InvoiceImageType } from "../common/invoice";
+import type { invoiceTypeEnum, invoiceStatusEnum } from "@open-bookkeeping/db";
+import type { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
+import type { InvoiceImageType } from "../common/invoice";
 
 export type InvoiceTypeType = (typeof invoiceTypeEnum.enumValues)[number];
 export type InvoiceStatusType = (typeof invoiceStatusEnum.enumValues)[number];

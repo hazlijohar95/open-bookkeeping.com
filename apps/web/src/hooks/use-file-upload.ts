@@ -86,7 +86,7 @@ export const useFileUpload = (options: FileUploadOptions = {}): [FileUploadState
 
       if (accept !== "*") {
         const acceptedTypes = accept.split(",").map((type) => type.trim());
-        const fileType = file instanceof File ? file.type || "" : file.type;
+        const fileType = file instanceof File ? file.type ?? "" : file.type;
         const fileExtension = `.${file instanceof File ? file.name.split(".").pop() : file.name.split(".").pop()}`;
 
         const isAccepted = acceptedTypes.some((type) => {
@@ -251,8 +251,7 @@ export const useFileUpload = (options: FileUploadOptions = {}): [FileUploadState
       setState((prev) => {
         const fileToRemove = prev.files.find((file) => file.id === id);
         if (
-          fileToRemove &&
-          fileToRemove.preview &&
+          fileToRemove?.preview &&
           fileToRemove.file instanceof File &&
           fileToRemove.file.type.startsWith("image/")
         ) {

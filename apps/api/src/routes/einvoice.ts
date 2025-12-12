@@ -338,7 +338,7 @@ einvoiceRoutes.post("/cancel", async (c) => {
     await einvoiceRepository.updateSubmission(submission.id, {
       status: "cancelled",
       cancelledAt: new Date(),
-      errorMessage: reason || "Cancelled by user",
+      errorMessage: reason ?? "Cancelled by user",
     });
 
     return c.json({
@@ -403,7 +403,11 @@ einvoiceRoutes.get("/validate/:invoiceId", async (c) => {
     if (!clientDetails?.name) {
       errors.push("Customer name is required");
     }
-    if (!(clientDetails as { taxId?: string })?.taxId) {
+    // In the old invoice schema, taxId is stored in metadata array
+    const clientTaxId = clientDetails?.metadata?.find(
+      (m) => m.label.toLowerCase() === "tin" || m.label.toLowerCase() === "tax id"
+    )?.value;
+    if (!clientTaxId) {
       warnings.push("Customer TIN is recommended for e-invoice");
     }
     if (!items || items.length === 0) {

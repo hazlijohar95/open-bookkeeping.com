@@ -213,7 +213,7 @@ export function useClosePeriod() {
         notes,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ledgerKeys.periods() });
+      void queryClient.invalidateQueries({ queryKey: ledgerKeys.periods() });
     },
   });
 }
@@ -232,13 +232,13 @@ export function useReopenPeriod() {
         reason,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ledgerKeys.periods() });
+      void queryClient.invalidateQueries({ queryKey: ledgerKeys.periods() });
     },
   });
 }
 
 /**
- * Search ledger transactions
+ * SearchIcon ledger transactions
  */
 export function useSearchTransactions(
   query: string,

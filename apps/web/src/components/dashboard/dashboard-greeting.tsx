@@ -18,7 +18,7 @@ function getTimeOfDay(): "Morning" | "Afternoon" | "Evening" | "Night" {
 
 export function DashboardGreeting({ userName, className }: DashboardGreetingProps) {
   const timeOfDay = useMemo(() => getTimeOfDay(), []);
-  const firstName = userName.split(" ")[0] || "there";
+  const firstName = userName.split(" ")[0] ?? "there";
 
   return (
     <div className={cn("flex flex-col", className)}>

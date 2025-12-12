@@ -62,7 +62,7 @@ export const billRouter = router({
   list: protectedProcedure
     .input(listBillsSchema)
     .query(async ({ ctx, input }) => {
-      const { limit = 50, offset = 0, vendorId, status, startDate, endDate } = input || {};
+      const { limit = 50, offset = 0, vendorId, status, startDate, endDate } = input ?? {};
 
       const bills = await billRepository.findMany(ctx.user.id, {
         limit,
@@ -118,15 +118,15 @@ export const billRouter = router({
     .mutation(async ({ ctx, input }) => {
       const bill = await billRepository.create({
         userId: ctx.user.id,
-        vendorId: input.vendorId || null,
+        vendorId: input.vendorId ?? null,
         billNumber: input.billNumber,
-        description: input.description || null,
+        description: input.description ?? null,
         currency: input.currency,
         billDate: input.billDate,
-        dueDate: input.dueDate || null,
+        dueDate: input.dueDate ?? null,
         status: input.status,
-        notes: input.notes || null,
-        attachmentUrl: input.attachmentUrl || null,
+        notes: input.notes ?? null,
+        attachmentUrl: input.attachmentUrl ?? null,
         items: input.items,
       });
 
@@ -158,7 +158,7 @@ export const billRouter = router({
             let vendorName = "Vendor";
             if (input.vendorId) {
               const fullBill = await billRepository.findById(bill.id, ctx.user.id);
-              vendorName = (fullBill as { vendor?: { name: string } })?.vendor?.name || "Vendor";
+              vendorName = (fullBill as { vendor?: { name: string } })?.vendor?.name ?? "Vendor";
             }
 
             journalEntryIntegration.createBillJournalEntry(ctx.user.id, {
@@ -236,7 +236,7 @@ export const billRouter = router({
           id: input.id,
           billNumber: updated.billNumber,
           status: "paid",
-          total: updated.total || undefined,
+          total: updated.total ?? undefined,
           currency: updated.currency,
           vendorId: updated.vendorId,
           paidAt: input.paidAt,
@@ -246,7 +246,7 @@ export const billRouter = router({
           id: input.id,
           billNumber: updated.billNumber,
           status: input.status,
-          total: updated.total || undefined,
+          total: updated.total ?? undefined,
           currency: updated.currency,
           vendorId: updated.vendorId,
         });
@@ -261,8 +261,8 @@ export const billRouter = router({
             if (bill) {
               // Ensure paymentAmount is a number
               const rawTotal = bill.total;
-              const paymentAmount = typeof rawTotal === "string" ? parseFloat(rawTotal) : (rawTotal || 0);
-              const vendorName = (bill as { vendor?: { name: string } })?.vendor?.name || "Vendor";
+              const paymentAmount = typeof rawTotal === "string" ? parseFloat(rawTotal) : (rawTotal ?? 0);
+              const vendorName = (bill as { vendor?: { name: string } })?.vendor?.name ?? "Vendor";
               const billNumber = bill.billNumber || input.id;
 
               journalEntryIntegration.createPaymentJournalEntry(ctx.user.id, {

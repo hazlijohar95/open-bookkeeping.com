@@ -363,9 +363,9 @@ export const bankFeedRouter = router({
       const result = await reconciliationService.reconcileTransaction({
         transactionId: input.id,
         userId: ctx.user.id,
-        categoryId: transaction.categoryId || undefined,
-        matchedInvoiceId: transaction.matchedInvoiceId || undefined,
-        matchedBillId: transaction.matchedBillId || undefined,
+        categoryId: transaction.categoryId ?? undefined,
+        matchedInvoiceId: transaction.matchedInvoiceId ?? undefined,
+        matchedBillId: transaction.matchedBillId ?? undefined,
         bankAccountLedgerId: input.bankAccountLedgerId,
       });
 
@@ -402,7 +402,7 @@ export const bankFeedRouter = router({
     .mutation(async ({ ctx, input }) => {
       // Get all matched transactions
       const transactions = await bankFeedRepository.findTransactionsByAccount(
-        input?.bankAccountId || "",
+        input?.bankAccountId ?? "",
         ctx.user.id,
         { matchStatus: "matched" as const }
       );
@@ -435,9 +435,9 @@ export const bankFeedRouter = router({
         const result = await reconciliationService.reconcileTransaction({
           transactionId: transaction.id,
           userId: ctx.user.id,
-          categoryId: transaction.categoryId || undefined,
-          matchedInvoiceId: transaction.matchedInvoiceId || undefined,
-          matchedBillId: transaction.matchedBillId || undefined,
+          categoryId: transaction.categoryId ?? undefined,
+          matchedInvoiceId: transaction.matchedInvoiceId ?? undefined,
+          matchedBillId: transaction.matchedBillId ?? undefined,
           bankAccountLedgerId: input?.bankAccountLedgerId,
         });
 
@@ -482,7 +482,7 @@ export const bankFeedRouter = router({
       if (!result.success) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: result.error || "Failed to undo reconciliation",
+          message: result.error ?? "Failed to undo reconciliation",
         });
       }
 
@@ -625,10 +625,10 @@ export const bankFeedRouter = router({
         for (const invoice of invoices) {
           // Calculate total from items
           let total = 0;
-          const items = invoice.invoiceFields?.items || [];
+          const items = invoice.invoiceFields?.items ?? [];
           for (const item of items) {
-            const qty = typeof item.quantity === "number" ? item.quantity : parseFloat(String(item.quantity)) || 0;
-            const price = parseFloat(item.unitPrice) || 0;
+            const qty = typeof item.quantity === "number" ? item.quantity : parseFloat(String(item.quantity)) ?? 0;
+            const price = parseFloat(item.unitPrice) ?? 0;
             total += qty * price;
           }
 
@@ -638,21 +638,21 @@ export const bankFeedRouter = router({
           let customerName = "";
           if (invoice.customerId) {
             const customer = customers.find(c => c.id === invoice.customerId);
-            customerName = customer?.name || "";
+            customerName = customer?.name ?? "";
           }
           const nameScore = calculateNameMatch(transaction.description, customerName);
 
           // Combine scores
           const combinedScore = amountScore * 0.6 + nameScore * 0.4;
           const invoiceNumber = invoice.invoiceFields?.invoiceDetails
-            ? `${invoice.invoiceFields.invoiceDetails.prefix || ""}${invoice.invoiceFields.invoiceDetails.serialNumber || ""}`
+            ? `${invoice.invoiceFields.invoiceDetails.prefix ?? ""}${invoice.invoiceFields.invoiceDetails.serialNumber ?? ""}`
             : invoice.id.slice(0, 8);
 
           if (amountScore > 0.7 || combinedScore > 0.5) {
             suggestions.push({
               type: "invoice",
               id: invoice.id,
-              name: `Invoice ${invoiceNumber} - ${customerName || "Unknown"}`,
+              name: `Invoice ${invoiceNumber} - ${customerName ?? "Unknown"}`,
               confidence: Math.max(amountScore, combinedScore),
               reason: amountScore > 0.9
                 ? "Amount matches exactly"
@@ -684,14 +684,14 @@ export const bankFeedRouter = router({
         for (const bill of bills) {
           // Calculate total from items
           let total = 0;
-          for (const item of bill.items || []) {
-            const qty = parseFloat(item.quantity) || 0;
-            const price = parseFloat(item.unitPrice) || 0;
+          for (const item of bill.items ?? []) {
+            const qty = parseFloat(item.quantity) ?? 0;
+            const price = parseFloat(item.unitPrice) ?? 0;
             total += qty * price;
           }
 
           const amountScore = calculateAmountMatch(transaction.amount, total.toFixed(2));
-          const vendorName = bill.vendor?.name || "";
+          const vendorName = bill.vendor?.name ?? "";
           const nameScore = calculateNameMatch(transaction.description, vendorName);
 
           // Combine scores
@@ -701,7 +701,7 @@ export const bankFeedRouter = router({
             suggestions.push({
               type: "bill",
               id: bill.id,
-              name: `Bill ${bill.billNumber} - ${vendorName || "Unknown"}`,
+              name: `Bill ${bill.billNumber} - ${vendorName ?? "Unknown"}`,
               confidence: Math.max(amountScore, combinedScore),
               reason: amountScore > 0.9
                 ? "Amount matches exactly"

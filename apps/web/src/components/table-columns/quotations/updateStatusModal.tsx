@@ -25,7 +25,7 @@ import {
 import { FileRefreshIcon } from "@/assets/icons";
 import { useUpdateQuotationStatus } from "@/api/quotations";
 import { toast } from "sonner";
-import { QuotationStatusType, QuotationTypeType } from "@/types/common/quotation";
+import type { QuotationStatusType, QuotationTypeType } from "@/types/common/quotation";
 
 interface UpdateStatusModalProps {
   quotationId: string;

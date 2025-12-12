@@ -9,7 +9,7 @@ import {
   DialogIcon,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Customer } from "@/types/common/customer";
+import type { Customer } from "@/types/common/customer";
 import { TrashIcon } from "@/assets/icons";
 import { Button } from "@/components/ui/button";
 import { useDeleteCustomer } from "@/api";

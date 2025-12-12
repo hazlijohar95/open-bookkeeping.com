@@ -17,3 +17,6 @@ export { settingsRoutes } from "./settings";
 export { storageRoutes } from "./storage";
 export { einvoiceRoutes } from "./einvoice";
 export { sstRoutes } from "./sst";
+export { chartOfAccountsRoutes } from "./chart-of-accounts";
+export { ledgerRoutes } from "./ledger";
+export { bankFeedRoutes } from "./bank-feed";

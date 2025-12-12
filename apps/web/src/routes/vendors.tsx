@@ -3,7 +3,7 @@ import { DeleteVendorModal } from "@/components/vendors/delete-vendor-modal";
 import { VendorFormModal } from "@/components/vendors/vendor-form-modal";
 import { VendorDetailModal } from "@/components/vendors/vendor-detail-modal";
 import { DataTable } from "@/components/ui/data-table";
-import { Vendor } from "@/types/common/vendor";
+import type { Vendor } from "@/types/common/vendor";
 import { Button } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page-container";
 import { PageHeader } from "@/components/ui/page-header";

@@ -1,4 +1,4 @@
-import { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
+import type { ZodCreateDebitNoteSchema } from "@/zod-schemas/debit-note/create-debit-note";
 import { DebitNoteDefaultPDF } from "@/components/pdf/debit-note";
 import { pdf } from "@react-pdf/renderer";
 

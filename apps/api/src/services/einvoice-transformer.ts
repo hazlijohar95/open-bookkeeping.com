@@ -195,7 +195,7 @@ export function parseAddress(addressStr: string): {
 
   return {
     addressLines: lines.length > 0 ? lines : ["NA"],
-    cityName: cityName || "NA",
+    cityName: cityName ?? "NA",
     countrySubentityCode: stateCode,
     countryCode: "MYS",
     postalZone,
@@ -398,28 +398,28 @@ export function transformInvoiceToMyInvois(
     legalName: fields.companyDetails.name,
     identificationNumber: settings.brn,
     identificationScheme: settings.identificationScheme,
-    telephone: companyContact.phone || "NA",
+    telephone: companyContact.phone ?? "NA",
     industryClassificationCode: settings.msicCode,
     industryClassificationName: settings.msicDescription,
     address: companyAddress,
     electronicMail: companyContact.email,
-    sstRegistrationNumber: settings.sstRegistration || undefined,
-    tourismTaxRegistrationNumber: settings.tourismTaxRegistration || undefined,
+    sstRegistrationNumber: settings.sstRegistration ?? undefined,
+    tourismTaxRegistrationNumber: settings.tourismTaxRegistration ?? undefined,
   };
 
   // Build customer
   const customer: Customer = {
-    TIN: customerInfo.tin || "EI00000000010", // Generic TIN for unknown customers
+    TIN: customerInfo.tin ?? "EI00000000010", // Generic TIN for unknown customers
     legalName: fields.clientDetails.name,
-    identificationNumber: customerInfo.brn || "NA",
-    identificationScheme: customerInfo.identificationScheme || "BRN",
-    telephone: customerInfo.phone || "NA",
+    identificationNumber: customerInfo.brn ?? "NA",
+    identificationScheme: customerInfo.identificationScheme ?? "BRN",
+    telephone: customerInfo.phone ?? "NA",
     address: clientAddress,
     electronicMail: customerInfo.email,
   };
 
   // Calculate line items
-  const { lines, subtotal } = calculateLineItems(fields.items || []);
+  const { lines, subtotal } = calculateLineItems(fields.items ?? []);
 
   // Calculate tax and discount
   const { taxAmount, discountAmount, taxSubtotals } = calculateBillingAdjustments(
@@ -452,7 +452,7 @@ export function transformInvoiceToMyInvois(
     id: `${fields.invoiceDetails.prefix}${fields.invoiceDetails.serialNumber}`,
     issueDate: formatDate(invoiceDate),
     issueTime: formatTime(invoiceDate),
-    documentCurrencyCode: fields.invoiceDetails.currency || "MYR",
+    documentCurrencyCode: fields.invoiceDetails.currency ?? "MYR",
     supplier,
     customer,
     invoiceLines: lines,

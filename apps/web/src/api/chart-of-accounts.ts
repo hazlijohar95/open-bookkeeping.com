@@ -214,9 +214,9 @@ export function useCreateAccount() {
     mutationFn: (input: CreateAccountInput) =>
       api.post<Account>("/chart-of-accounts/accounts", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.tree() });
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.summary() });
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.hasAccounts() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.tree() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.summary() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.hasAccounts() });
     },
   });
 }
@@ -228,8 +228,8 @@ export function useUpdateAccount() {
     mutationFn: ({ id, ...data }: UpdateAccountInput) =>
       api.patch<Account>(`/chart-of-accounts/accounts/${id}`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.tree() });
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.summary() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.tree() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.summary() });
     },
   });
 }
@@ -241,9 +241,9 @@ export function useInitializeDefaults() {
     mutationFn: () =>
       api.post<{ accountsCreated: number }>("/chart-of-accounts/initialize-defaults"),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.hasAccounts() });
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.tree() });
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.summary() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.hasAccounts() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.tree() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.summary() });
     },
   });
 }
@@ -255,9 +255,9 @@ export function useCreateJournalEntry() {
     mutationFn: (input: CreateJournalEntryInput) =>
       api.post<JournalEntry>("/chart-of-accounts/journal-entries", input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.tree() });
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.summary() });
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.journalEntries() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.tree() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.summary() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.journalEntries() });
     },
   });
 }
@@ -269,9 +269,9 @@ export function usePostJournalEntry() {
     mutationFn: ({ id }: { id: string }) =>
       api.post<JournalEntry>(`/chart-of-accounts/journal-entries/${id}/post`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.tree() });
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.summary() });
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.journalEntries() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.tree() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.summary() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.journalEntries() });
     },
   });
 }
@@ -285,9 +285,9 @@ export function useDeleteAccount() {
     mutationFn: (id: string) =>
       api.delete<{ success: boolean }>(`/chart-of-accounts/accounts/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.tree() });
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.summary() });
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.hasAccounts() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.tree() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.summary() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.hasAccounts() });
     },
   });
 }
@@ -364,10 +364,10 @@ export function useReverseJournalEntry() {
     mutationFn: ({ id, reversalDate }: { id: string; reversalDate: string }) =>
       api.post<JournalEntry>(`/chart-of-accounts/journal-entries/${id}/reverse`, { reversalDate }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.tree() });
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.summary() });
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.journalEntries() });
-      queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.trialBalance() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.tree() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.summary() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.journalEntries() });
+      void queryClient.invalidateQueries({ queryKey: chartOfAccountsKeys.trialBalance() });
     },
   });
 }
