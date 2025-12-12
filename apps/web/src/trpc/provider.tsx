@@ -5,14 +5,14 @@ import { createTRPCReact } from "@trpc/react-query";
 import superjson from "superjson";
 import { queryClient } from "@/lib/query-client";
 import { getAccessToken } from "@/providers/auth-provider";
+import { getApiUrl } from "@/lib/api-url";
 import type { AppRouter } from "../../../api/src/trpc/router";
 
 export const trpc = createTRPCReact<AppRouter>();
 
 function getBaseUrl() {
   if (typeof window !== "undefined") {
-    // Browser should use current origin
-    return import.meta.env.VITE_API_URL ?? "";
+    return getApiUrl();
   }
   return "";
 }

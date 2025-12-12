@@ -5,6 +5,7 @@ import { DefaultChatTransport } from "ai";
 import { useRef, useEffect, useState, useCallback, useMemo, memo } from "react";
 import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
+import { getApiUrl } from "@/lib/api-url";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -135,7 +136,7 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
 
   const { messages, sendMessage, status, error, setMessages } = useChat({
     transport: new DefaultChatTransport({
-      api: `${import.meta.env.VITE_API_URL ?? "http://localhost:3001"}/api/ai/chat`,
+      api: `${getApiUrl()}/api/ai/chat`,
       headers: {
         Authorization: `Bearer ${session?.access_token ?? ""}`,
         ...(agentSessionId ? { "X-Session-Id": agentSessionId } : {}),

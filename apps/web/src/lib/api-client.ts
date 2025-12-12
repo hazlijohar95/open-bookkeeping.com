@@ -5,7 +5,7 @@
 
 import { getAccessToken } from "@/providers/auth-provider";
 
-// Get the API base URL from environment or default to Supabase Functions URL
+// Get the API base URL from environment or default to same-origin
 function getApiBaseUrl(): string {
   // First check for explicit API URL override
   const explicitApiUrl = import.meta.env.VITE_API_URL;
@@ -19,14 +19,9 @@ function getApiBaseUrl(): string {
     return "http://localhost:3001";
   }
 
-  // In production, use the Supabase Functions URL
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  if (supabaseUrl) {
-    return `${supabaseUrl}/functions/v1/api`;
-  }
-
-  // Fallback to local Node.js API server
-  return "http://localhost:3001";
+  // In production, use same-origin (API served via Netlify Functions)
+  // The API is at the same domain, so no base URL needed
+  return "";
 }
 
 export const API_BASE_URL = getApiBaseUrl();

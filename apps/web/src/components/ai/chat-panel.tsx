@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/icons";
 import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
+import { getApiUrl } from "@/lib/api-url";
 
 // Tool name to friendly label mapping
 const TOOL_LABELS: Record<string, string> = {
@@ -45,7 +46,7 @@ export function ChatPanel() {
 
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({
-      api: `${import.meta.env.VITE_API_URL ?? "http://localhost:3001"}/api/ai/chat`,
+      api: `${getApiUrl()}/api/ai/chat`,
       headers: {
         Authorization: `Bearer ${session?.access_token ?? ""}`,
       },

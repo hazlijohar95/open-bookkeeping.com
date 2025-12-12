@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
+import { getApiUrl } from "@/lib/api-url";
 
 // Custom icons from design system
 import {
@@ -57,7 +58,7 @@ export function DashboardChatInput({ className }: DashboardChatInputProps) {
 
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({
-      api: `${import.meta.env.VITE_API_URL ?? "http://localhost:3001"}/api/ai/chat`,
+      api: `${getApiUrl()}/api/ai/chat`,
       headers: {
         Authorization: `Bearer ${session?.access_token ?? ""}`,
       },

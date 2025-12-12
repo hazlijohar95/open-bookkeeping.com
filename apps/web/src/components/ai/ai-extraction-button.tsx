@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Loader2Icon } from "@/components/ui/icons";
 import { useAuth } from "@/providers/auth-provider";
+import { getApiUrl } from "@/lib/api-url";
 
 interface ExtractedInvoice {
   vendorName: string;
@@ -72,7 +73,7 @@ export function AIExtractionButton<T extends ExtractedData>({
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL ?? "http://localhost:3001"}/api/ai/extract/${extractionType}`,
+        `${getApiUrl()}/api/ai/extract/${extractionType}`,
         {
           method: "POST",
           headers: {

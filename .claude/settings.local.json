@@ -38,7 +38,8 @@
       "Bash(yarn build:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

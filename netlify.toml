@@ -1,23 +1,25 @@
 [build]
   command = "yarn build"
   publish = "apps/web/dist"
+  functions = "netlify/functions"
 
 [build.environment]
   NODE_VERSION = "20"
 
-# SPA fallback - redirect all routes to index.html
+[functions]
+  # Use esbuild for bundling functions
+  node_bundler = "esbuild"
+  # Include workspace packages in the bundle
+  included_files = ["packages/**/*", "apps/api/src/**/*"]
+  # External packages that shouldn't be bundled
+  external_node_modules = ["postgres"]
+
+# SPA fallback - redirect all other routes to index.html
+# This must come AFTER the function routes (which are handled by config.path in the function)
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-
-# API proxy to Supabase Edge Functions
-# Uncomment and update YOUR_PROJECT_REF with your Supabase project reference
-# [[redirects]]
-#   from = "/api/*"
-#   to = "https://YOUR_PROJECT_REF.supabase.co/functions/v1/api/:splat"
-#   status = 200
-#   force = true
 
 [dev]
   command = "yarn dev:web"
@@ -37,3 +39,18 @@
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# API headers
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization, X-Request-Id, X-API-Key, X-Session-Id"
+
+[[headers]]
+  for = "/trpc/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization, X-Request-Id, X-API-Key"

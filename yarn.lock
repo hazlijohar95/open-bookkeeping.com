@@ -2474,6 +2474,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@netlify/functions@npm:^5.1.1":
+  version: 5.1.1
+  resolution: "@netlify/functions@npm:5.1.1"
+  dependencies:
+    "@netlify/types": "npm:2.3.0"
+  checksum: 10c0/79f19fd9f99ffe39e44c7bd7ba470e1ff01dafdf57060bd905959f84736d0e00f10ca5a99286ef1da2c3e9b80a1cbaa3bd6ea638b2265d8f313625405336e982
+  languageName: node
+  linkType: hard
+
+"@netlify/types@npm:2.3.0":
+  version: 2.3.0
+  resolution: "@netlify/types@npm:2.3.0"
+  checksum: 10c0/6ed0f6e583a38c97a73301ccf66486f31027110f418b27b62e445c45cb7f81087ee7beab416c20d119f269c5536258e457a3de5f626e959a65bac51caa75f5e5
+  languageName: node
+  linkType: hard
+
 "@npmcli/agent@npm:^4.0.0":
   version: 4.0.0
   resolution: "@npmcli/agent@npm:4.0.0"
@@ -11215,6 +11231,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "open-bookkeeping@workspace:."
   dependencies:
+    "@netlify/functions": "npm:^5.1.1"
     prettier: "npm:^3.5.3"
     prettier-plugin-tailwindcss: "npm:^0.6.11"
     turbo: "npm:^2.5.3"
