@@ -212,7 +212,10 @@ export default defineConfig({
             return "vendor-pdf";
           }
           // Charts - used on dashboard, SST pages
-          if (id.includes("recharts")) {
+          // Include d3 dependencies with recharts to prevent initialization errors
+          if (id.includes("recharts") ||
+              id.includes("d3-") ||
+              id.includes("victory-vendor")) {
             return "vendor-charts";
           }
           // Radix UI - commonly used, group together

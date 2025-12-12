@@ -34,7 +34,8 @@
       "WebFetch(domain:x.com)",
       "WebSearch",
       "WebFetch(domain:vite-pwa-org.netlify.app)",
-      "Skill(frontend-design:frontend-design)"
+      "Skill(frontend-design:frontend-design)",
+      "Bash(yarn build:*)"
     ],
     "deny": [],
     "ask": []
