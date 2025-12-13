@@ -239,6 +239,96 @@ export const bankFeedRepository = {
     return result;
   },
 
+  /**
+   * Check for duplicate transactions
+   * Duplicates are identified by: same bank account, same date, same amount, similar description
+   */
+  findDuplicateTransactions: async (
+    bankAccountId: string,
+    userId: string,
+    transactions: Array<{
+      transactionDate: Date;
+      amount: string;
+      description: string;
+      type: "deposit" | "withdrawal";
+    }>
+  ): Promise<Array<{
+    index: number;
+    existingId: string;
+    existingDate: Date;
+    existingDescription: string;
+    existingAmount: string;
+  }>> => {
+    if (!transactions.length) return [];
+
+    // Get existing transactions for the date range
+    const dates = transactions.map((t) => t.transactionDate);
+    const minDate = new Date(Math.min(...dates.map((d) => d.getTime())));
+    const maxDate = new Date(Math.max(...dates.map((d) => d.getTime())));
+
+    // Expand range by 1 day to catch edge cases
+    minDate.setDate(minDate.getDate() - 1);
+    maxDate.setDate(maxDate.getDate() + 1);
+
+    const existing = await db.query.bankTransactions.findMany({
+      where: and(
+        eq(bankTransactions.bankAccountId, bankAccountId),
+        eq(bankTransactions.userId, userId),
+        gte(bankTransactions.transactionDate, minDate),
+        lte(bankTransactions.transactionDate, maxDate)
+      ),
+    });
+
+    const duplicates: Array<{
+      index: number;
+      existingId: string;
+      existingDate: Date;
+      existingDescription: string;
+      existingAmount: string;
+    }> = [];
+
+    // Check each incoming transaction for duplicates
+    for (let i = 0; i < transactions.length; i++) {
+      const incoming = transactions[i]!;
+      const incomingAmount = parseFloat(incoming.amount);
+      const incomingDate = incoming.transactionDate.getTime();
+
+      for (const existingTx of existing) {
+        const existingAmount = parseFloat(existingTx.amount);
+        const existingDate = existingTx.transactionDate.getTime();
+
+        // Check if amounts match (within 0.01 tolerance)
+        const amountMatches = Math.abs(incomingAmount - existingAmount) < 0.01;
+
+        // Check if dates match (same day)
+        const dateMatches = Math.abs(existingDate - incomingDate) < 24 * 60 * 60 * 1000;
+
+        // Check if descriptions are similar (contains at least 3 words in common)
+        const incomingWords = incoming.description.toLowerCase().split(/\s+/);
+        const existingWords = existingTx.description.toLowerCase().split(/\s+/);
+        const commonWords = incomingWords.filter((w) =>
+          w.length > 2 && existingWords.some((ew) => ew.includes(w) || w.includes(ew))
+        );
+        const descriptionSimilar = commonWords.length >= 2 ||
+          incoming.description.toLowerCase() === existingTx.description.toLowerCase();
+
+        // Consider duplicate if amount and date match, AND description is similar
+        if (amountMatches && dateMatches && descriptionSimilar) {
+          duplicates.push({
+            index: i,
+            existingId: existingTx.id,
+            existingDate: existingTx.transactionDate,
+            existingDescription: existingTx.description,
+            existingAmount: existingTx.amount,
+          });
+          break; // Only report first match per incoming transaction
+        }
+      }
+    }
+
+    return duplicates;
+  },
+
   findTransactionById: async (id: string, userId: string) => {
     return db.query.bankTransactions.findFirst({
       where: and(
@@ -370,6 +460,9 @@ export const bankFeedRepository = {
     return db.query.transactionCategories.findMany({
       where: eq(transactionCategories.userId, userId),
       orderBy: [desc(transactionCategories.createdAt)],
+      with: {
+        account: true,
+      },
     });
   },
 
@@ -378,6 +471,7 @@ export const bankFeedRepository = {
     name: string;
     type: "income" | "expense";
     color?: string;
+    accountId?: string;
   }) => {
     const [category] = await db
       .insert(transactionCategories)
@@ -386,7 +480,37 @@ export const bankFeedRepository = {
         name: input.name,
         type: input.type,
         color: input.color ?? null,
+        accountId: input.accountId ?? null,
       })
+      .returning();
+
+    return category;
+  },
+
+  updateCategory: async (
+    id: string,
+    userId: string,
+    input: {
+      name?: string;
+      type?: "income" | "expense";
+      color?: string | null;
+      accountId?: string | null;
+    }
+  ) => {
+    const [category] = await db
+      .update(transactionCategories)
+      .set({
+        ...(input.name !== undefined && { name: input.name }),
+        ...(input.type !== undefined && { type: input.type }),
+        ...(input.color !== undefined && { color: input.color }),
+        ...(input.accountId !== undefined && { accountId: input.accountId }),
+      })
+      .where(
+        and(
+          eq(transactionCategories.id, id),
+          eq(transactionCategories.userId, userId)
+        )
+      )
       .returning();
 
     return category;

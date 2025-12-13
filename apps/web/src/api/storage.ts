@@ -14,6 +14,14 @@ export const storageKeys = {
   signatures: () => [...storageKeys.all, "signatures"] as const,
 };
 
+// Cache configuration for static image data
+const storageCacheConfig = {
+  staleTime: 30 * 60 * 1000,  // 30 minutes
+  gcTime: 60 * 60 * 1000,     // 1 hour
+  refetchOnMount: false as const,
+  refetchOnWindowFocus: false as const,
+};
+
 // Types
 export interface StorageImage {
   key: string;
@@ -39,6 +47,7 @@ export function useStorageImages() {
   return useQuery({
     queryKey: storageKeys.images(),
     queryFn: () => api.get<StorageImage[]>("/storage"),
+    ...storageCacheConfig,
   });
 }
 
@@ -46,6 +55,7 @@ export function useLogos() {
   return useQuery({
     queryKey: storageKeys.logos(),
     queryFn: () => api.get<StorageImage[]>("/storage/logos"),
+    ...storageCacheConfig,
   });
 }
 
@@ -53,6 +63,7 @@ export function useSignatures() {
   return useQuery({
     queryKey: storageKeys.signatures(),
     queryFn: () => api.get<StorageImage[]>("/storage/signatures"),
+    ...storageCacheConfig,
   });
 }
 

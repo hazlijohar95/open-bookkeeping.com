@@ -142,6 +142,8 @@ const InvoicePreview = ({ form }: { form: UseFormReturn<ZodCreateInvoiceSchema> 
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string | null>(null);
   const lastProcessedValueRef = useRef<ZodCreateInvoiceSchema>(createInvoiceSchemaDefaultValues);
+  // Use ref to track current URL for proper cleanup (avoids stale closure issues)
+  const currentUrlRef = useRef<string | null>(null);
 
   // Watch for form changes, debounce input, validate, and then update data/errors
   useEffect(() => {
@@ -186,31 +188,36 @@ const InvoicePreview = ({ form }: { form: UseFormReturn<ZodCreateInvoiceSchema> 
     setPdfError(null);
 
     void (async () => {
+      let newUrl: string | null = null;
       try {
         const blob = await createPdfBlob({ invoiceData: data, template: form.watch("invoiceDetails.theme.template") });
-        const newUrl = createBlobUrl({ blob });
+        newUrl = createBlobUrl({ blob });
 
+        // Revoke previous URL before setting new one
+        if (currentUrlRef.current) {
+          revokeBlobUrl({ url: currentUrlRef.current });
+        }
+        currentUrlRef.current = newUrl;
         setGeneratedPdfUrl(newUrl);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
         setPdfError(errorMessage);
         console.error("[ERROR]: Failed to generate PDF:", err);
-        if (generatedPdfUrl) {
-          revokeBlobUrl({ url: generatedPdfUrl });
+        // Clean up the new URL if it was created before the error
+        if (newUrl) {
+          revokeBlobUrl({ url: newUrl });
         }
       }
     })();
 
-    // Cleanup on component unmount or when data changes again (before new generation)
+    // Cleanup on component unmount
     return () => {
-      if (generatedPdfUrl) {
-        revokeBlobUrl({ url: generatedPdfUrl });
+      if (currentUrlRef.current) {
+        revokeBlobUrl({ url: currentUrlRef.current });
+        currentUrlRef.current = null;
       }
     };
-
-    // Dont Include generatedPdfUrl in the dependency array as it will cause infinite re-renders
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
+  }, [data, form]);
 
   // If there is an error loading the PDF, show an error message
   if (pdfError) {

@@ -1,31 +1,16 @@
 import { useState, useMemo } from "react";
 import { AccountTreeRow } from "./account-tree-row";
-import type { AccountType } from "@/zod-schemas/chart-of-accounts";
+import type { Account } from "@/api/chart-of-accounts";
 
-export interface AccountTreeNode {
-  id: string;
-  code: string;
-  name: string;
-  description: string | null;
-  accountType: AccountType;
-  normalBalance: "debit" | "credit";
-  level: number;
-  path: string | null;
-  sstTaxCode: string | null;
-  isActive: boolean;
-  isSystemAccount: boolean;
-  isHeader: boolean;
-  openingBalance: string | null;
-  balance: string;
-  children: AccountTreeNode[];
-}
+// Re-export Account type as AccountTreeNode for backward compatibility
+export type AccountTreeNode = Account;
 
 interface AccountTreeProps {
-  accounts: AccountTreeNode[];
+  accounts: Account[];
   searchQuery?: string;
-  onEditAccount: (account: AccountTreeNode) => void;
-  onAddChildAccount: (account: AccountTreeNode) => void;
-  onDeleteAccount: (account: AccountTreeNode) => void;
+  onEditAccount: (account: Account) => void;
+  onAddChildAccount: (account: Account) => void;
+  onDeleteAccount: (account: Account) => void;
 }
 
 function filterAccounts(

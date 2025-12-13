@@ -15,7 +15,7 @@ import { invoices } from "./invoices";
 import { bills } from "./bills";
 import { customers } from "./customers";
 import { vendors } from "./vendors";
-import { journalEntries } from "./chartOfAccounts";
+import { journalEntries, accounts } from "./chartOfAccounts";
 import {
   transactionTypeEnum,
   matchStatusEnum,
@@ -172,6 +172,11 @@ export const transactionCategories = pgTable(
     type: transactionCategoryTypeEnum("type").notNull(),
     color: text("color"), // Hex color for UI display
 
+    // Link to chart of accounts for journal entry creation
+    accountId: uuid("account_id").references(() => accounts.id, {
+      onDelete: "set null",
+    }),
+
     isDefault: boolean("is_default").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -296,6 +301,10 @@ export const transactionCategoriesRelations = relations(
     user: one(users, {
       fields: [transactionCategories.userId],
       references: [users.id],
+    }),
+    account: one(accounts, {
+      fields: [transactionCategories.accountId],
+      references: [accounts.id],
     }),
     transactions: many(bankTransactions),
   })

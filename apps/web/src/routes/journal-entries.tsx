@@ -100,8 +100,9 @@ export function JournalEntries() {
       await postEntry.mutateAsync({ id: entryToPost.id });
       toast.success(`Journal entry ${entryToPost.entryNumber} posted successfully`);
       setEntryToPost(null);
-    } catch (error: any) {
-      toast.error(error?.message ?? "Failed to post journal entry");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to post journal entry";
+      toast.error(message);
     }
   };
 
@@ -115,8 +116,9 @@ export function JournalEntries() {
       });
       toast.success(`Journal entry ${entryToReverse.entryNumber} reversed successfully`);
       setEntryToReverse(null);
-    } catch (error: any) {
-      toast.error(error?.message ?? "Failed to reverse journal entry");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to reverse journal entry";
+      toast.error(message);
     }
   };
 
@@ -284,7 +286,7 @@ export function JournalEntries() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handlePostEntry}>
+            <AlertDialogAction onClick={handlePostEntry} disabled={postEntry.isPending}>
               {postEntry.isPending ? "Posting..." : "Post Entry"}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -303,7 +305,7 @@ export function JournalEntries() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleReverseEntry} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction onClick={handleReverseEntry} disabled={reverseEntry.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {reverseEntry.isPending ? "Reversing..." : "Reverse Entry"}
             </AlertDialogAction>
           </AlertDialogFooter>

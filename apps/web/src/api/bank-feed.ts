@@ -96,6 +96,7 @@ export interface ImportTransactionsInput {
   bankAccountId: string;
   fileName: string;
   bankPreset?: "maybank" | "cimb" | "public_bank" | "rhb" | "hong_leong" | "custom";
+  skipDuplicates?: boolean;
   transactions: Array<{
     transactionDate: string;
     description: string;
@@ -111,8 +112,9 @@ export interface ImportResult {
     id: string;
     fileName: string;
     transactionCount: number;
-  };
+  } | null;
   transactionCount: number;
+  duplicatesSkipped?: number;
 }
 
 export interface UpdateMatchInput {
@@ -133,6 +135,12 @@ export interface BankFeedCategory {
   name: string;
   type: "income" | "expense";
   color?: string;
+  accountId?: string | null;
+  account?: {
+    id: string;
+    code: string;
+    name: string;
+  } | null;
   createdAt: string;
 }
 
@@ -140,6 +148,15 @@ export interface CreateCategoryInput {
   name: string;
   type: "income" | "expense";
   color?: string;
+  accountId?: string;
+}
+
+export interface UpdateCategoryInput {
+  id: string;
+  name?: string;
+  type?: "income" | "expense";
+  color?: string | null;
+  accountId?: string | null;
 }
 
 export interface MatchingRule {
@@ -332,8 +349,11 @@ export function useUpdateTransactionMatch() {
   return useMutation({
     mutationFn: ({ id, ...data }: UpdateMatchInput) =>
       api.patch<BankTransaction>(`/bank-feed/transactions/${id}/match`, data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.transaction(variables.id) });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.unmatched() });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.stats() });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.suggestions(variables.id) });
     },
   });
 }
@@ -344,8 +364,10 @@ export function useReconcileTransaction() {
   return useMutation({
     mutationFn: (id: string) =>
       api.post<BankTransaction>(`/bank-feed/transactions/${id}/reconcile`),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
+    onSuccess: (_, id) => {
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.transaction(id) });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.unmatched() });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.stats() });
     },
   });
 }
@@ -356,8 +378,11 @@ export function useAcceptSuggestion() {
   return useMutation({
     mutationFn: (id: string) =>
       api.post<BankTransaction>(`/bank-feed/transactions/${id}/accept-suggestion`),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
+    onSuccess: (_, id) => {
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.transaction(id) });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.unmatched() });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.stats() });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.suggestions(id) });
     },
   });
 }
@@ -368,8 +393,11 @@ export function useRejectSuggestion() {
   return useMutation({
     mutationFn: (id: string) =>
       api.post<BankTransaction>(`/bank-feed/transactions/${id}/reject-suggestion`),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
+    onSuccess: (_, id) => {
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.transaction(id) });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.unmatched() });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.stats() });
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.suggestions(id) });
     },
   });
 }
@@ -388,6 +416,18 @@ export function useCreateCategory() {
   return useMutation({
     mutationFn: (input: CreateCategoryInput) =>
       api.post<BankFeedCategory>("/bank-feed/categories", input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.categories() });
+    },
+  });
+}
+
+export function useUpdateCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, ...data }: UpdateCategoryInput) =>
+      api.patch<BankFeedCategory>(`/bank-feed/categories/${id}`, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: bankFeedKeys.categories() });
     },
@@ -472,6 +512,22 @@ export function useReconcileMatched() {
   return useMutation({
     mutationFn: (params?: { bankAccountId?: string }) =>
       api.post<ReconcileMatchedResult>("/bank-feed/reconcile-matched", params),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
+    },
+  });
+}
+
+export interface AcceptAllSuggestionsResult {
+  acceptedCount: number;
+}
+
+export function useAcceptAllSuggestions() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params?: { bankAccountId?: string }) =>
+      api.post<AcceptAllSuggestionsResult>("/bank-feed/accept-all-suggestions", params),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: bankFeedKeys.all });
     },

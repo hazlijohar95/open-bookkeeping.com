@@ -86,6 +86,28 @@ export const accountTypeEnum = pgEnum("account_type", [
   "expense",
 ]);
 
+// Account sub-types for flexible categorization
+// This replaces hard-coded account code ranges in P&L and Balance Sheet
+export const accountSubTypeEnum = pgEnum("account_sub_type", [
+  // Asset sub-types
+  "current_asset", // Cash, AR, inventory (1000-1499)
+  "fixed_asset", // PPE, intangibles (1500+)
+  // Liability sub-types
+  "current_liability", // AP, accruals, short-term debt (2000-2599)
+  "non_current_liability", // Long-term debt, bonds (2600+)
+  // Equity sub-types
+  "share_capital", // Share capital, contributed capital (3000-3099)
+  "retained_earnings", // Accumulated profits (3200)
+  "reserves", // Other reserves (3100, 3300+)
+  // Revenue sub-types
+  "operating_revenue", // Sales, service income (4000+)
+  "other_income", // Interest income, gains (4900+)
+  // Expense sub-types
+  "cost_of_goods_sold", // COGS, direct costs (5000-5199)
+  "operating_expense", // Salaries, rent, utilities (5200-5899)
+  "other_expense", // Interest expense, losses (5900+)
+]);
+
 export const normalBalanceEnum = pgEnum("normal_balance", ["debit", "credit"]);
 
 export const journalEntryStatusEnum = pgEnum("journal_entry_status", [
@@ -103,6 +125,33 @@ export const sourceDocumentTypeEnum = pgEnum("source_document_type", [
   "debit_note",
   "fixed_asset_depreciation",
   "fixed_asset_disposal",
+  "payroll", // Payroll salary accrual and payment
+  "payment", // Invoice/bill payment receipt
+]);
+
+// Payment enums
+export const paymentTypeEnum = pgEnum("payment_type", [
+  "invoice_payment", // AR - Customer pays us (reduces AR)
+  "bill_payment", // AP - We pay vendor (reduces AP)
+]);
+
+export const paymentMethodEnum = pgEnum("payment_method", [
+  "bank_transfer", // Direct bank transfer
+  "cash", // Cash payment
+  "check", // Cheque/check
+  "credit_card", // Credit card payment
+  "debit_card", // Debit card payment
+  "online", // Online payment gateway
+  "offset", // Credit note offset
+  "other", // Other payment method
+]);
+
+export const paymentStatusEnum = pgEnum("payment_status", [
+  "pending", // Payment recorded but not confirmed
+  "completed", // Payment confirmed
+  "failed", // Payment failed
+  "cancelled", // Payment cancelled
+  "refunded", // Payment refunded
 ]);
 
 export const sstTaxCodeEnum = pgEnum("sst_tax_code", [
@@ -232,4 +281,78 @@ export const agentApprovalTypeEnum = pgEnum("agent_approval_type", [
   "auto", // Auto-approved by system rules
   "manual", // Explicitly approved by user
   "threshold", // Approved because below threshold
+]);
+
+// Payroll enums
+export const employeeStatusEnum = pgEnum("employee_status", [
+  "active", // Currently employed
+  "probation", // On probation period
+  "terminated", // Employment terminated
+  "resigned", // Employee resigned
+  "retired", // Employee retired
+]);
+
+export const employmentTypeEnum = pgEnum("employment_type", [
+  "full_time", // Full-time employee
+  "part_time", // Part-time employee
+  "contract", // Contract worker
+  "intern", // Internship
+]);
+
+export const nationalityTypeEnum = pgEnum("nationality_type", [
+  "malaysian", // Malaysian citizen
+  "permanent_resident", // PR status
+  "foreign", // Foreign worker
+]);
+
+export const salaryComponentTypeEnum = pgEnum("salary_component_type", [
+  "earnings", // Adds to gross salary (allowances, bonuses)
+  "deductions", // Reduces from gross salary (loans, advances)
+]);
+
+export const calculationMethodEnum = pgEnum("calculation_method", [
+  "fixed", // Fixed amount
+  "percentage", // Percentage of base salary
+  "hourly", // Hourly rate × hours
+  "daily", // Daily rate × days
+]);
+
+export const payFrequencyEnum = pgEnum("pay_frequency", [
+  "monthly", // Paid once a month
+  "bi_weekly", // Paid every two weeks
+  "weekly", // Paid weekly
+]);
+
+export const payrollRunStatusEnum = pgEnum("payroll_run_status", [
+  "draft", // Just created, not processed
+  "calculating", // Calculation in progress
+  "pending_review", // Calculated, awaiting review
+  "approved", // Approved by manager/admin
+  "finalized", // Locked, journal entry created
+  "paid", // Salaries disbursed
+  "cancelled", // Cancelled/voided
+]);
+
+export const paySlipStatusEnum = pgEnum("pay_slip_status", [
+  "draft", // Created but not calculated
+  "calculated", // Calculations complete
+  "approved", // Approved for payment
+  "paid", // Payment processed
+  "cancelled", // Cancelled/voided
+]);
+
+export const statutoryContributionTypeEnum = pgEnum("statutory_contribution_type", [
+  "epf_employer", // EPF employer contribution
+  "epf_employee", // EPF employee contribution
+  "socso_employer", // SOCSO employer contribution
+  "socso_employee", // SOCSO employee contribution
+  "eis_employer", // EIS employer contribution
+  "eis_employee", // EIS employee contribution
+]);
+
+export const maritalStatusEnum = pgEnum("marital_status", [
+  "single", // Never married
+  "married", // Currently married
+  "divorced", // Divorced
+  "widowed", // Widowed
 ]);

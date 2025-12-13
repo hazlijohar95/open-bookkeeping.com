@@ -217,4 +217,20 @@ export {
   ArrowCounterClockwise as RotateCcw,
   Pulse as Activity,
   ChatCircle as MessageSquare,
+
+  // Employee/HR icons
+  UserCheck,
+  UserCheck as UserCheckIcon,
+  UserMinus,
+  UserMinus as UserXIcon,
+  SunHorizon as SunsetIcon,
+
+  // Payroll workflow icons
+  ClipboardText as ClipboardIcon,
+  CirclesFour as CirclesIcon,
+  CurrencyCircleDollar as MoneyIcon,
+  Coins as CoinsIcon,
+  ChartLineUp as ChartIcon,
+  Handshake as HandshakeIcon,
+  Bank as BankIcon,
 } from "@phosphor-icons/react";

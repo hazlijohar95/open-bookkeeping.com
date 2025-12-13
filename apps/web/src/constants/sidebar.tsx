@@ -103,6 +103,20 @@ export const SIDEBAR_ITEMS: ISidebar = {
     },
   ],
 
+  // Payroll - Employee management and salary processing
+  Payroll: [
+    {
+      name: "Employees",
+      url: LINKS.EMPLOYEES,
+      icon: <UsersIcon />,
+    },
+    {
+      name: "Payroll Runs",
+      url: LINKS.PAYROLL_RUNS,
+      icon: <ReceiptIcon />,
+    },
+  ],
+
   // Accounting - Chart of accounts, journal entries, and fixed assets
   Accounting: [
     {

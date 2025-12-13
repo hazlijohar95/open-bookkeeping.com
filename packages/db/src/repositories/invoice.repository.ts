@@ -534,6 +534,21 @@ export const invoiceRepository = {
       },
     });
 
+    // Helper to calculate invoice total from items
+    const calculateInvoiceTotal = (invoice: typeof unpaidInvoices[number]): number => {
+      const items = invoice.invoiceFields?.items ?? [];
+      return items.reduce((sum, item) => {
+        const qty = parseFloat(String(item.quantity ?? 0));
+        const price = parseFloat(String(item.unitPrice ?? 0));
+        return sum + (qty * price);
+      }, 0);
+    };
+
+    // Helper to sum amounts for a bucket of invoices
+    const sumBucketAmounts = (invoiceList: typeof unpaidInvoices): number => {
+      return invoiceList.reduce((sum, inv) => sum + calculateInvoiceTotal(inv), 0);
+    };
+
     // Calculate aging buckets
     const now = new Date();
     const buckets = {
@@ -567,15 +582,24 @@ export const invoiceRepository = {
       }
     }
 
+    // Calculate both counts and amounts for each bucket
     return {
       buckets,
       totals: {
-        current: buckets.current.length,
-        days1to30: buckets.days1to30.length,
-        days31to60: buckets.days31to60.length,
-        days61to90: buckets.days61to90.length,
-        over90: buckets.over90.length,
-        total: unpaidInvoices.length,
+        // Counts (number of invoices)
+        currentCount: buckets.current.length,
+        days1to30Count: buckets.days1to30.length,
+        days31to60Count: buckets.days31to60.length,
+        days61to90Count: buckets.days61to90.length,
+        over90Count: buckets.over90.length,
+        totalCount: unpaidInvoices.length,
+        // Amounts (sum of invoice totals) - the critical financial metric
+        current: sumBucketAmounts(buckets.current),
+        days1to30: sumBucketAmounts(buckets.days1to30),
+        days31to60: sumBucketAmounts(buckets.days31to60),
+        days61to90: sumBucketAmounts(buckets.days61to90),
+        over90: sumBucketAmounts(buckets.over90),
+        total: sumBucketAmounts(unpaidInvoices),
       },
     };
   },

@@ -409,7 +409,7 @@ const Hero = () => {
                 transition={{ duration: 0.5, delay: 0.3 }}
                 className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 sm:gap-4"
               >
-                <Link to={LINKS.DASHBOARD} className="w-full sm:w-auto">
+                <Link to={LINKS.LOGIN} className="w-full sm:w-auto">
                   <Button
                     size="lg"
                     className="w-full sm:w-auto h-12 sm:h-14 px-6 sm:px-8 text-sm sm:text-base font-medium gap-2"

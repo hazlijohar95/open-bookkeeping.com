@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -18,7 +19,7 @@ import { ChevronRightIcon } from "@/components/ui/icons";
 
 import { type ISidebarItem } from "@/types";
 
-export function NavigationItem({ title, items }: { title: string; items: ISidebarItem[] }) {
+export const NavigationItem = memo(function NavigationItem({ title, items }: { title: string; items: ISidebarItem[] }) {
   const location = useLocation();
   const pathname = location.pathname;
 
@@ -92,4 +93,4 @@ export function NavigationItem({ title, items }: { title: string; items: ISideba
       </SidebarMenu>
     </SidebarGroup>
   );
-}
+});

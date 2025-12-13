@@ -889,7 +889,27 @@ invoicely-v2/
 | `yarn build` | Production build |
 | `yarn check-types` | TypeScript validation |
 | `yarn lint` | ESLint check |
-| `yarn test:e2e` | Playwright tests |
+
+### Testing Commands
+
+| Command | Description |
+|---------|-------------|
+| `yarn test` | Run unit tests in watch mode (Vitest) |
+| `yarn test:run` | Run unit tests once |
+| `yarn test:e2e` | Run E2E tests (Playwright) |
+| `yarn test:e2e:ui` | Run E2E tests with UI |
+| `yarn test:e2e:headed` | Run E2E tests in headed browser |
+| `yarn test:e2e:report` | Show E2E test report |
+
+### Test File Locations
+
+```
+apps/web/src/
+├── lib/__tests__/          # Utility function tests
+├── zod-schemas/__tests__/  # Schema validation tests
+├── components/**/*.test.tsx # Component tests
+└── e2e/                    # Playwright E2E tests
+```
 
 ### Database Commands
 

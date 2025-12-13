@@ -1,8 +1,26 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
-import { db, invoices, quotations, invoiceMonthlyTotals } from "@open-bookkeeping/db";
-import { eq, and, gte, desc, count, sql } from "drizzle-orm";
+import {
+  db,
+  invoices,
+  invoiceFields,
+  invoiceDetails,
+  invoiceItems,
+  invoiceClientDetails,
+  quotations,
+  invoiceMonthlyTotals,
+  customers,
+} from "@open-bookkeeping/db";
+import { eq, and, gte, lte, desc, count, sql, isNull } from "drizzle-orm";
 import { aggregationService } from "../../services/aggregation.service";
+import {
+  getCachedInvoiceStatus,
+  setCachedInvoiceStatus,
+  getCachedTopCustomers,
+  setCachedTopCustomers,
+  getCachedRecentInvoices,
+  setCachedRecentInvoices,
+} from "../../lib/cache";
 
 /**
  * Get quotation statistics using database aggregation (N+1 fix)
@@ -125,7 +143,7 @@ export const dashboardRouter = router({
     return { success: true };
   }),
 
-  // Get revenue chart data
+  // Get revenue chart data using SQL aggregation (optimized)
   getRevenueChart: protectedProcedure
     .input(
       z.object({
@@ -157,51 +175,43 @@ export const dashboardRouter = router({
           break;
       }
 
-      const paidInvoices = await db.query.invoices.findMany({
-        where: and(
-          eq(invoices.userId, userId),
-          eq(invoices.status, "success"),
-          gte(invoices.paidAt, startDate)
-        ),
-        with: {
-          invoiceFields: {
-            with: {
-              invoiceDetails: true,
-              items: true,
-            },
-          },
-        },
-        orderBy: [invoices.paidAt],
-      });
+      // Use SQL aggregation with DATE_TRUNC - much faster than loading all invoices
+      let dateExpr: ReturnType<typeof sql>;
+      if (groupBy === "day") {
+        dateExpr = sql`DATE(${invoices.paidAt})`;
+      } else if (groupBy === "week") {
+        dateExpr = sql`DATE_TRUNC('week', ${invoices.paidAt})::date`;
+      } else {
+        dateExpr = sql`TO_CHAR(${invoices.paidAt}, 'YYYY-MM')`;
+      }
 
-      // Group data by period
+      const revenueData = await db
+        .select({
+          period: dateExpr.as("period"),
+          revenue: sql<string>`COALESCE(SUM(${invoiceItems.quantity}::numeric * ${invoiceItems.unitPrice}), 0)`,
+        })
+        .from(invoices)
+        .innerJoin(invoiceFields, eq(invoiceFields.invoiceId, invoices.id))
+        .innerJoin(invoiceItems, eq(invoiceItems.invoiceFieldId, invoiceFields.id))
+        .where(
+          and(
+            eq(invoices.userId, userId),
+            eq(invoices.status, "success"),
+            isNull(invoices.deletedAt),
+            gte(invoices.paidAt, startDate)
+          )
+        )
+        .groupBy(dateExpr)
+        .orderBy(dateExpr);
+
+      // Build lookup map for fast access
       const dataMap = new Map<string, number>();
+      for (const row of revenueData) {
+        const key = String(row.period);
+        dataMap.set(key, parseFloat(row.revenue));
+      }
 
-      paidInvoices.forEach((invoice) => {
-        if (!invoice.paidAt || !invoice.invoiceFields?.items) return;
-
-        const date = new Date(invoice.paidAt);
-        let key: string;
-
-        if (groupBy === "day") {
-          key = date.toISOString().split("T")[0] ?? "";
-        } else if (groupBy === "week") {
-          const weekStart = new Date(date);
-          weekStart.setDate(date.getDate() - date.getDay());
-          key = weekStart.toISOString().split("T")[0] ?? "";
-        } else {
-          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-        }
-
-        const total = invoice.invoiceFields.items.reduce(
-          (sum, item) => sum + Number(item.quantity) * Number(item.unitPrice),
-          0
-        );
-
-        dataMap.set(key, (dataMap.get(key) ?? 0) + total);
-      });
-
-      // Generate all periods
+      // Generate all periods to fill gaps
       const data: { date: string; revenue: number }[] = [];
       const current = new Date(startDate);
 
@@ -232,50 +242,64 @@ export const dashboardRouter = router({
       return data;
     }),
 
-  // Get invoice status breakdown
+  // Get invoice status breakdown using SQL aggregation (optimized + cached)
   getInvoiceStatusBreakdown: protectedProcedure.query(async ({ ctx }) => {
     const userId = ctx.user.id;
 
-    const allInvoices = await db.query.invoices.findMany({
-      where: eq(invoices.userId, userId),
-      with: {
-        invoiceFields: {
-          with: {
-            invoiceDetails: true,
-          },
-        },
-      },
-    });
+    // Check cache first
+    type StatusBreakdown = { pending: number; paid: number; overdue: number; expired: number; refunded: number };
+    const cached = await getCachedInvoiceStatus<StatusBreakdown>(userId);
+    if (cached) return cached;
 
-    const breakdown = {
-      pending: 0,
-      paid: 0,
-      overdue: 0,
-      expired: 0,
-      refunded: 0,
+    const now = new Date();
+
+    // Single SQL query with conditional counting - much faster than loading all invoices
+    const result = await db
+      .select({
+        paid: count(sql`CASE WHEN ${invoices.status} = 'success' THEN 1 END`),
+        expired: count(sql`CASE WHEN ${invoices.status} = 'expired' THEN 1 END`),
+        refunded: count(sql`CASE WHEN ${invoices.status} = 'refunded' THEN 1 END`),
+        // For pending, we need to check overdue separately via a subquery
+        pendingTotal: count(sql`CASE WHEN ${invoices.status} = 'pending' THEN 1 END`),
+      })
+      .from(invoices)
+      .where(and(eq(invoices.userId, userId), isNull(invoices.deletedAt)));
+
+    const stats = result[0] ?? { paid: 0, expired: 0, refunded: 0, pendingTotal: 0 };
+
+    // Get overdue count with a separate efficient query (using index on dueDate)
+    const overdueResult = await db
+      .select({ count: count() })
+      .from(invoices)
+      .innerJoin(invoiceFields, eq(invoiceFields.invoiceId, invoices.id))
+      .innerJoin(invoiceDetails, eq(invoiceDetails.invoiceFieldId, invoiceFields.id))
+      .where(
+        and(
+          eq(invoices.userId, userId),
+          eq(invoices.status, "pending"),
+          isNull(invoices.deletedAt),
+          lte(invoiceDetails.dueDate, now)
+        )
+      );
+
+    const overdueCount = overdueResult[0]?.count ?? 0;
+    const pendingCount = Number(stats.pendingTotal) - Number(overdueCount);
+
+    const breakdown: StatusBreakdown = {
+      pending: pendingCount,
+      paid: Number(stats.paid),
+      overdue: Number(overdueCount),
+      expired: Number(stats.expired),
+      refunded: Number(stats.refunded),
     };
 
-    allInvoices.forEach((invoice) => {
-      if (invoice.status === "success") {
-        breakdown.paid++;
-      } else if (invoice.status === "pending") {
-        const dueDate = invoice.invoiceFields?.invoiceDetails?.dueDate;
-        if (dueDate && new Date(dueDate) < new Date()) {
-          breakdown.overdue++;
-        } else {
-          breakdown.pending++;
-        }
-      } else if (invoice.status === "expired") {
-        breakdown.expired++;
-      } else if (invoice.status === "refunded") {
-        breakdown.refunded++;
-      }
-    });
+    // Cache for 2 minutes
+    void setCachedInvoiceStatus(userId, breakdown);
 
     return breakdown;
   }),
 
-  // Get top customers by revenue
+  // Get top customers by revenue using SQL aggregation (optimized + cached)
   getTopCustomers: protectedProcedure
     .input(
       z
@@ -288,67 +312,87 @@ export const dashboardRouter = router({
       const userId = ctx.user.id;
       const limit = input?.limit || 5;
 
-      // Get all paid invoices with customer data
-      const paidInvoices = await db.query.invoices.findMany({
-        where: and(eq(invoices.userId, userId), eq(invoices.status, "success")),
-        with: {
-          customer: true,
-          invoiceFields: {
-            with: {
-              clientDetails: true,
-              items: true,
-            },
-          },
-        },
-      });
+      // Check cache first
+      type TopCustomer = { id: string | null; name: string; email: string | null; revenue: number; invoiceCount: number };
+      const cached = await getCachedTopCustomers<TopCustomer[]>(userId, limit);
+      if (cached) return cached;
 
-      // Group by customer ID (not name) to prevent collision
-      const customerRevenue = new Map<
-        string,
-        { id: string | null; name: string; email: string | null; revenue: number; invoiceCount: number }
-      >();
+      // Use SQL aggregation with GROUP BY - much faster than loading all invoices
+      const result = await db
+        .select({
+          customerId: invoices.customerId,
+          customerName: customers.name,
+          customerEmail: customers.email,
+          revenue: sql<string>`COALESCE(SUM(${invoiceItems.quantity}::numeric * ${invoiceItems.unitPrice}), 0)`,
+          invoiceCount: count(sql`DISTINCT ${invoices.id}`),
+        })
+        .from(invoices)
+        .innerJoin(invoiceFields, eq(invoiceFields.invoiceId, invoices.id))
+        .innerJoin(invoiceItems, eq(invoiceItems.invoiceFieldId, invoiceFields.id))
+        .leftJoin(customers, eq(customers.id, invoices.customerId))
+        .where(
+          and(
+            eq(invoices.userId, userId),
+            eq(invoices.status, "success"),
+            isNull(invoices.deletedAt)
+          )
+        )
+        .groupBy(invoices.customerId, customers.name, customers.email)
+        .orderBy(desc(sql`SUM(${invoiceItems.quantity}::numeric * ${invoiceItems.unitPrice})`))
+        .limit(limit);
 
-      paidInvoices.forEach((invoice) => {
-        if (!invoice.invoiceFields?.items) return;
+      // For invoices without customerId, get from inline client details
+      const inlineResult = await db
+        .select({
+          clientName: invoiceClientDetails.name,
+          revenue: sql<string>`COALESCE(SUM(${invoiceItems.quantity}::numeric * ${invoiceItems.unitPrice}), 0)`,
+          invoiceCount: count(sql`DISTINCT ${invoices.id}`),
+        })
+        .from(invoices)
+        .innerJoin(invoiceFields, eq(invoiceFields.invoiceId, invoices.id))
+        .innerJoin(invoiceItems, eq(invoiceItems.invoiceFieldId, invoiceFields.id))
+        .innerJoin(invoiceClientDetails, eq(invoiceClientDetails.invoiceFieldId, invoiceFields.id))
+        .where(
+          and(
+            eq(invoices.userId, userId),
+            eq(invoices.status, "success"),
+            isNull(invoices.deletedAt),
+            isNull(invoices.customerId)
+          )
+        )
+        .groupBy(invoiceClientDetails.name)
+        .orderBy(desc(sql`SUM(${invoiceItems.quantity}::numeric * ${invoiceItems.unitPrice})`))
+        .limit(limit);
 
-        // Use customer ID as grouping key, falling back to name for inline customers
-        const customerId = invoice.customerId || invoice.customer?.id;
-        const customerName =
-          invoice.customer?.name ||
-          invoice.invoiceFields?.clientDetails?.name ||
-          "Unknown Customer";
-        const customerEmail = invoice.customer?.email ?? null;
+      // Combine and sort results
+      const combined: TopCustomer[] = [
+        ...result.map((r) => ({
+          id: r.customerId,
+          name: r.customerName ?? "Unknown Customer",
+          email: r.customerEmail ?? null,
+          revenue: parseFloat(r.revenue),
+          invoiceCount: Number(r.invoiceCount),
+        })),
+        ...inlineResult.map((r) => ({
+          id: null,
+          name: r.clientName ?? "Unknown Customer",
+          email: null,
+          revenue: parseFloat(r.revenue),
+          invoiceCount: Number(r.invoiceCount),
+        })),
+      ];
 
-        // Use ID if available, otherwise use prefixed name for inline customers
-        const key = customerId || `inline:${customerName}`;
-
-        const total = invoice.invoiceFields.items.reduce(
-          (sum, item) => sum + Number(item.quantity) * Number(item.unitPrice),
-          0
-        );
-
-        const existing = customerRevenue.get(key);
-        if (existing) {
-          existing.revenue += total;
-          existing.invoiceCount++;
-        } else {
-          customerRevenue.set(key, {
-            id: customerId ?? null,
-            name: customerName,
-            email: customerEmail,
-            revenue: total,
-            invoiceCount: 1,
-          });
-        }
-      });
-
-      // Sort by revenue and return top N
-      return Array.from(customerRevenue.values())
+      const topCustomers = combined
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, limit);
+
+      // Cache for 2 minutes
+      void setCachedTopCustomers(userId, limit, topCustomers);
+
+      return topCustomers;
     }),
 
-  // Get recent invoices
+  // Get recent invoices using SQL aggregation for totals (optimized + cached)
   getRecentInvoices: protectedProcedure
     .input(
       z
@@ -360,50 +404,77 @@ export const dashboardRouter = router({
     .query(async ({ ctx, input }) => {
       const userId = ctx.user.id;
       const limit = input?.limit || 5;
+      const now = new Date();
 
-      const recentInvoices = await db.query.invoices.findMany({
-        where: eq(invoices.userId, userId),
-        with: {
-          customer: true,
-          invoiceFields: {
-            with: {
-              clientDetails: true,
-              invoiceDetails: true,
-              items: true,
-            },
-          },
-        },
-        orderBy: [desc(invoices.createdAt)],
-        limit,
-      });
+      // Check cache first
+      type RecentInvoice = {
+        id: string;
+        serialNumber: string;
+        customerName: string;
+        total: number;
+        currency: string;
+        status: string;
+        date: Date;
+        dueDate: Date | null;
+      };
+      const cached = await getCachedRecentInvoices<RecentInvoice[]>(userId, limit);
+      if (cached) return cached;
 
-      return recentInvoices.map((invoice) => {
-        const total = invoice.invoiceFields?.items?.reduce(
-          (sum, item) => sum + Number(item.quantity) * Number(item.unitPrice),
-          0
-        ) ?? 0;
+      // Use SQL join with SUM aggregation - much faster than loading all items
+      const recentInvoices = await db
+        .select({
+          id: invoices.id,
+          status: invoices.status,
+          createdAt: invoices.createdAt,
+          serialNumber: invoiceDetails.serialNumber,
+          currency: invoiceDetails.currency,
+          dueDate: invoiceDetails.dueDate,
+          customerName: customers.name,
+          inlineCustomerName: invoiceClientDetails.name,
+          total: sql<string>`COALESCE(SUM(${invoiceItems.quantity}::numeric * ${invoiceItems.unitPrice}), 0)`,
+        })
+        .from(invoices)
+        .innerJoin(invoiceFields, eq(invoiceFields.invoiceId, invoices.id))
+        .innerJoin(invoiceDetails, eq(invoiceDetails.invoiceFieldId, invoiceFields.id))
+        .leftJoin(invoiceItems, eq(invoiceItems.invoiceFieldId, invoiceFields.id))
+        .leftJoin(customers, eq(customers.id, invoices.customerId))
+        .leftJoin(invoiceClientDetails, eq(invoiceClientDetails.invoiceFieldId, invoiceFields.id))
+        .where(and(eq(invoices.userId, userId), isNull(invoices.deletedAt)))
+        .groupBy(
+          invoices.id,
+          invoices.status,
+          invoices.createdAt,
+          invoiceDetails.serialNumber,
+          invoiceDetails.currency,
+          invoiceDetails.dueDate,
+          customers.name,
+          invoiceClientDetails.name
+        )
+        .orderBy(desc(invoices.createdAt))
+        .limit(limit);
 
-        const dueDate = invoice.invoiceFields?.invoiceDetails?.dueDate;
+      const result: RecentInvoice[] = recentInvoices.map((invoice) => {
+        const dueDate = invoice.dueDate;
         const isOverdue =
           invoice.status === "pending" &&
           dueDate &&
-          new Date(dueDate) < new Date();
+          new Date(dueDate) < now;
 
         return {
           id: invoice.id,
-          serialNumber:
-            invoice.invoiceFields?.invoiceDetails?.serialNumber ?? "N/A",
-          customerName:
-            invoice.customer?.name ||
-            invoice.invoiceFields?.clientDetails?.name ||
-            "Unknown",
-          total,
-          currency:
-            invoice.invoiceFields?.invoiceDetails?.currency ?? "MYR",
+          serialNumber: invoice.serialNumber ?? "N/A",
+          customerName: invoice.customerName || invoice.inlineCustomerName || "Unknown",
+          total: parseFloat(invoice.total),
+          currency: invoice.currency ?? "MYR",
           status: isOverdue ? "overdue" : invoice.status,
           date: invoice.createdAt,
           dueDate,
         };
       });
+
+      // Cache for 2 minutes
+      void setCachedRecentInvoices(userId, limit, result);
+
+      return result;
     }),
 });

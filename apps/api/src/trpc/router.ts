@@ -21,6 +21,8 @@ import { apiKeyRouter } from "./services/apiKey";
 import { webhookRouter } from "./services/webhook";
 import { fixedAssetRouter } from "./services/fixedAsset";
 import { agentRouter } from "./services/agent";
+import { payrollRouter } from "./services/payroll";
+import { migrationRouter } from "./services/migration";
 
 export { router, publicProcedure, protectedProcedure };
 
@@ -47,6 +49,8 @@ export const appRouter = router({
   webhook: webhookRouter,
   fixedAsset: fixedAssetRouter,
   agent: agentRouter,
+  payroll: payrollRouter,
+  migration: migrationRouter,
 });
 
 export type AppRouter = typeof appRouter;

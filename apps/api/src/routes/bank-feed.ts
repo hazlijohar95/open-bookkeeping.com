@@ -74,6 +74,14 @@ const createCategorySchema = z.object({
   name: z.string().min(1).max(100),
   type: z.enum(["income", "expense"]),
   color: z.string().max(20).optional(),
+  accountId: z.string().uuid().optional(), // Link to chart of accounts
+});
+
+const updateCategorySchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  type: z.enum(["income", "expense"]).optional(),
+  color: z.string().max(20).nullable().optional(),
+  accountId: z.string().uuid().nullable().optional(), // Link to chart of accounts
 });
 
 const createRuleSchema = z.object({
@@ -677,6 +685,37 @@ bankFeedRoutes.post("/categories", async (c) => {
   }
 });
 
+// PATCH /categories/:id - Update category
+bankFeedRoutes.patch("/categories/:id", async (c) => {
+  const authResult = await requireAuth(c);
+  if (authResult instanceof Response) return authResult;
+  const user = authResult;
+
+  try {
+    const categoryId = c.req.param("id");
+    const body = await c.req.json();
+    const parseResult = updateCategorySchema.safeParse(body);
+    if (!parseResult.success) {
+      return handleValidationError(c, parseResult.error);
+    }
+
+    const category = await bankFeedRepository.updateCategory(
+      categoryId,
+      user.id,
+      parseResult.data
+    );
+
+    if (!category) {
+      return errorResponse(c, HTTP_STATUS.NOT_FOUND, "Category not found");
+    }
+
+    return c.json(category);
+  } catch (error) {
+    console.error("Error updating category:", error);
+    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to update category");
+  }
+});
+
 // ============= Matching Rules =============
 
 // GET /rules - List all matching rules
@@ -912,5 +951,58 @@ bankFeedRoutes.post("/reconcile-matched", async (c) => {
   } catch (error) {
     console.error("Error reconciling matched:", error);
     return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to reconcile matched transactions");
+  }
+});
+
+// POST /accept-all-suggestions - Accept all suggested matches
+bankFeedRoutes.post("/accept-all-suggestions", async (c) => {
+  const authResult = await requireAuth(c);
+  if (authResult instanceof Response) return authResult;
+  const user = authResult;
+
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const bankAccountId = body?.bankAccountId;
+
+    // Get all suggested transactions
+    let suggestedTransactions: Awaited<ReturnType<typeof bankFeedRepository.findTransactionsByAccount>>;
+
+    if (bankAccountId) {
+      suggestedTransactions = await bankFeedRepository.findTransactionsByAccount(
+        bankAccountId,
+        user.id,
+        { matchStatus: "suggested", limit: 1000 }
+      );
+    } else {
+      // Get suggested from all accounts
+      const accounts = await bankFeedRepository.findAllAccounts(user.id);
+      suggestedTransactions = [];
+      for (const account of accounts) {
+        const accountTransactions = await bankFeedRepository.findTransactionsByAccount(
+          account.id,
+          user.id,
+          { matchStatus: "suggested", limit: 1000 }
+        );
+        suggestedTransactions.push(...accountTransactions);
+      }
+    }
+
+    // Accept each suggestion
+    let acceptedCount = 0;
+    for (const transaction of suggestedTransactions) {
+      try {
+        await bankFeedRepository.updateTransactionMatch(transaction.id, user.id, {
+          matchStatus: "matched",
+        });
+        acceptedCount++;
+      } catch (err) {
+        console.error(`Failed to accept suggestion for transaction ${transaction.id}:`, err);
+      }
+    }
+
+    return c.json({ acceptedCount });
+  } catch (error) {
+    console.error("Error accepting all suggestions:", error);
+    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to accept all suggestions");
   }
 });

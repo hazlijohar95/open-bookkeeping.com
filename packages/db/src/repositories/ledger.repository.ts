@@ -4,6 +4,7 @@ import { db } from "../index";
 import {
   accounts,
   journalEntries,
+  journalEntryLines,
   ledgerTransactions,
   type AccountType,
   type NormalBalance,
@@ -136,6 +137,35 @@ export interface BalanceSheetComparativeResult {
     totalLiabilitiesPercent: number;
     totalEquity: string;
     totalEquityPercent: number;
+  };
+}
+
+export interface CashFlowLineItem {
+  code: string;
+  name: string;
+  amount: string;
+}
+
+export interface CashFlowResult {
+  period: { startDate: string; endDate: string };
+  operatingActivities: {
+    netIncome: string;
+    adjustments: CashFlowLineItem[];
+    changesInWorkingCapital: CashFlowLineItem[];
+    netCashFromOperations: string;
+  };
+  investingActivities: {
+    items: CashFlowLineItem[];
+    netCashFromInvesting: string;
+  };
+  financingActivities: {
+    items: CashFlowLineItem[];
+    netCashFromFinancing: string;
+  };
+  summary: {
+    netChangeInCash: string;
+    beginningCash: string;
+    endingCash: string;
   };
 }
 
@@ -284,7 +314,7 @@ export const ledgerRepository = {
   ): Promise<TrialBalanceResult> => {
     const dateStr = asOfDate || new Date().toISOString().split("T")[0]!;
 
-    // Get all non-header accounts
+    // Get all non-header accounts in a single query
     const allAccounts = await db.query.accounts.findMany({
       where: and(
         eq(accounts.userId, userId),
@@ -294,27 +324,46 @@ export const ledgerRepository = {
       orderBy: [asc(accounts.code)],
     });
 
+    // Get aggregated transaction totals per account in a SINGLE query (fixes N+1)
+    const transactionTotals = await db
+      .select({
+        accountId: ledgerTransactions.accountId,
+        totalDebits: sql<string>`COALESCE(SUM(${ledgerTransactions.debitAmount}), 0)`,
+        totalCredits: sql<string>`COALESCE(SUM(${ledgerTransactions.creditAmount}), 0)`,
+      })
+      .from(ledgerTransactions)
+      .where(
+        and(
+          eq(ledgerTransactions.userId, userId),
+          lte(ledgerTransactions.transactionDate, dateStr)
+        )
+      )
+      .groupBy(ledgerTransactions.accountId);
+
+    // Build a map for O(1) lookup
+    const totalsMap = new Map<string, { totalDebits: string; totalCredits: string }>();
+    for (const t of transactionTotals) {
+      totalsMap.set(t.accountId, {
+        totalDebits: t.totalDebits,
+        totalCredits: t.totalCredits,
+      });
+    }
+
     const balances: TrialBalanceAccount[] = [];
     let totalDebits = new Decimal(0);
     let totalCredits = new Decimal(0);
 
     for (const account of allAccounts) {
-      // Calculate balance from ledger transactions up to asOfDate
-      const transactions = await db.query.ledgerTransactions.findMany({
-        where: and(
-          eq(ledgerTransactions.userId, userId),
-          eq(ledgerTransactions.accountId, account.id),
-          lte(ledgerTransactions.transactionDate, dateStr)
-        ),
-      });
+      const totals = totalsMap.get(account.id);
+      const transactionDebits = new Decimal(totals?.totalDebits ?? "0");
+      const transactionCredits = new Decimal(totals?.totalCredits ?? "0");
 
+      // Calculate balance respecting normal balance
       let balance = new Decimal(account.openingBalance ?? "0");
-      for (const t of transactions) {
-        if (account.normalBalance === "debit") {
-          balance = balance.plus(t.debitAmount).minus(t.creditAmount);
-        } else {
-          balance = balance.plus(t.creditAmount).minus(t.debitAmount);
-        }
+      if (account.normalBalance === "debit") {
+        balance = balance.plus(transactionDebits).minus(transactionCredits);
+      } else {
+        balance = balance.plus(transactionCredits).minus(transactionDebits);
       }
 
       // Skip zero balances
@@ -389,24 +438,43 @@ export const ledgerRepository = {
       orderBy: [asc(accounts.code)],
     });
 
-    // Calculate revenue
+    // Get aggregated transaction totals for the period in a SINGLE query (fixes N+1)
+    const transactionTotals = await db
+      .select({
+        accountId: ledgerTransactions.accountId,
+        totalDebits: sql<string>`COALESCE(SUM(${ledgerTransactions.debitAmount}), 0)`,
+        totalCredits: sql<string>`COALESCE(SUM(${ledgerTransactions.creditAmount}), 0)`,
+      })
+      .from(ledgerTransactions)
+      .where(
+        and(
+          eq(ledgerTransactions.userId, userId),
+          gte(ledgerTransactions.transactionDate, startDate),
+          lte(ledgerTransactions.transactionDate, endDate)
+        )
+      )
+      .groupBy(ledgerTransactions.accountId);
+
+    // Build a map for O(1) lookup
+    const totalsMap = new Map<string, { totalDebits: string; totalCredits: string }>();
+    for (const t of transactionTotals) {
+      totalsMap.set(t.accountId, {
+        totalDebits: t.totalDebits,
+        totalCredits: t.totalCredits,
+      });
+    }
+
+    // Calculate revenue using the map (no per-account queries)
     const revenueItems: AccountWithBalance[] = [];
     let totalRevenue = new Decimal(0);
 
     for (const account of revenueAccounts) {
-      const transactions = await db.query.ledgerTransactions.findMany({
-        where: and(
-          eq(ledgerTransactions.userId, userId),
-          eq(ledgerTransactions.accountId, account.id),
-          gte(ledgerTransactions.transactionDate, startDate),
-          lte(ledgerTransactions.transactionDate, endDate)
-        ),
-      });
+      const totals = totalsMap.get(account.id);
+      const totalDebits = new Decimal(totals?.totalDebits ?? "0");
+      const totalCredits = new Decimal(totals?.totalCredits ?? "0");
 
-      let balance = new Decimal(0);
-      for (const t of transactions) {
-        balance = balance.plus(t.creditAmount).minus(t.debitAmount);
-      }
+      // Revenue accounts: credits increase, debits decrease
+      const balance = totalCredits.minus(totalDebits);
 
       if (balance.abs().greaterThan(0.01)) {
         revenueItems.push({
@@ -419,7 +487,7 @@ export const ledgerRepository = {
       }
     }
 
-    // Calculate expenses (categorized by account code ranges)
+    // Calculate expenses (categorized by subType or fallback to account code ranges)
     const cogsItems: AccountWithBalance[] = [];
     const operatingItems: AccountWithBalance[] = [];
     const otherItems: AccountWithBalance[] = [];
@@ -427,20 +495,30 @@ export const ledgerRepository = {
     let totalOperating = new Decimal(0);
     let totalOther = new Decimal(0);
 
-    for (const account of expenseAccounts) {
-      const transactions = await db.query.ledgerTransactions.findMany({
-        where: and(
-          eq(ledgerTransactions.userId, userId),
-          eq(ledgerTransactions.accountId, account.id),
-          gte(ledgerTransactions.transactionDate, startDate),
-          lte(ledgerTransactions.transactionDate, endDate)
-        ),
-      });
-
-      let balance = new Decimal(0);
-      for (const t of transactions) {
-        balance = balance.plus(t.debitAmount).minus(t.creditAmount);
+    // Helper to categorize expense accounts
+    const categorizeExpense = (
+      account: typeof expenseAccounts[0]
+    ): "cogs" | "operating" | "other" => {
+      // Use subType if set (preferred)
+      if (account.subType) {
+        if (account.subType === "cost_of_goods_sold") return "cogs";
+        if (account.subType === "operating_expense") return "operating";
+        if (account.subType === "other_expense") return "other";
       }
+      // Fallback to account code ranges
+      const codeNum = parseInt(account.code, 10);
+      if (codeNum >= 5000 && codeNum < 5200) return "cogs";
+      if (codeNum >= 5200 && codeNum < 5900) return "operating";
+      return "other";
+    };
+
+    for (const account of expenseAccounts) {
+      const totals = totalsMap.get(account.id);
+      const totalDebits = new Decimal(totals?.totalDebits ?? "0");
+      const totalCredits = new Decimal(totals?.totalCredits ?? "0");
+
+      // Expense accounts: debits increase, credits decrease
+      const balance = totalDebits.minus(totalCredits);
 
       if (balance.abs().greaterThan(0.01)) {
         const item: AccountWithBalance = {
@@ -450,18 +528,15 @@ export const ledgerRepository = {
           balance: balance.toFixed(2),
         };
 
-        // Categorize by account code
-        const codeNum = parseInt(account.code, 10);
-        if (codeNum >= 5000 && codeNum < 5200) {
-          // COGS (5000-5199)
+        // Categorize using subType or code fallback
+        const category = categorizeExpense(account);
+        if (category === "cogs") {
           cogsItems.push(item);
           totalCOGS = totalCOGS.plus(balance);
-        } else if (codeNum >= 5200 && codeNum < 5900) {
-          // Operating expenses (5200-5899)
+        } else if (category === "operating") {
           operatingItems.push(item);
           totalOperating = totalOperating.plus(balance);
         } else {
-          // Other expenses (5900+)
           otherItems.push(item);
           totalOther = totalOther.plus(balance);
         }
@@ -544,46 +619,97 @@ export const ledgerRepository = {
     userId: string,
     asOfDate: string
   ): Promise<BalanceSheetResult> => {
-    const calculateAccountBalance = async (
-      account: typeof accounts.$inferSelect
-    ): Promise<Decimal> => {
-      const transactions = await db.query.ledgerTransactions.findMany({
+    // Get all balance sheet accounts (asset, liability, equity) in parallel
+    const [assetAccounts, liabilityAccounts, equityAccounts] = await Promise.all([
+      db.query.accounts.findMany({
         where: and(
-          eq(ledgerTransactions.userId, userId),
-          eq(ledgerTransactions.accountId, account.id),
-          lte(ledgerTransactions.transactionDate, asOfDate)
+          eq(accounts.userId, userId),
+          eq(accounts.accountType, "asset"),
+          eq(accounts.isHeader, false),
+          isNull(accounts.deletedAt)
         ),
-      });
+        orderBy: [asc(accounts.code)],
+      }),
+      db.query.accounts.findMany({
+        where: and(
+          eq(accounts.userId, userId),
+          eq(accounts.accountType, "liability"),
+          eq(accounts.isHeader, false),
+          isNull(accounts.deletedAt)
+        ),
+        orderBy: [asc(accounts.code)],
+      }),
+      db.query.accounts.findMany({
+        where: and(
+          eq(accounts.userId, userId),
+          eq(accounts.accountType, "equity"),
+          eq(accounts.isHeader, false),
+          isNull(accounts.deletedAt)
+        ),
+        orderBy: [asc(accounts.code)],
+      }),
+    ]);
 
+    // Get aggregated transaction totals in a SINGLE query (fixes N+1)
+    const transactionTotals = await db
+      .select({
+        accountId: ledgerTransactions.accountId,
+        totalDebits: sql<string>`COALESCE(SUM(${ledgerTransactions.debitAmount}), 0)`,
+        totalCredits: sql<string>`COALESCE(SUM(${ledgerTransactions.creditAmount}), 0)`,
+      })
+      .from(ledgerTransactions)
+      .where(
+        and(
+          eq(ledgerTransactions.userId, userId),
+          lte(ledgerTransactions.transactionDate, asOfDate)
+        )
+      )
+      .groupBy(ledgerTransactions.accountId);
+
+    // Build a map for O(1) lookup
+    const totalsMap = new Map<string, { totalDebits: string; totalCredits: string }>();
+    for (const t of transactionTotals) {
+      totalsMap.set(t.accountId, {
+        totalDebits: t.totalDebits,
+        totalCredits: t.totalCredits,
+      });
+    }
+
+    // Helper to calculate balance using the totals map (no DB query)
+    const calculateBalance = (account: typeof assetAccounts[0]): Decimal => {
+      const totals = totalsMap.get(account.id);
+      const totalDebits = new Decimal(totals?.totalDebits ?? "0");
+      const totalCredits = new Decimal(totals?.totalCredits ?? "0");
       let balance = new Decimal(account.openingBalance ?? "0");
-      for (const t of transactions) {
-        if (account.normalBalance === "debit") {
-          balance = balance.plus(t.debitAmount).minus(t.creditAmount);
-        } else {
-          balance = balance.plus(t.creditAmount).minus(t.debitAmount);
-        }
+
+      if (account.normalBalance === "debit") {
+        balance = balance.plus(totalDebits).minus(totalCredits);
+      } else {
+        balance = balance.plus(totalCredits).minus(totalDebits);
       }
       return balance;
     };
 
-    // Get asset accounts
-    const assetAccounts = await db.query.accounts.findMany({
-      where: and(
-        eq(accounts.userId, userId),
-        eq(accounts.accountType, "asset"),
-        eq(accounts.isHeader, false),
-        isNull(accounts.deletedAt)
-      ),
-      orderBy: [asc(accounts.code)],
-    });
+    // Helper to categorize asset accounts
+    const categorizeAsset = (
+      account: typeof assetAccounts[0]
+    ): "current" | "fixed" => {
+      // Use subType if set (preferred)
+      if (account.subType === "current_asset") return "current";
+      if (account.subType === "fixed_asset") return "fixed";
+      // Fallback to account code ranges
+      const codeNum = parseInt(account.code, 10);
+      return codeNum >= 1000 && codeNum < 1500 ? "current" : "fixed";
+    };
 
+    // Process asset accounts
     const currentAssets: AccountWithBalance[] = [];
     const fixedAssets: AccountWithBalance[] = [];
     let totalCurrentAssets = new Decimal(0);
     let totalFixedAssets = new Decimal(0);
 
     for (const account of assetAccounts) {
-      const balance = await calculateAccountBalance(account);
+      const balance = calculateBalance(account);
       if (balance.abs().lessThan(0.01)) continue;
 
       const item: AccountWithBalance = {
@@ -593,36 +719,35 @@ export const ledgerRepository = {
         balance: balance.toFixed(2),
       };
 
-      const codeNum = parseInt(account.code, 10);
-      if (codeNum >= 1000 && codeNum < 1500) {
-        // Current assets (1000-1499)
+      if (categorizeAsset(account) === "current") {
         currentAssets.push(item);
         totalCurrentAssets = totalCurrentAssets.plus(balance);
       } else {
-        // Fixed assets (1500+)
         fixedAssets.push(item);
         totalFixedAssets = totalFixedAssets.plus(balance);
       }
     }
 
-    // Get liability accounts
-    const liabilityAccounts = await db.query.accounts.findMany({
-      where: and(
-        eq(accounts.userId, userId),
-        eq(accounts.accountType, "liability"),
-        eq(accounts.isHeader, false),
-        isNull(accounts.deletedAt)
-      ),
-      orderBy: [asc(accounts.code)],
-    });
+    // Helper to categorize liability accounts
+    const categorizeLiability = (
+      account: typeof liabilityAccounts[0]
+    ): "current" | "non_current" => {
+      // Use subType if set (preferred)
+      if (account.subType === "current_liability") return "current";
+      if (account.subType === "non_current_liability") return "non_current";
+      // Fallback to account code ranges
+      const codeNum = parseInt(account.code, 10);
+      return codeNum >= 2000 && codeNum < 2600 ? "current" : "non_current";
+    };
 
+    // Process liability accounts
     const currentLiabilities: AccountWithBalance[] = [];
     const nonCurrentLiabilities: AccountWithBalance[] = [];
     let totalCurrentLiabilities = new Decimal(0);
     let totalNonCurrentLiabilities = new Decimal(0);
 
     for (const account of liabilityAccounts) {
-      const balance = await calculateAccountBalance(account);
+      const balance = calculateBalance(account);
       if (balance.abs().lessThan(0.01)) continue;
 
       const item: AccountWithBalance = {
@@ -632,35 +757,32 @@ export const ledgerRepository = {
         balance: balance.toFixed(2),
       };
 
-      const codeNum = parseInt(account.code, 10);
-      if (codeNum >= 2000 && codeNum < 2600) {
-        // Current liabilities (2000-2599)
+      if (categorizeLiability(account) === "current") {
         currentLiabilities.push(item);
         totalCurrentLiabilities = totalCurrentLiabilities.plus(balance);
       } else {
-        // Non-current liabilities (2600+)
         nonCurrentLiabilities.push(item);
         totalNonCurrentLiabilities = totalNonCurrentLiabilities.plus(balance);
       }
     }
 
-    // Get equity accounts
-    const equityAccounts = await db.query.accounts.findMany({
-      where: and(
-        eq(accounts.userId, userId),
-        eq(accounts.accountType, "equity"),
-        eq(accounts.isHeader, false),
-        isNull(accounts.deletedAt)
-      ),
-      orderBy: [asc(accounts.code)],
-    });
-
+    // Process equity accounts
     const equityItems: AccountWithBalance[] = [];
     let totalEquity = new Decimal(0);
+    let retainedEarnings = new Decimal(0);
+
+    // Retained Earnings account code (Malaysian Chart of Accounts)
+    const RETAINED_EARNINGS_CODE = "3200";
 
     for (const account of equityAccounts) {
-      const balance = await calculateAccountBalance(account);
+      const balance = calculateBalance(account);
       if (balance.abs().lessThan(0.01)) continue;
+
+      // Separate retained earnings account from other equity accounts
+      if (account.code === RETAINED_EARNINGS_CODE) {
+        retainedEarnings = balance;
+        continue; // Don't include in equityItems to avoid double counting
+      }
 
       equityItems.push({
         id: account.id,
@@ -671,7 +793,7 @@ export const ledgerRepository = {
       totalEquity = totalEquity.plus(balance);
     }
 
-    // Calculate retained earnings (YTD P&L)
+    // Calculate current year earnings (YTD P&L)
     const yearStart = asOfDate.substring(0, 4) + "-01-01";
     const pnl = await ledgerRepository.getProfitAndLoss(
       userId,
@@ -679,7 +801,6 @@ export const ledgerRepository = {
       asOfDate
     );
     const currentYearEarnings = new Decimal(pnl.netProfit);
-    const retainedEarnings = new Decimal(0); // Would need prior year close
 
     const totalLiabilities = totalCurrentLiabilities.plus(
       totalNonCurrentLiabilities
@@ -751,6 +872,300 @@ export const ledgerRepository = {
         ),
         totalEquity: (currentEquity - compareEquity).toFixed(2),
         totalEquityPercent: calculateVariancePercent(currentEquity, compareEquity),
+      },
+    };
+  },
+
+  // ============= Cash Flow Statement =============
+
+  /**
+   * Generate Cash Flow Statement (Indirect Method)
+   *
+   * The indirect method starts with net income and adjusts for:
+   * 1. Non-cash items (depreciation, amortization)
+   * 2. Changes in working capital (AR, AP, inventory)
+   * 3. Investing activities (fixed asset purchases/sales)
+   * 4. Financing activities (loans, equity)
+   */
+  getCashFlowStatement: async (
+    userId: string,
+    startDate: string,
+    endDate: string
+  ): Promise<CashFlowResult> => {
+    // Get P&L for net income
+    const pnl = await ledgerRepository.getProfitAndLoss(userId, startDate, endDate);
+    const netIncome = new Decimal(pnl.netProfit);
+
+    // Note: Beginning balance is implicit via account opening balances
+
+    // Get all accounts with period changes
+    const allAccounts = await db.query.accounts.findMany({
+      where: and(
+        eq(accounts.userId, userId),
+        isNull(accounts.deletedAt),
+        eq(accounts.isHeader, false)
+      ),
+    });
+
+    // Get transaction totals for the period
+    const periodTotals = await db
+      .select({
+        accountId: ledgerTransactions.accountId,
+        totalDebits: sql<string>`COALESCE(SUM(${ledgerTransactions.debitAmount}), 0)`,
+        totalCredits: sql<string>`COALESCE(SUM(${ledgerTransactions.creditAmount}), 0)`,
+      })
+      .from(ledgerTransactions)
+      .where(
+        and(
+          eq(ledgerTransactions.userId, userId),
+          gte(ledgerTransactions.transactionDate, startDate),
+          lte(ledgerTransactions.transactionDate, endDate)
+        )
+      )
+      .groupBy(ledgerTransactions.accountId);
+
+    const periodMap = new Map<string, { debits: Decimal; credits: Decimal }>();
+    for (const row of periodTotals) {
+      periodMap.set(row.accountId, {
+        debits: new Decimal(row.totalDebits),
+        credits: new Decimal(row.totalCredits),
+      });
+    }
+
+    // Helper to get period change for an account
+    const getPeriodChange = (account: typeof allAccounts[0]): Decimal => {
+      const totals = periodMap.get(account.id);
+      if (!totals) return new Decimal(0);
+      if (account.normalBalance === "debit") {
+        return totals.debits.minus(totals.credits);
+      }
+      return totals.credits.minus(totals.debits);
+    };
+
+    // ============= Operating Activities =============
+    const adjustments: CashFlowLineItem[] = [];
+    let totalAdjustments = new Decimal(0);
+
+    // Find depreciation/amortization accounts (expense accounts that are non-cash)
+    // Typically codes 5800-5899 or accounts with "depreciation" or "amortization" in name
+    for (const account of allAccounts) {
+      if (account.accountType !== "expense") continue;
+
+      const isDepreciation =
+        account.name.toLowerCase().includes("depreciation") ||
+        account.name.toLowerCase().includes("amortization") ||
+        (parseInt(account.code) >= 5800 && parseInt(account.code) < 5900);
+
+      if (isDepreciation) {
+        const change = getPeriodChange(account);
+        if (change.abs().greaterThan(0.01)) {
+          adjustments.push({
+            code: account.code,
+            name: `Add: ${account.name}`,
+            amount: change.toFixed(2),
+          });
+          totalAdjustments = totalAdjustments.plus(change);
+        }
+      }
+    }
+
+    // Working capital changes (current assets and liabilities)
+    const workingCapitalChanges: CashFlowLineItem[] = [];
+    let totalWorkingCapitalChange = new Decimal(0);
+
+    // Accounts Receivable (increase = cash outflow)
+    const arAccounts = allAccounts.filter(
+      (a) => a.accountType === "asset" && a.code.startsWith("11")
+    );
+    let arChange = new Decimal(0);
+    for (const account of arAccounts) {
+      arChange = arChange.plus(getPeriodChange(account));
+    }
+    if (arChange.abs().greaterThan(0.01)) {
+      workingCapitalChanges.push({
+        code: "1100",
+        name: arChange.greaterThan(0) ? "Decrease: Accounts Receivable" : "Increase: Accounts Receivable",
+        amount: arChange.negated().toFixed(2), // Increase in AR = cash outflow (negative)
+      });
+      totalWorkingCapitalChange = totalWorkingCapitalChange.minus(arChange);
+    }
+
+    // Inventory (increase = cash outflow)
+    const inventoryAccounts = allAccounts.filter(
+      (a) => a.accountType === "asset" && a.code.startsWith("12")
+    );
+    let inventoryChange = new Decimal(0);
+    for (const account of inventoryAccounts) {
+      inventoryChange = inventoryChange.plus(getPeriodChange(account));
+    }
+    if (inventoryChange.abs().greaterThan(0.01)) {
+      workingCapitalChanges.push({
+        code: "1200",
+        name: inventoryChange.greaterThan(0) ? "Decrease: Inventory" : "Increase: Inventory",
+        amount: inventoryChange.negated().toFixed(2),
+      });
+      totalWorkingCapitalChange = totalWorkingCapitalChange.minus(inventoryChange);
+    }
+
+    // Accounts Payable (increase = cash inflow)
+    const apAccounts = allAccounts.filter(
+      (a) => a.accountType === "liability" && a.code.startsWith("21")
+    );
+    let apChange = new Decimal(0);
+    for (const account of apAccounts) {
+      apChange = apChange.plus(getPeriodChange(account));
+    }
+    if (apChange.abs().greaterThan(0.01)) {
+      workingCapitalChanges.push({
+        code: "2100",
+        name: apChange.greaterThan(0) ? "Increase: Accounts Payable" : "Decrease: Accounts Payable",
+        amount: apChange.toFixed(2), // Increase in AP = cash inflow (positive)
+      });
+      totalWorkingCapitalChange = totalWorkingCapitalChange.plus(apChange);
+    }
+
+    // Other current liabilities (accruals, taxes payable)
+    const otherCLAccounts = allAccounts.filter(
+      (a) =>
+        a.accountType === "liability" &&
+        a.code.startsWith("2") &&
+        !a.code.startsWith("21") &&
+        parseInt(a.code) < 2600
+    );
+    let otherCLChange = new Decimal(0);
+    for (const account of otherCLAccounts) {
+      otherCLChange = otherCLChange.plus(getPeriodChange(account));
+    }
+    if (otherCLChange.abs().greaterThan(0.01)) {
+      workingCapitalChanges.push({
+        code: "2200",
+        name: otherCLChange.greaterThan(0) ? "Increase: Other Current Liabilities" : "Decrease: Other Current Liabilities",
+        amount: otherCLChange.toFixed(2),
+      });
+      totalWorkingCapitalChange = totalWorkingCapitalChange.plus(otherCLChange);
+    }
+
+    const netCashFromOperations = netIncome
+      .plus(totalAdjustments)
+      .plus(totalWorkingCapitalChange);
+
+    // ============= Investing Activities =============
+    const investingItems: CashFlowLineItem[] = [];
+    let totalInvesting = new Decimal(0);
+
+    // Fixed assets (increase = cash outflow for purchases)
+    const fixedAssetAccounts = allAccounts.filter(
+      (a) => a.accountType === "asset" && parseInt(a.code) >= 1500
+    );
+    for (const account of fixedAssetAccounts) {
+      const change = getPeriodChange(account);
+      if (change.abs().greaterThan(0.01)) {
+        investingItems.push({
+          code: account.code,
+          name: change.greaterThan(0) ? `Purchase: ${account.name}` : `Sale: ${account.name}`,
+          amount: change.negated().toFixed(2), // Purchase = outflow (negative)
+        });
+        totalInvesting = totalInvesting.minus(change);
+      }
+    }
+
+    // ============= Financing Activities =============
+    const financingItems: CashFlowLineItem[] = [];
+    let totalFinancing = new Decimal(0);
+
+    // Long-term liabilities (loans)
+    const longTermLiabilities = allAccounts.filter(
+      (a) => a.accountType === "liability" && parseInt(a.code) >= 2600
+    );
+    for (const account of longTermLiabilities) {
+      const change = getPeriodChange(account);
+      if (change.abs().greaterThan(0.01)) {
+        financingItems.push({
+          code: account.code,
+          name: change.greaterThan(0) ? `Borrowings: ${account.name}` : `Repayments: ${account.name}`,
+          amount: change.toFixed(2), // Borrowing = inflow, Repayment = outflow
+        });
+        totalFinancing = totalFinancing.plus(change);
+      }
+    }
+
+    // Equity changes (excluding retained earnings which comes from net income)
+    const equityAccounts = allAccounts.filter(
+      (a) => a.accountType === "equity" && a.code !== "3200" // Exclude retained earnings
+    );
+    for (const account of equityAccounts) {
+      const change = getPeriodChange(account);
+      if (change.abs().greaterThan(0.01)) {
+        financingItems.push({
+          code: account.code,
+          name: change.greaterThan(0) ? `Capital Contribution: ${account.name}` : `Capital Withdrawal: ${account.name}`,
+          amount: change.toFixed(2),
+        });
+        totalFinancing = totalFinancing.plus(change);
+      }
+    }
+
+    // ============= Summary =============
+    const netChangeInCash = netCashFromOperations
+      .plus(totalInvesting)
+      .plus(totalFinancing);
+
+    // Get beginning and ending cash balances
+    // Cash accounts are typically 1000-1099
+    const cashAccounts = allAccounts.filter(
+      (a) => a.accountType === "asset" && parseInt(a.code) >= 1000 && parseInt(a.code) < 1100
+    );
+
+    // Beginning cash = opening balance + transactions before period
+    let beginningCash = new Decimal(0);
+    let endingCash = new Decimal(0);
+
+    for (const account of cashAccounts) {
+      const openingBalance = new Decimal(account.openingBalance ?? "0");
+
+      // Get transactions before period
+      const priorTotals = await db
+        .select({
+          totalDebits: sql<string>`COALESCE(SUM(${ledgerTransactions.debitAmount}), 0)`,
+          totalCredits: sql<string>`COALESCE(SUM(${ledgerTransactions.creditAmount}), 0)`,
+        })
+        .from(ledgerTransactions)
+        .where(
+          and(
+            eq(ledgerTransactions.userId, userId),
+            eq(ledgerTransactions.accountId, account.id),
+            sql`${ledgerTransactions.transactionDate} < ${startDate}`
+          )
+        );
+
+      const priorDebits = new Decimal(priorTotals[0]?.totalDebits ?? "0");
+      const priorCredits = new Decimal(priorTotals[0]?.totalCredits ?? "0");
+      const periodChange = getPeriodChange(account);
+
+      beginningCash = beginningCash.plus(openingBalance).plus(priorDebits).minus(priorCredits);
+      endingCash = beginningCash.plus(periodChange);
+    }
+
+    return {
+      period: { startDate, endDate },
+      operatingActivities: {
+        netIncome: netIncome.toFixed(2),
+        adjustments,
+        changesInWorkingCapital: workingCapitalChanges,
+        netCashFromOperations: netCashFromOperations.toFixed(2),
+      },
+      investingActivities: {
+        items: investingItems,
+        netCashFromInvesting: totalInvesting.toFixed(2),
+      },
+      financingActivities: {
+        items: financingItems,
+        netCashFromFinancing: totalFinancing.toFixed(2),
+      },
+      summary: {
+        netChangeInCash: netChangeInCash.toFixed(2),
+        beginningCash: beginningCash.toFixed(2),
+        endingCash: endingCash.toFixed(2),
       },
     };
   },
@@ -979,6 +1394,252 @@ export const ledgerRepository = {
       sourceType: t.sourceType,
       sourceId: t.sourceId,
     }));
+  },
+
+  // ============= Account Balance Reconciliation =============
+
+  /**
+   * Reconcile account balances by comparing:
+   * 1. Expected balance from journal entries
+   * 2. Current balance in ledger transactions
+   * 3. Account opening balance + transactions
+   *
+   * Returns discrepancies that need attention
+   */
+  reconcileAccountBalances: async (
+    userId: string,
+    accountId?: string
+  ): Promise<{
+    reconciled: number;
+    discrepancies: Array<{
+      accountId: string;
+      accountCode: string;
+      accountName: string;
+      expectedBalance: string;
+      actualBalance: string;
+      difference: string;
+      openingBalance: string;
+      totalDebits: string;
+      totalCredits: string;
+    }>;
+    summary: {
+      totalAccounts: number;
+      accountsWithDiscrepancies: number;
+      totalDifference: string;
+    };
+  }> => {
+    // Get accounts to reconcile
+    const accountConditions = [
+      eq(accounts.userId, userId),
+      isNull(accounts.deletedAt),
+      eq(accounts.isHeader, false),
+    ];
+
+    if (accountId) {
+      accountConditions.push(eq(accounts.id, accountId));
+    }
+
+    const allAccounts = await db.query.accounts.findMany({
+      where: and(...accountConditions),
+      orderBy: [asc(accounts.code)],
+    });
+
+    // Get aggregated transaction totals from ledger_transactions
+    const ledgerTotals = await db
+      .select({
+        accountId: ledgerTransactions.accountId,
+        totalDebits: sql<string>`COALESCE(SUM(${ledgerTransactions.debitAmount}), 0)`,
+        totalCredits: sql<string>`COALESCE(SUM(${ledgerTransactions.creditAmount}), 0)`,
+        lastBalance: sql<string>`(
+          SELECT ${ledgerTransactions.runningBalance}
+          FROM ${ledgerTransactions} lt2
+          WHERE lt2.account_id = ${ledgerTransactions.accountId}
+          AND lt2.user_id = ${userId}
+          ORDER BY lt2.transaction_date DESC, lt2.created_at DESC
+          LIMIT 1
+        )`,
+      })
+      .from(ledgerTransactions)
+      .where(eq(ledgerTransactions.userId, userId))
+      .groupBy(ledgerTransactions.accountId);
+
+    const ledgerMap = new Map<
+      string,
+      { totalDebits: string; totalCredits: string; lastBalance: string | null }
+    >();
+    for (const row of ledgerTotals) {
+      ledgerMap.set(row.accountId, {
+        totalDebits: row.totalDebits,
+        totalCredits: row.totalCredits,
+        lastBalance: row.lastBalance,
+      });
+    }
+
+    // Get aggregated transaction totals from journal_entry_lines (source of truth)
+    const journalTotals = await db
+      .select({
+        accountId: journalEntryLines.accountId,
+        totalDebits: sql<string>`COALESCE(SUM(${journalEntryLines.debitAmount}), 0)`,
+        totalCredits: sql<string>`COALESCE(SUM(${journalEntryLines.creditAmount}), 0)`,
+      })
+      .from(journalEntryLines)
+      .innerJoin(
+        journalEntries,
+        and(
+          eq(journalEntryLines.journalEntryId, journalEntries.id),
+          eq(journalEntries.status, "posted")
+        )
+      )
+      .where(eq(journalEntries.userId, userId))
+      .groupBy(journalEntryLines.accountId);
+
+    const journalMap = new Map<
+      string,
+      { totalDebits: string; totalCredits: string }
+    >();
+    for (const row of journalTotals) {
+      journalMap.set(row.accountId, {
+        totalDebits: row.totalDebits,
+        totalCredits: row.totalCredits,
+      });
+    }
+
+    // Compare and find discrepancies
+    const discrepancies: Array<{
+      accountId: string;
+      accountCode: string;
+      accountName: string;
+      expectedBalance: string;
+      actualBalance: string;
+      difference: string;
+      openingBalance: string;
+      totalDebits: string;
+      totalCredits: string;
+    }> = [];
+
+    let reconciled = 0;
+    let totalDifference = new Decimal(0);
+
+    for (const account of allAccounts) {
+      const ledgerData = ledgerMap.get(account.id);
+      const journalData = journalMap.get(account.id);
+
+      const openingBalance = new Decimal(account.openingBalance ?? "0");
+      const journalDebits = new Decimal(journalData?.totalDebits ?? "0");
+      const journalCredits = new Decimal(journalData?.totalCredits ?? "0");
+      const ledgerDebits = new Decimal(ledgerData?.totalDebits ?? "0");
+      const ledgerCredits = new Decimal(ledgerData?.totalCredits ?? "0");
+
+      // Calculate expected balance from journal entries
+      let expectedBalance: Decimal;
+      if (account.normalBalance === "debit") {
+        expectedBalance = openingBalance.plus(journalDebits).minus(journalCredits);
+      } else {
+        expectedBalance = openingBalance.plus(journalCredits).minus(journalDebits);
+      }
+
+      // Get actual balance from ledger (last running balance, or recalculate)
+      let actualBalance: Decimal;
+      if (ledgerData?.lastBalance) {
+        actualBalance = new Decimal(ledgerData.lastBalance);
+      } else {
+        // No ledger transactions, balance should be opening balance
+        actualBalance = openingBalance;
+      }
+
+      // Check for discrepancy
+      const difference = expectedBalance.minus(actualBalance);
+
+      if (difference.abs().greaterThan(0.01)) {
+        discrepancies.push({
+          accountId: account.id,
+          accountCode: account.code,
+          accountName: account.name,
+          expectedBalance: expectedBalance.toFixed(2),
+          actualBalance: actualBalance.toFixed(2),
+          difference: difference.toFixed(2),
+          openingBalance: openingBalance.toFixed(2),
+          totalDebits: journalDebits.toFixed(2),
+          totalCredits: journalCredits.toFixed(2),
+        });
+        totalDifference = totalDifference.plus(difference.abs());
+      } else {
+        reconciled++;
+      }
+
+      // Also check if ledger totals match journal totals
+      if (
+        !ledgerDebits.equals(journalDebits) ||
+        !ledgerCredits.equals(journalCredits)
+      ) {
+        // Transaction totals mismatch - ledger needs rebuild
+        if (!discrepancies.find((d) => d.accountId === account.id)) {
+          discrepancies.push({
+            accountId: account.id,
+            accountCode: account.code,
+            accountName: account.name,
+            expectedBalance: expectedBalance.toFixed(2),
+            actualBalance: actualBalance.toFixed(2),
+            difference: "N/A (totals mismatch)",
+            openingBalance: openingBalance.toFixed(2),
+            totalDebits: `Journal: ${journalDebits.toFixed(2)} vs Ledger: ${ledgerDebits.toFixed(2)}`,
+            totalCredits: `Journal: ${journalCredits.toFixed(2)} vs Ledger: ${ledgerCredits.toFixed(2)}`,
+          });
+        }
+      }
+    }
+
+    return {
+      reconciled,
+      discrepancies,
+      summary: {
+        totalAccounts: allAccounts.length,
+        accountsWithDiscrepancies: discrepancies.length,
+        totalDifference: totalDifference.toFixed(2),
+      },
+    };
+  },
+
+  /**
+   * Auto-fix account balance discrepancies by rebuilding ledger transactions
+   */
+  autoFixDiscrepancies: async (
+    userId: string,
+    accountIds?: string[]
+  ): Promise<{
+    fixed: number;
+    errors: Array<{ accountId: string; error: string }>;
+  }> => {
+    const errors: Array<{ accountId: string; error: string }> = [];
+    let fixed = 0;
+
+    if (accountIds && accountIds.length > 0) {
+      // Fix specific accounts
+      for (const accountId of accountIds) {
+        try {
+          await ledgerRepository.rebuildLedgerTransactions(userId, accountId);
+          fixed++;
+        } catch (error) {
+          errors.push({
+            accountId,
+            error: error instanceof Error ? error.message : "Unknown error",
+          });
+        }
+      }
+    } else {
+      // Full rebuild
+      try {
+        const result = await ledgerRepository.rebuildLedgerTransactions(userId);
+        fixed = result.rebuilt;
+      } catch (error) {
+        errors.push({
+          accountId: "all",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+
+    return { fixed, errors };
   },
 };
 

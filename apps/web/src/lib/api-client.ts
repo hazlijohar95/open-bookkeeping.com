@@ -5,23 +5,12 @@
 
 import { getAccessToken } from "@/providers/auth-provider";
 
-// Get the API base URL from environment or default to same-origin
+// Import the centralized API URL helper
+import { getApiUrl } from "./api-url";
+
+// Get the API base URL - delegates to centralized helper
 function getApiBaseUrl(): string {
-  // First check for explicit API URL override
-  const explicitApiUrl = import.meta.env.VITE_API_URL;
-  if (explicitApiUrl) {
-    return explicitApiUrl;
-  }
-
-  // In development mode, use the local Node.js API server
-  // This allows VITE_SUPABASE_URL to still be used for auth while API calls go to local server
-  if (import.meta.env.DEV) {
-    return "http://localhost:3001";
-  }
-
-  // In production, use same-origin (API served via Netlify Functions)
-  // The API is at the same domain, so no base URL needed
-  return "";
+  return getApiUrl();
 }
 
 export const API_BASE_URL = getApiBaseUrl();

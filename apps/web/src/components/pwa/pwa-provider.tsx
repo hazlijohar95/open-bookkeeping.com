@@ -52,15 +52,46 @@ function PWAProviderDesktop({ children }: { children: React.ReactNode }) {
     typeof navigator !== "undefined" ? navigator.onLine : true
   );
 
-  // Unregister any existing service workers on desktop
+  // Aggressively unregister service workers and clear caches on desktop
   React.useEffect(() => {
-    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
-      void navigator.serviceWorker.getRegistrations().then((registrations) => {
+    async function cleanupServiceWorkers() {
+      if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
+        return;
+      }
+
+      try {
+        // Unregister all service workers
+        const registrations = await navigator.serviceWorker.getRegistrations();
         for (const registration of registrations) {
-          void registration.unregister();
+          await registration.unregister();
+          console.log("[PWA] Unregistered service worker:", registration.scope);
         }
-      });
+
+        // Clear all caches
+        if ("caches" in window) {
+          const cacheNames = await caches.keys();
+          for (const cacheName of cacheNames) {
+            await caches.delete(cacheName);
+            console.log("[PWA] Deleted cache:", cacheName);
+          }
+        }
+
+        // If we had service workers, reload to ensure clean state
+        if (registrations.length > 0) {
+          console.log("[PWA] Service workers cleaned up, reloading...");
+          // Only reload once - check flag in sessionStorage
+          const hasReloaded = sessionStorage.getItem("pwa_cleanup_reload");
+          if (!hasReloaded) {
+            sessionStorage.setItem("pwa_cleanup_reload", "true");
+            window.location.reload();
+          }
+        }
+      } catch (error) {
+        console.warn("[PWA] Error cleaning up service workers:", error);
+      }
     }
+
+    void cleanupServiceWorkers();
   }, []);
 
   // Online/offline events

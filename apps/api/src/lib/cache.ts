@@ -9,9 +9,14 @@ import { cacheGet, cacheSet, cacheDel, cacheDelPattern } from "./redis";
 const CACHE_KEYS = {
   DASHBOARD_STATS: "dashboard:stats:",
   REVENUE_CHART: "dashboard:revenue:",
+  INVOICE_STATUS: "dashboard:invoice_status:",
+  TOP_CUSTOMERS: "dashboard:top_customers:",
+  RECENT_INVOICES: "dashboard:recent:",
   INVOICE_LIST: "invoices:list:",
   CUSTOMER_LIST: "customers:list:",
   QUOTATION_LIST: "quotations:list:",
+  VENDOR_LIST: "vendors:list:",
+  BILL_LIST: "bills:list:",
   API_KEY: "apikey:hash:", // API key cache by hash
 } as const;
 
@@ -19,8 +24,9 @@ const CACHE_KEYS = {
 const CACHE_TTL = {
   DASHBOARD_STATS: 60, // 1 minute - frequently updated data
   REVENUE_CHART: 300, // 5 minutes - less frequently updated
+  DASHBOARD_WIDGETS: 120, // 2 minutes - dashboard widgets
   LIST_DATA: 30, // 30 seconds - list data
-  API_KEY: 120, // 2 minutes - API key validation cache (shorter for security - revoked keys expire faster)
+  API_KEY: 30, // 30 seconds - API key validation cache (short for security - revoked keys expire quickly)
 } as const;
 
 /**
@@ -99,15 +105,86 @@ export async function invalidateQuotationList(userId: string): Promise<void> {
 }
 
 /**
+ * Vendor List Cache
+ */
+export async function getCachedVendorList<T>(userId: string, key: string): Promise<T | null> {
+  return cacheGet<T>(`${CACHE_KEYS.VENDOR_LIST}${userId}:${key}`);
+}
+
+export async function setCachedVendorList<T>(userId: string, key: string, data: T): Promise<void> {
+  await cacheSet(`${CACHE_KEYS.VENDOR_LIST}${userId}:${key}`, data, CACHE_TTL.LIST_DATA);
+}
+
+export async function invalidateVendorList(userId: string): Promise<void> {
+  await cacheDelPattern(`${CACHE_KEYS.VENDOR_LIST}${userId}:*`);
+}
+
+/**
+ * Bill List Cache
+ */
+export async function getCachedBillList<T>(userId: string, key: string): Promise<T | null> {
+  return cacheGet<T>(`${CACHE_KEYS.BILL_LIST}${userId}:${key}`);
+}
+
+export async function setCachedBillList<T>(userId: string, key: string, data: T): Promise<void> {
+  await cacheSet(`${CACHE_KEYS.BILL_LIST}${userId}:${key}`, data, CACHE_TTL.LIST_DATA);
+}
+
+export async function invalidateBillList(userId: string): Promise<void> {
+  await cacheDelPattern(`${CACHE_KEYS.BILL_LIST}${userId}:*`);
+}
+
+/**
+ * Dashboard Widget Caches
+ */
+export async function getCachedInvoiceStatus<T>(userId: string): Promise<T | null> {
+  return cacheGet<T>(`${CACHE_KEYS.INVOICE_STATUS}${userId}`);
+}
+
+export async function setCachedInvoiceStatus<T>(userId: string, data: T): Promise<void> {
+  await cacheSet(`${CACHE_KEYS.INVOICE_STATUS}${userId}`, data, CACHE_TTL.DASHBOARD_WIDGETS);
+}
+
+export async function getCachedTopCustomers<T>(userId: string, limit: number): Promise<T | null> {
+  return cacheGet<T>(`${CACHE_KEYS.TOP_CUSTOMERS}${userId}:${limit}`);
+}
+
+export async function setCachedTopCustomers<T>(userId: string, limit: number, data: T): Promise<void> {
+  await cacheSet(`${CACHE_KEYS.TOP_CUSTOMERS}${userId}:${limit}`, data, CACHE_TTL.DASHBOARD_WIDGETS);
+}
+
+export async function getCachedRecentInvoices<T>(userId: string, limit: number): Promise<T | null> {
+  return cacheGet<T>(`${CACHE_KEYS.RECENT_INVOICES}${userId}:${limit}`);
+}
+
+export async function setCachedRecentInvoices<T>(userId: string, limit: number, data: T): Promise<void> {
+  await cacheSet(`${CACHE_KEYS.RECENT_INVOICES}${userId}:${limit}`, data, CACHE_TTL.DASHBOARD_WIDGETS);
+}
+
+/**
+ * Invalidate all dashboard widget caches
+ */
+async function invalidateDashboardWidgets(userId: string): Promise<void> {
+  await Promise.all([
+    cacheDel(`${CACHE_KEYS.INVOICE_STATUS}${userId}`),
+    cacheDelPattern(`${CACHE_KEYS.TOP_CUSTOMERS}${userId}:*`),
+    cacheDelPattern(`${CACHE_KEYS.RECENT_INVOICES}${userId}:*`),
+  ]);
+}
+
+/**
  * Invalidate all user caches (e.g., on significant data changes)
  */
 export async function invalidateAllUserCaches(userId: string): Promise<void> {
   await Promise.all([
     invalidateDashboardStats(userId),
     invalidateRevenueChart(userId),
+    invalidateDashboardWidgets(userId),
     invalidateInvoiceList(userId),
     invalidateCustomerList(userId),
     invalidateQuotationList(userId),
+    invalidateVendorList(userId),
+    invalidateBillList(userId),
   ]);
 }
 
@@ -118,6 +195,7 @@ export async function invalidateInvoiceCaches(userId: string): Promise<void> {
   await Promise.all([
     invalidateDashboardStats(userId),
     invalidateRevenueChart(userId),
+    invalidateDashboardWidgets(userId),
     invalidateInvoiceList(userId),
   ]);
 }
@@ -139,6 +217,27 @@ export async function invalidateCustomerCaches(userId: string): Promise<void> {
   await Promise.all([
     invalidateCustomerList(userId),
     invalidateInvoiceList(userId), // Customer changes may affect invoice displays
+    invalidateDashboardWidgets(userId), // Top customers may change
+  ]);
+}
+
+/**
+ * Invalidate caches related to vendor operations
+ */
+export async function invalidateVendorCaches(userId: string): Promise<void> {
+  await Promise.all([
+    invalidateVendorList(userId),
+    invalidateBillList(userId), // Vendor changes may affect bill displays
+  ]);
+}
+
+/**
+ * Invalidate caches related to bill operations
+ */
+export async function invalidateBillCaches(userId: string): Promise<void> {
+  await Promise.all([
+    invalidateDashboardStats(userId),
+    invalidateBillList(userId),
   ]);
 }
 

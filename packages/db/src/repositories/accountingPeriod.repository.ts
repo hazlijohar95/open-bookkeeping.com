@@ -1,4 +1,5 @@
 import { eq, and, asc, desc, sql } from "drizzle-orm";
+import Decimal from "decimal.js";
 import { db } from "../index";
 import {
   accountingPeriods,
@@ -8,6 +9,9 @@ import {
 } from "../schema";
 import { journalEntryRepository } from "./journalEntry.repository";
 import { ledgerRepository } from "./ledger.repository";
+
+// Balance tolerance for financial calculations (smallest currency unit)
+const BALANCE_TOLERANCE = new Decimal("0.01");
 
 // ============= Types =============
 
@@ -302,7 +306,8 @@ export const accountingPeriodRepository = {
       `${fiscalYear}-01-01`,
       `${fiscalYear}-12-31`
     );
-    const netIncome = parseFloat(pnl.netProfit);
+    // Use Decimal.js for precision
+    const netIncome = new Decimal(pnl.netProfit);
 
     // Find retained earnings and current year earnings accounts
     const retainedEarningsAccount = await db.query.accounts.findFirst({
@@ -314,7 +319,7 @@ export const accountingPeriodRepository = {
     });
 
     // Try to find Current Year Earnings account or use Retained Earnings
-    let currentYearEarningsAccount = await db.query.accounts.findFirst({
+    const currentYearEarningsAccount = await db.query.accounts.findFirst({
       where: and(
         eq(accounts.userId, userId),
         eq(accounts.code, "3300") // Current Year Earnings
@@ -336,10 +341,10 @@ export const accountingPeriodRepository = {
     const debitAccountId =
       currentYearEarningsAccount?.id || retainedEarningsAccount.id;
 
-    // Only create closing entry if there's net income to close
+    // Only create closing entry if there's net income to close (using tolerance)
     let closingEntryId: string | undefined;
 
-    if (Math.abs(netIncome) > 0.01) {
+    if (netIncome.abs().greaterThan(BALANCE_TOLERANCE)) {
       // Create closing entry
       const closingEntry = await journalEntryRepository.create({
         userId,
@@ -350,14 +355,14 @@ export const accountingPeriodRepository = {
         lines: [
           {
             accountId: debitAccountId,
-            debitAmount: netIncome > 0 ? netIncome.toFixed(2) : "0",
-            creditAmount: netIncome < 0 ? Math.abs(netIncome).toFixed(2) : "0",
+            debitAmount: netIncome.greaterThan(0) ? netIncome.toFixed(2) : "0",
+            creditAmount: netIncome.lessThan(0) ? netIncome.abs().toFixed(2) : "0",
             description: "Close current year earnings to retained earnings",
           },
           {
             accountId: creditAccountId,
-            debitAmount: netIncome < 0 ? Math.abs(netIncome).toFixed(2) : "0",
-            creditAmount: netIncome > 0 ? netIncome.toFixed(2) : "0",
+            debitAmount: netIncome.lessThan(0) ? netIncome.abs().toFixed(2) : "0",
+            creditAmount: netIncome.greaterThan(0) ? netIncome.toFixed(2) : "0",
             description: "Retained earnings adjustment",
           },
         ],

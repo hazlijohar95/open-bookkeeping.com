@@ -27,3 +27,12 @@ export * from "./agentApprovals";
 export * from "./agentQuotas";
 export * from "./agentWorkflows";
 export * from "./agentMemory";
+
+// Payroll schemas
+export * from "./payroll";
+
+// Payments (AR/AP payments)
+export * from "./payments";
+
+// Migration & Opening Balance schemas
+export * from "./migration";

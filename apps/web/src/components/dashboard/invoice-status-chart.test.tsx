@@ -17,28 +17,28 @@ describe("InvoiceStatusChart", () => {
     expect(screen.getByText("Invoice Status")).toBeInTheDocument();
   });
 
-  it("renders description", () => {
+  it("renders description with total count", () => {
     render(<InvoiceStatusChart data={mockData} />);
 
-    expect(screen.getByText(/distribution/i)).toBeInTheDocument();
+    // Component shows "{totalInvoices} total invoices"
+    expect(screen.getByText("43 total invoices")).toBeInTheDocument();
   });
 
-  it("renders legend items", () => {
+  it("renders legend items with counts and percentages", () => {
     render(<InvoiceStatusChart data={mockData} />);
 
-    // Check for status labels in legend
-    expect(screen.getByText("Pending")).toBeInTheDocument();
-    expect(screen.getByText("Paid")).toBeInTheDocument();
-    expect(screen.getByText("Overdue")).toBeInTheDocument();
+    // Legend shows format: "{label}: {count} ({percentage}%)"
+    expect(screen.getByText(/Pending: 10/)).toBeInTheDocument();
+    expect(screen.getByText(/Paid: 25/)).toBeInTheDocument();
+    expect(screen.getByText(/Overdue: 5/)).toBeInTheDocument();
   });
 
-  it("displays counts for each status", () => {
+  it("displays total count in center of chart", () => {
     render(<InvoiceStatusChart data={mockData} />);
 
-    // Check that counts are displayed
-    expect(screen.getByText("10")).toBeInTheDocument();
-    expect(screen.getByText("25")).toBeInTheDocument();
-    expect(screen.getByText("5")).toBeInTheDocument();
+    // Total is displayed in the center of the donut chart
+    expect(screen.getByText("43")).toBeInTheDocument();
+    expect(screen.getByText("Total")).toBeInTheDocument();
   });
 
   it("shows loading state", () => {
@@ -49,7 +49,7 @@ describe("InvoiceStatusChart", () => {
     expect(skeleton).toBeInTheDocument();
   });
 
-  it("renders with empty data", () => {
+  it("renders empty state when no invoices", () => {
     const emptyData = {
       pending: 0,
       paid: 0,
@@ -61,5 +61,6 @@ describe("InvoiceStatusChart", () => {
     render(<InvoiceStatusChart data={emptyData} />);
 
     expect(screen.getByText("Invoice Status")).toBeInTheDocument();
+    expect(screen.getByText("No invoices yet")).toBeInTheDocument();
   });
 });

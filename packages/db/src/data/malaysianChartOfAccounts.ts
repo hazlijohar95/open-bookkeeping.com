@@ -127,6 +127,16 @@ export const malaysianSMEAccounts: DefaultAccount[] = [
     sstTaxCode: "sr",
   },
   {
+    code: "1410",
+    name: "WHT Receivable",
+    description: "Withholding tax deducted by customers on our invoices - claimable from LHDN",
+    accountType: "asset",
+    normalBalance: "debit",
+    parentCode: "1000",
+    isHeader: false,
+    isSystemAccount: true,
+  },
+  {
     code: "1450",
     name: "Other Receivables",
     description: "Other amounts receivable not classified elsewhere",
@@ -340,6 +350,16 @@ export const malaysianSMEAccounts: DefaultAccount[] = [
     parentCode: "2400",
     isHeader: false,
     isSystemAccount: false,
+  },
+  {
+    code: "2450",
+    name: "WHT Payable",
+    description: "Withholding tax payable to LHDN on non-resident vendor payments",
+    accountType: "liability",
+    normalBalance: "credit",
+    parentCode: "2400",
+    isHeader: false,
+    isSystemAccount: true,
   },
   {
     code: "2500",

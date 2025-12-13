@@ -122,24 +122,33 @@ export const invoiceClientDetailsMetadata = pgTable(
 );
 
 // Invoice details (dates, currency, etc.)
-export const invoiceDetails = pgTable("invoice_details", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  invoiceFieldId: uuid("invoice_field_id")
-    .references(() => invoiceFields.id, { onDelete: "cascade" })
-    .unique()
-    .notNull(),
-  theme: jsonb("theme").$type<{
-    baseColor: string;
-    mode: "dark" | "light";
-    template?: "default" | "cynco" | "classic" | "zen" | "executive";
-  }>(),
-  currency: text("currency").notNull(),
-  prefix: text("prefix").notNull(),
-  serialNumber: text("serial_number").notNull(),
-  date: timestamp("date").notNull(),
-  dueDate: timestamp("due_date"),
-  paymentTerms: text("payment_terms"),
-});
+export const invoiceDetails = pgTable(
+  "invoice_details",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invoiceFieldId: uuid("invoice_field_id")
+      .references(() => invoiceFields.id, { onDelete: "cascade" })
+      .unique()
+      .notNull(),
+    theme: jsonb("theme").$type<{
+      baseColor: string;
+      mode: "dark" | "light";
+      template?: "default" | "cynco" | "classic" | "zen" | "executive";
+    }>(),
+    currency: text("currency").notNull(),
+    prefix: text("prefix").notNull(),
+    serialNumber: text("serial_number").notNull(),
+    date: timestamp("date").notNull(),
+    dueDate: timestamp("due_date"),
+    paymentTerms: text("payment_terms"),
+  },
+  (table) => [
+    // Index for overdue invoice queries
+    index("invoice_details_due_date_idx").on(table.dueDate),
+    // Index for FK lookups (though Drizzle may auto-create for unique)
+    index("invoice_details_invoice_field_id_idx").on(table.invoiceFieldId),
+  ]
+);
 
 export const invoiceDetailsBillingDetails = pgTable(
   "invoice_details_billing_details",
@@ -159,16 +168,23 @@ export const invoiceDetailsBillingDetails = pgTable(
 );
 
 // Invoice items (line items)
-export const invoiceItems = pgTable("invoice_items", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  invoiceFieldId: uuid("invoice_field_id")
-    .references(() => invoiceFields.id, { onDelete: "cascade" })
-    .notNull(),
-  name: text("name").notNull(),
-  description: text("description"),
-  quantity: integer("quantity").notNull(),
-  unitPrice: numeric("unit_price", { precision: 15, scale: 2 }).notNull(),
-});
+export const invoiceItems = pgTable(
+  "invoice_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invoiceFieldId: uuid("invoice_field_id")
+      .references(() => invoiceFields.id, { onDelete: "cascade" })
+      .notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    quantity: integer("quantity").notNull(),
+    unitPrice: numeric("unit_price", { precision: 15, scale: 2 }).notNull(),
+  },
+  (table) => [
+    // Critical index for JOIN performance in dashboard aggregations
+    index("invoice_items_invoice_field_id_idx").on(table.invoiceFieldId),
+  ]
+);
 
 // Invoice metadata (notes, terms)
 export const invoiceMetadata = pgTable("invoice_metadata", {

@@ -44,6 +44,10 @@ const Login = lazy(() => import("./routes/login").then((m) => ({ default: m.Logi
 const Developer = lazy(() => import("./routes/developer").then((m) => ({ default: m.Developer })));
 const FixedAssets = lazy(() => import("./routes/fixed-assets").then((m) => ({ default: m.FixedAssets })));
 const Agent = lazy(() => import("./routes/agent").then((m) => ({ default: m.Agent })));
+const Employees = lazy(() => import("./routes/employees").then((m) => ({ default: m.Employees })));
+const PayrollRuns = lazy(() => import("./routes/payroll").then((m) => ({ default: m.PayrollRuns })));
+const PayrollRunDetail = lazy(() => import("./routes/payroll-run").then((m) => ({ default: m.PayrollRunDetail })));
+const SetupWizard = lazy(() => import("./routes/setup-wizard").then((m) => ({ default: m.SetupWizard })));
 
 // Page skeleton for route transitions - shows structure immediately
 function RouteLoader() {
@@ -129,6 +133,10 @@ export const router = createBrowserRouter([
           { path: "developer/api-keys", element: <LazyRoute><Developer /></LazyRoute> },
           { path: "developer/webhooks", element: <LazyRoute><Developer /></LazyRoute> },
           { path: "agent", element: <LazyRoute><Agent /></LazyRoute> },
+          { path: "employees", element: <LazyRoute><Employees /></LazyRoute> },
+          { path: "payroll", element: <LazyRoute><PayrollRuns /></LazyRoute> },
+          { path: "payroll/:id", element: <LazyRoute><PayrollRunDetail /></LazyRoute> },
+          { path: "setup", element: <LazyRoute><SetupWizard /></LazyRoute> },
           { path: "edit/invoice/:type/:id", element: <LazyRoute><EditInvoice /></LazyRoute> },
           { path: "edit/quotation/:type/:id", element: <LazyRoute><EditQuotation /></LazyRoute> },
           { path: "edit/credit-note/:type/:id", element: <LazyRoute><EditCreditNote /></LazyRoute> },

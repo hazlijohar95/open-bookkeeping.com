@@ -99,6 +99,8 @@ export type {
   ProfitLossComparativeResult,
   BalanceSheetResult,
   BalanceSheetComparativeResult,
+  CashFlowLineItem,
+  CashFlowResult,
 } from "./ledger.repository";
 
 export { accountingPeriodRepository, type AccountingPeriodRepository } from "./accountingPeriod.repository";
@@ -141,3 +143,68 @@ export type {
   DepreciationCalculation,
   CreateDisposalInput,
 } from "./fixedAsset.repository";
+
+// Payroll - Employees
+export {
+  employeeRepository,
+  employeeSalaryRepository,
+  salaryComponentRepository,
+  type EmployeeRepository,
+  type EmployeeSalaryRepository,
+  type SalaryComponentRepository,
+} from "./employee.repository";
+export type {
+  CreateEmployeeInput,
+  UpdateEmployeeInput,
+  CreateSalaryInput,
+  CreateSalaryComponentInput,
+  UpdateSalaryComponentInput,
+  EmployeeQueryOptions,
+} from "./employee.repository";
+
+// Payroll - Runs & Pay Slips
+export {
+  payrollRunRepository,
+  paySlipRepository,
+  paySlipItemRepository,
+  type PayrollRunRepository,
+  type PaySlipRepository,
+  type PaySlipItemRepository,
+} from "./payroll.repository";
+export type {
+  CreatePayrollRunInput,
+  UpdatePayrollRunTotalsInput,
+  CreatePaySlipInput,
+  UpdatePaySlipCalculationsInput,
+  CreatePaySlipItemInput,
+  PayrollRunQueryOptions,
+} from "./payroll.repository";
+
+// Migration & Opening Balances
+export {
+  migrationSessionRepository,
+  openingBalanceRepository,
+  openingBalanceSubledgerRepository,
+  importTemplateRepository,
+  importJobRepository,
+  payrollYtdRepository,
+  accountMappingRepository,
+  demoDataRepository,
+} from "./migration.repository";
+
+// Payments (AR/AP)
+export { paymentRepository, type PaymentRepository } from "./payment.repository";
+export type {
+  CreatePaymentInput,
+  PaymentAllocationInput,
+  PaymentQueryOptions,
+} from "./payment.repository";
+
+// SST (Sales & Service Tax) Reports
+export { sstReportRepository, type SstReportRepository } from "./sstReport.repository";
+export type {
+  SstTransactionSummary,
+  Sst02LineItem,
+  Sst02ReturnData,
+  SstReturnSubmission,
+} from "./sstReport.repository";

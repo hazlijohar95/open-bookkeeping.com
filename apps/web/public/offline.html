@@ -299,10 +299,46 @@
   </div>
 
   <script>
+    // Detect if this is a desktop browser (not mobile)
+    function isDesktop() {
+      const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+      return !mobileRegex.test(navigator.userAgent);
+    }
+
+    // Clean up service workers and caches
+    async function cleanupServiceWorkers() {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const registration of registrations) {
+          await registration.unregister();
+          console.log('[Offline] Unregistered SW:', registration.scope);
+        }
+      }
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        for (const cacheName of cacheNames) {
+          await caches.delete(cacheName);
+          console.log('[Offline] Deleted cache:', cacheName);
+        }
+      }
+    }
+
     // Monitor online/offline status
-    function updateStatus() {
+    async function updateStatus() {
       const dot = document.getElementById('status-dot');
       const text = document.getElementById('status-text');
+
+      // On desktop, always clean up service workers and redirect home
+      if (isDesktop()) {
+        dot.classList.add('online');
+        text.textContent = 'Clearing cache and redirecting...';
+        await cleanupServiceWorkers();
+        // Redirect to home after cleanup
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 500);
+        return;
+      }
 
       if (navigator.onLine) {
         dot.classList.add('online');

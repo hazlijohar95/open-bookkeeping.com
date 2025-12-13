@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/supabase/client";
+import { authService } from "@/data/auth";
 
 interface AuthContextType {
   user: User | null;
@@ -26,37 +26,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    void supabase.auth.getSession().then(({ data: { session } }) => {
+    void authService.getSession().then(({ session }) => {
       setSession(session);
       setUser(session?.user ?? null);
       cachedAccessToken = session?.access_token ?? null;
       setIsLoading(false);
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const unsubscribe = authService.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       cachedAccessToken = session?.access_token ?? null;
       setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return unsubscribe;
   }, []);
 
   const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-    if (error) console.error("Error signing in:", error.message);
+    const { error } = await authService.signInWithGoogle(
+      `${window.location.origin}/auth/callback`
+    );
+    if (error) throw error;
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await authService.signOut();
     if (error) console.error("Error signing out:", error.message);
   };
 

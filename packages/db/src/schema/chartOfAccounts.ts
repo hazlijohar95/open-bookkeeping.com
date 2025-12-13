@@ -15,6 +15,7 @@ import { relations } from "drizzle-orm";
 import { users } from "./users";
 import {
   accountTypeEnum,
+  accountSubTypeEnum,
   normalBalanceEnum,
   journalEntryStatusEnum,
   sourceDocumentTypeEnum,
@@ -25,6 +26,7 @@ import {
 // Re-export enums for convenience
 export {
   accountTypeEnum,
+  accountSubTypeEnum,
   normalBalanceEnum,
   journalEntryStatusEnum,
   sourceDocumentTypeEnum,
@@ -48,6 +50,7 @@ export const accounts = pgTable(
 
     // Account classification
     accountType: accountTypeEnum("account_type").notNull(),
+    subType: accountSubTypeEnum("sub_type"), // For flexible categorization (COGS, operating, etc.)
     normalBalance: normalBalanceEnum("normal_balance").notNull(),
 
     // Hierarchy (self-referential for parent/child)
@@ -116,6 +119,11 @@ export const journalEntries = pgTable(
     // Calculated totals (for quick reference)
     totalDebit: numeric("total_debit", { precision: 15, scale: 2 }).default("0").notNull(),
     totalCredit: numeric("total_credit", { precision: 15, scale: 2 }).default("0").notNull(),
+
+    // Audit trail
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+    postedBy: uuid("posted_by").references(() => users.id, { onDelete: "set null" }),
 
     // Timestamps
     postedAt: timestamp("posted_at"),
@@ -317,6 +325,22 @@ export const journalEntriesRelations = relations(journalEntries, ({ one, many })
     relationName: "reversal",
   }),
   reversalOf: many(journalEntries, { relationName: "reversal" }),
+  // Audit trail relations
+  createdByUser: one(users, {
+    fields: [journalEntries.createdBy],
+    references: [users.id],
+    relationName: "createdBy",
+  }),
+  updatedByUser: one(users, {
+    fields: [journalEntries.updatedBy],
+    references: [users.id],
+    relationName: "updatedBy",
+  }),
+  postedByUser: one(users, {
+    fields: [journalEntries.postedBy],
+    references: [users.id],
+    relationName: "postedBy",
+  }),
 }));
 
 export const journalEntryLinesRelations = relations(journalEntryLines, ({ one }) => ({
@@ -389,6 +413,7 @@ export type NewLedgerTransaction = typeof ledgerTransactions.$inferInsert;
 
 // Enum types
 export type AccountType = (typeof accountTypeEnum.enumValues)[number];
+export type AccountSubType = (typeof accountSubTypeEnum.enumValues)[number];
 export type NormalBalance = (typeof normalBalanceEnum.enumValues)[number];
 export type JournalEntryStatus = (typeof journalEntryStatusEnum.enumValues)[number];
 export type SourceDocumentType = (typeof sourceDocumentTypeEnum.enumValues)[number];

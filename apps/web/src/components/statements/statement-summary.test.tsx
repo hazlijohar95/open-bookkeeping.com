@@ -19,7 +19,7 @@ describe("StatementSummary", () => {
       />
     );
 
-    expect(screen.getByText("Statement Summary")).toBeInTheDocument();
+    expect(screen.getByText("Summary")).toBeInTheDocument();
   });
 
   it("displays opening balance", () => {
@@ -34,7 +34,7 @@ describe("StatementSummary", () => {
     expect(screen.getByText("Opening Balance")).toBeInTheDocument();
   });
 
-  it("displays total debits", () => {
+  it("displays total invoiced for customer variant", () => {
     render(
       <StatementSummary
         summary={mockSummary}
@@ -43,10 +43,10 @@ describe("StatementSummary", () => {
       />
     );
 
-    expect(screen.getByText("Total Debits")).toBeInTheDocument();
+    expect(screen.getByText("Total Invoiced (Debit)")).toBeInTheDocument();
   });
 
-  it("displays total credits", () => {
+  it("displays total payments for customer variant", () => {
     render(
       <StatementSummary
         summary={mockSummary}
@@ -55,10 +55,10 @@ describe("StatementSummary", () => {
       />
     );
 
-    expect(screen.getByText("Total Credits")).toBeInTheDocument();
+    expect(screen.getByText("Total Payments (Credit)")).toBeInTheDocument();
   });
 
-  it("displays closing balance", () => {
+  it("displays closing balance label for customer variant", () => {
     render(
       <StatementSummary
         summary={mockSummary}
@@ -67,7 +67,8 @@ describe("StatementSummary", () => {
       />
     );
 
-    expect(screen.getByText("Closing Balance")).toBeInTheDocument();
+    // When closingBalance > 0 for customer, shows "Amount Owed by Customer"
+    expect(screen.getByText("Amount Owed by Customer")).toBeInTheDocument();
   });
 
   it("shows loading state", () => {
@@ -84,7 +85,7 @@ describe("StatementSummary", () => {
     expect(skeletons.length).toBeGreaterThan(0);
   });
 
-  it("handles vendor variant", () => {
+  it("handles vendor variant with correct labels", () => {
     render(
       <StatementSummary
         summary={mockSummary}
@@ -93,7 +94,10 @@ describe("StatementSummary", () => {
       />
     );
 
-    // Should render without errors for vendor variant
-    expect(screen.getByText("Statement Summary")).toBeInTheDocument();
+    expect(screen.getByText("Summary")).toBeInTheDocument();
+    expect(screen.getByText("Total Billed (Credit)")).toBeInTheDocument();
+    expect(screen.getByText("Total Paid (Debit)")).toBeInTheDocument();
+    // When closingBalance > 0 for vendor, shows "Amount Owed to Vendor"
+    expect(screen.getByText("Amount Owed to Vendor")).toBeInTheDocument();
   });
 });

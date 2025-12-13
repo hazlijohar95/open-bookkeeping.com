@@ -1,8 +1,12 @@
 import { eq, and, isNull, asc } from "drizzle-orm";
+import Decimal from "decimal.js";
 import { db } from "../index";
 import { accounts } from "../schema";
 import { accountRepository, type AccountTreeNode } from "./account.repository";
 import { journalEntryRepository } from "./journalEntry.repository";
+
+// Balance tolerance for financial calculations (smallest currency unit)
+const BALANCE_TOLERANCE = new Decimal("0.01");
 
 // ============= Repository =============
 
@@ -18,8 +22,8 @@ export const accountingReportRepository = {
     });
 
     const balances = [];
-    let totalDebits = 0;
-    let totalCredits = 0;
+    let totalDebits = new Decimal(0);
+    let totalCredits = new Decimal(0);
 
     for (const account of allAccounts) {
       const balance = await journalEntryRepository.getAccountBalance(
@@ -29,29 +33,29 @@ export const accountingReportRepository = {
       );
 
       if (balance) {
-        const balanceNum = parseFloat(balance.balance);
+        const balanceDecimal = new Decimal(balance.balance);
 
-        // Only include accounts with non-zero balance
-        if (Math.abs(balanceNum) > 0.001) {
+        // Only include accounts with non-zero balance (using tolerance)
+        if (balanceDecimal.abs().greaterThan(BALANCE_TOLERANCE)) {
           let debitBalance = "0";
           let creditBalance = "0";
 
-          if (balanceNum > 0) {
+          if (balanceDecimal.greaterThan(0)) {
             if (account.normalBalance === "debit") {
               debitBalance = balance.balance;
-              totalDebits += balanceNum;
+              totalDebits = totalDebits.plus(balanceDecimal);
             } else {
               creditBalance = balance.balance;
-              totalCredits += balanceNum;
+              totalCredits = totalCredits.plus(balanceDecimal);
             }
           } else {
             // Negative balance - contra account
             if (account.normalBalance === "debit") {
-              creditBalance = Math.abs(balanceNum).toFixed(2);
-              totalCredits += Math.abs(balanceNum);
+              creditBalance = balanceDecimal.abs().toFixed(2);
+              totalCredits = totalCredits.plus(balanceDecimal.abs());
             } else {
-              debitBalance = Math.abs(balanceNum).toFixed(2);
-              totalDebits += Math.abs(balanceNum);
+              debitBalance = balanceDecimal.abs().toFixed(2);
+              totalDebits = totalDebits.plus(balanceDecimal.abs());
             }
           }
 
@@ -68,7 +72,7 @@ export const accountingReportRepository = {
       accounts: balances,
       totalDebits: totalDebits.toFixed(2),
       totalCredits: totalCredits.toFixed(2),
-      isBalanced: Math.abs(totalDebits - totalCredits) < 0.01,
+      isBalanced: totalDebits.minus(totalCredits).abs().lessThanOrEqualTo(BALANCE_TOLERANCE),
     };
   },
 

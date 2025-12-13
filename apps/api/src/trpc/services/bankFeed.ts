@@ -127,6 +127,7 @@ const importTransactionsSchema = z.object({
   bankAccountId: z.string().uuid(),
   fileName: z.string(),
   bankPreset: z.enum(["maybank", "cimb", "public_bank", "rhb", "hong_leong", "custom"]).optional(),
+  skipDuplicates: z.boolean().optional().default(true), // Skip duplicates by default
   transactions: z.array(z.object({
     transactionDate: z.coerce.date(),
     description: z.string(),
@@ -142,6 +143,15 @@ const createCategorySchema = z.object({
   name: z.string().min(1).max(50),
   type: categoryTypeSchema,
   color: z.string().max(7).optional(),
+  accountId: z.string().uuid().optional(), // Link to chart of accounts
+});
+
+const updateCategorySchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(50).optional(),
+  type: categoryTypeSchema.optional(),
+  color: z.string().max(7).optional().nullable(),
+  accountId: z.string().uuid().optional().nullable(), // Link to chart of accounts
 });
 
 // Matching rule schema
@@ -273,28 +283,88 @@ export const bankFeedRouter = router({
       return transaction;
     }),
 
+  checkDuplicates: protectedProcedure
+    .input(z.object({
+      bankAccountId: z.string().uuid(),
+      transactions: z.array(z.object({
+        transactionDate: z.coerce.date(),
+        amount: z.string(),
+        description: z.string(),
+        type: z.enum(["deposit", "withdrawal"]),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const duplicates = await bankFeedRepository.findDuplicateTransactions(
+        input.bankAccountId,
+        ctx.user.id,
+        input.transactions
+      );
+
+      return {
+        duplicates,
+        hasDuplicates: duplicates.length > 0,
+        duplicateCount: duplicates.length,
+        totalCount: input.transactions.length,
+      };
+    }),
+
   importTransactions: protectedProcedure
     .input(importTransactionsSchema)
     .mutation(async ({ ctx, input }) => {
-      // Create upload record first
+      let transactionsToImport = input.transactions;
+      let duplicatesSkipped = 0;
+
+      // Check for and skip duplicates if enabled
+      if (input.skipDuplicates !== false && transactionsToImport.length > 0) {
+        const duplicates = await bankFeedRepository.findDuplicateTransactions(
+          input.bankAccountId,
+          ctx.user.id,
+          transactionsToImport.map((t) => ({
+            transactionDate: t.transactionDate,
+            amount: t.amount,
+            description: t.description,
+            type: t.type,
+          }))
+        );
+
+        if (duplicates.length > 0) {
+          const duplicateIndexes = new Set(duplicates.map((d) => d.index));
+          transactionsToImport = transactionsToImport.filter((_, idx) => !duplicateIndexes.has(idx));
+          duplicatesSkipped = duplicates.length;
+          logger.info(
+            { userId: ctx.user.id, duplicatesSkipped },
+            "Duplicate transactions skipped during import"
+          );
+        }
+      }
+
+      if (transactionsToImport.length === 0) {
+        return {
+          upload: null,
+          transactionCount: 0,
+          duplicatesSkipped,
+        };
+      }
+
+      // Create upload record
       const upload = await bankFeedRepository.createUpload({
         userId: ctx.user.id,
         bankAccountId: input.bankAccountId,
         fileName: input.fileName,
         fileType: "csv",
         bankPreset: input.bankPreset,
-        transactionCount: input.transactions.length,
-        startDate: input.transactions.length > 0
-          ? new Date(Math.min(...input.transactions.map(t => new Date(t.transactionDate).getTime())))
+        transactionCount: transactionsToImport.length,
+        startDate: transactionsToImport.length > 0
+          ? new Date(Math.min(...transactionsToImport.map(t => new Date(t.transactionDate).getTime())))
           : undefined,
-        endDate: input.transactions.length > 0
-          ? new Date(Math.max(...input.transactions.map(t => new Date(t.transactionDate).getTime())))
+        endDate: transactionsToImport.length > 0
+          ? new Date(Math.max(...transactionsToImport.map(t => new Date(t.transactionDate).getTime())))
           : undefined,
       });
 
-      // Create all transactions
+      // Create transactions
       const transactions = await bankFeedRepository.createManyTransactions(
-        input.transactions.map((t) => ({
+        transactionsToImport.map((t) => ({
           userId: ctx.user.id,
           bankAccountId: input.bankAccountId,
           uploadId: upload?.id,
@@ -308,13 +378,14 @@ export const bankFeedRouter = router({
       );
 
       logger.info(
-        { userId: ctx.user.id, uploadId: upload?.id, count: transactions.length },
+        { userId: ctx.user.id, uploadId: upload?.id, count: transactions.length, duplicatesSkipped },
         "Transactions imported"
       );
 
       return {
         upload,
         transactionCount: transactions.length,
+        duplicatesSkipped,
       };
     }),
 
@@ -536,6 +607,59 @@ export const bankFeedRouter = router({
       return updated;
     }),
 
+  acceptAllSuggestions: protectedProcedure
+    .input(z.object({
+      bankAccountId: z.string().uuid().optional(),
+    }).optional())
+    .mutation(async ({ ctx, input }) => {
+      // Get all suggested transactions
+      let allTransactions: Awaited<ReturnType<typeof bankFeedRepository.findTransactionsByAccount>> = [];
+
+      if (input?.bankAccountId) {
+        allTransactions = await bankFeedRepository.findTransactionsByAccount(
+          input.bankAccountId,
+          ctx.user.id,
+          { matchStatus: "suggested" as const }
+        );
+      } else {
+        // Get all suggested transactions across all accounts
+        const accounts = await bankFeedRepository.findAllAccounts(ctx.user.id);
+        for (const account of accounts) {
+          const accountTransactions = await bankFeedRepository.findTransactionsByAccount(
+            account.id,
+            ctx.user.id,
+            { matchStatus: "suggested" as const }
+          );
+          allTransactions.push(...accountTransactions);
+        }
+      }
+
+      // Accept each suggestion by changing status to "matched"
+      let acceptedCount = 0;
+      for (const transaction of allTransactions) {
+        try {
+          await bankFeedRepository.updateTransactionMatch(
+            transaction.id,
+            ctx.user.id,
+            { matchStatus: "matched" }
+          );
+          acceptedCount++;
+        } catch (err) {
+          logger.error({ transactionId: transaction.id, error: err }, "Failed to accept suggestion");
+        }
+      }
+
+      logger.info({
+        userId: ctx.user.id,
+        acceptedCount,
+        totalSuggested: allTransactions.length
+      }, "All suggestions accepted");
+
+      return {
+        acceptedCount,
+      };
+    }),
+
   // ============= Categories =============
 
   listCategories: protectedProcedure.query(async ({ ctx }) => {
@@ -550,6 +674,18 @@ export const bankFeedRouter = router({
         ...input,
       });
       logger.info({ userId: ctx.user.id, categoryId: category?.id }, "Category created");
+      return category;
+    }),
+
+  updateCategory: protectedProcedure
+    .input(updateCategorySchema)
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...data } = input;
+      const category = await bankFeedRepository.updateCategory(id, ctx.user.id, data);
+      if (!category) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Category not found" });
+      }
+      logger.info({ userId: ctx.user.id, categoryId: id }, "Category updated");
       return category;
     }),
 

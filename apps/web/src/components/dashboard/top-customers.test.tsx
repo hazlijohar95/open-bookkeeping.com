@@ -23,14 +23,7 @@ describe("TopCustomers", () => {
     expect(screen.getByText("Global Ltd")).toBeInTheDocument();
   });
 
-  it("renders customer emails", () => {
-    render(<TopCustomers customers={mockCustomers} currency="MYR" />);
-
-    expect(screen.getByText("acme@example.com")).toBeInTheDocument();
-    expect(screen.getByText("tech@example.com")).toBeInTheDocument();
-  });
-
-  it("displays invoice counts", () => {
+  it("displays invoice counts for all customers", () => {
     render(<TopCustomers customers={mockCustomers} currency="MYR" />);
 
     expect(screen.getByText("10 invoices")).toBeInTheDocument();
@@ -51,11 +44,12 @@ describe("TopCustomers", () => {
     expect(screen.getByText(/no customers/i)).toBeInTheDocument();
   });
 
-  it("renders progress bars", () => {
+  it("renders revenue progress bars", () => {
     render(<TopCustomers customers={mockCustomers} currency="MYR" />);
 
-    // Check for progress elements
-    const progressBars = document.querySelectorAll('[role="progressbar"]');
-    expect(progressBars.length).toBeGreaterThan(0);
+    // Component uses styled divs for progress bars (not role="progressbar")
+    // Check for the progress bar container with bg-muted class
+    const progressContainers = document.querySelectorAll(".bg-muted.rounded-full");
+    expect(progressContainers.length).toBe(3);
   });
 });

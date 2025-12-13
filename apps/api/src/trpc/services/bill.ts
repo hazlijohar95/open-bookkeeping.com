@@ -32,6 +32,10 @@ const createBillSchema = z.object({
   notes: z.string().max(2000).optional(),
   attachmentUrl: z.string().url().max(500).optional(),
   items: z.array(billItemSchema).min(1, "At least one item is required"),
+  // Tax support
+  taxRate: z.string().refine((val) => val === "" || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0), {
+    message: "Tax rate must be a non-negative number",
+  }).optional().nullable(),
 });
 
 // Update bill schema
@@ -116,6 +120,16 @@ export const billRouter = router({
   create: protectedProcedure
     .input(createBillSchema)
     .mutation(async ({ ctx, input }) => {
+      // Calculate totals from items
+      const subtotal = input.items.reduce((sum, item) => {
+        return sum + (parseFloat(item.quantity) * parseFloat(item.unitPrice));
+      }, 0);
+
+      // Calculate tax amount if tax rate is provided
+      const taxRate = input.taxRate ? parseFloat(input.taxRate) : 0;
+      const taxAmount = subtotal * (taxRate / 100);
+      const total = subtotal + taxAmount;
+
       const bill = await billRepository.create({
         userId: ctx.user.id,
         vendorId: input.vendorId ?? null,
@@ -127,6 +141,11 @@ export const billRouter = router({
         status: input.status,
         notes: input.notes ?? null,
         attachmentUrl: input.attachmentUrl ?? null,
+        // Financial totals
+        subtotal: subtotal.toFixed(2),
+        taxRate: taxRate > 0 ? taxRate.toFixed(2) : null,
+        taxAmount: taxAmount > 0 ? taxAmount.toFixed(2) : null,
+        total: total.toFixed(2),
         items: input.items,
       });
 
@@ -138,7 +157,7 @@ export const billRouter = router({
           id: bill.id,
           billNumber: input.billNumber,
           status: input.status,
-          total: input.items.reduce((sum, item) => sum + (parseFloat(item.quantity) * parseFloat(item.unitPrice)), 0),
+          total: total,
           currency: input.currency,
           vendorId: input.vendorId,
           dueDate: input.dueDate,
@@ -149,11 +168,6 @@ export const billRouter = router({
       if (bill?.id) {
         journalEntryIntegration.hasChartOfAccounts(ctx.user.id).then(async (hasAccounts) => {
           if (hasAccounts) {
-            // Calculate totals from items
-            const subtotal = input.items.reduce((sum, item) => {
-              return sum + (parseFloat(item.quantity) * parseFloat(item.unitPrice));
-            }, 0);
-
             // Get vendor name
             let vendorName = "Vendor";
             if (input.vendorId) {
@@ -167,8 +181,8 @@ export const billRouter = router({
               date: input.billDate,
               currency: input.currency,
               subtotal: subtotal,
-              taxAmount: 0, // TODO: Add tax support when available
-              total: subtotal,
+              taxAmount: taxAmount,
+              total: total,
               vendorName: vendorName,
             }).then((jeResult) => {
               if (jeResult.success) {

@@ -12,6 +12,9 @@ import {
   billRepository,
   journalEntryRepository,
   accountRepository,
+  migrationSessionRepository,
+  openingBalanceRepository,
+  accountMappingRepository,
 } from "@open-bookkeeping/db";
 import { aggregationService } from "../services/aggregation.service";
 import {
@@ -2194,6 +2197,385 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         };
       },
     }),
+
+    // ============================================
+    // MIGRATION & SETUP TOOLS
+    // ============================================
+
+    getMigrationStatus: tool({
+      description: "Get the current migration/setup wizard status. Use this to understand where the user is in the migration process.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const sessions = await migrationSessionRepository.findByUser(user.id);
+        const activeSession = sessions.find(s => s.status !== "completed" && s.status !== "failed");
+
+        if (!activeSession) {
+          return {
+            hasActiveSession: false,
+            message: "No active migration session. User can start the setup wizard at /setup to begin.",
+            completedSessions: sessions.filter(s => s.status === "completed").length,
+          };
+        }
+
+        return {
+          hasActiveSession: true,
+          sessionId: activeSession.id,
+          status: activeSession.status,
+          currentStep: activeSession.currentStep,
+          completedSteps: activeSession.completedSteps,
+          sourceSystem: activeSession.sourceSystem,
+          conversionDate: activeSession.conversionDate,
+          isBalanced: activeSession.isBalanced,
+          totalDebits: activeSession.totalDebits,
+          totalCredits: activeSession.totalCredits,
+        };
+      },
+    }),
+
+    getOpeningBalances: tool({
+      description: "Get the opening balances for a migration session. Shows the trial balance entries.",
+      inputSchema: z.object({
+        sessionId: z.string().uuid().describe("The migration session ID"),
+      }),
+      execute: async ({ sessionId }) => {
+        const balances = await openingBalanceRepository.findBySession(sessionId, user.id);
+        const totals = await openingBalanceRepository.calculateTotals(sessionId, user.id);
+        const validation = await openingBalanceRepository.getValidationSummary(sessionId, user.id);
+
+        const totalDebits = parseFloat(totals.totalDebits);
+        const totalCredits = parseFloat(totals.totalCredits);
+        const difference = Math.abs(totalDebits - totalCredits);
+        const isBalanced = difference < 0.01;
+
+        const entriesWithAccounts = balances.filter(b => !!b.accountId).length;
+        const entriesWithoutAccounts = balances.length - entriesWithAccounts;
+
+        return {
+          entries: balances.slice(0, 20).map(b => ({
+            accountCode: b.accountCode,
+            accountName: b.accountName,
+            accountType: b.accountType,
+            debit: b.debitAmount,
+            credit: b.creditAmount,
+            isMapped: !!b.accountId,
+          })),
+          totalEntries: balances.length,
+          summary: {
+            totalDebits: totals.totalDebits,
+            totalCredits: totals.totalCredits,
+            isBalanced,
+            difference: difference.toFixed(2),
+            entriesWithAccounts,
+            entriesWithoutAccounts,
+            validationStatus: validation,
+          },
+        };
+      },
+    }),
+
+    suggestAccountMapping: tool({
+      description: "Suggest which chart of accounts entry an imported account should map to. Use this to help users with account mapping.",
+      inputSchema: z.object({
+        accountCode: z.string().describe("The imported account code"),
+        accountName: z.string().describe("The imported account name"),
+        accountType: z.enum(["asset", "liability", "equity", "revenue", "expense"]).describe("The account type"),
+      }),
+      execute: async ({ accountCode, accountName, accountType }) => {
+        // Get existing accounts of the same type
+        const existingAccounts = await accountRepository.findAll(user.id);
+        const matchingAccounts = existingAccounts.filter(a =>
+          a.accountType?.toLowerCase() === accountType.toLowerCase()
+        );
+
+        // Simple fuzzy matching based on name similarity
+        const suggestions = matchingAccounts
+          .map(account => {
+            const nameLower = accountName.toLowerCase();
+            const existingLower = account.name.toLowerCase();
+
+            // Calculate simple similarity score
+            let score = 0;
+            if (existingLower.includes(nameLower) || nameLower.includes(existingLower)) {
+              score = 80;
+            } else {
+              // Check for common words
+              const importedWords = nameLower.split(/\s+/);
+              const existingWords = existingLower.split(/\s+/);
+              const commonWords = importedWords.filter((w: string) => existingWords.some((ew: string) => ew.includes(w) || w.includes(ew)));
+              score = (commonWords.length / Math.max(importedWords.length, 1)) * 60;
+            }
+
+            // Boost if account codes are similar
+            if (account.code.startsWith(accountCode.slice(0, 2))) {
+              score += 15;
+            }
+
+            return {
+              accountId: account.id,
+              accountCode: account.code,
+              accountName: account.name,
+              confidence: Math.min(Math.round(score), 100),
+            };
+          })
+          .filter(s => s.confidence > 20)
+          .sort((a, b) => b.confidence - a.confidence)
+          .slice(0, 5);
+
+        return {
+          importedAccount: { code: accountCode, name: accountName, type: accountType },
+          suggestions,
+          recommendation: suggestions[0] ? {
+            action: suggestions[0].confidence >= 70 ? "auto_map" : "review",
+            suggestedAccount: suggestions[0],
+            reason: suggestions[0].confidence >= 70
+              ? `High confidence match: "${suggestions[0].accountName}"`
+              : "Manual review recommended - no high confidence match found",
+          } : {
+            action: "create_new",
+            reason: "No matching account found. Consider creating a new account.",
+          },
+        };
+      },
+    }),
+
+    validateMigrationData: tool({
+      description: "Validate migration data and identify issues that need to be fixed before applying.",
+      inputSchema: z.object({
+        sessionId: z.string().uuid().describe("The migration session ID"),
+      }),
+      execute: async ({ sessionId }) => {
+        const session = await migrationSessionRepository.findById(sessionId, user.id);
+        if (!session) {
+          return { error: "Session not found" };
+        }
+
+        const balances = await openingBalanceRepository.findBySession(sessionId, user.id);
+        const totals = await openingBalanceRepository.calculateTotals(sessionId, user.id);
+
+        const totalDebits = parseFloat(totals.totalDebits);
+        const totalCredits = parseFloat(totals.totalCredits);
+        const difference = Math.abs(totalDebits - totalCredits);
+        const isBalanced = difference < 0.01;
+
+        const entriesWithAccounts = balances.filter(b => !!b.accountId).length;
+        const entriesWithoutAccounts = balances.length - entriesWithAccounts;
+
+        const issues: Array<{ severity: "error" | "warning" | "info"; message: string; fix?: string }> = [];
+
+        // Check trial balance
+        if (!isBalanced) {
+          issues.push({
+            severity: "error",
+            message: `Trial balance is not balanced. Difference: ${formatCurrency(difference)}`,
+            fix: "Review and adjust debit/credit amounts until they balance.",
+          });
+        }
+
+        // Check unmapped accounts
+        if (entriesWithoutAccounts > 0) {
+          issues.push({
+            severity: "warning",
+            message: `${entriesWithoutAccounts} accounts are not mapped to chart of accounts.`,
+            fix: "Map each imported account to an existing or new chart of accounts entry.",
+          });
+        }
+
+        // Check for zero balances
+        const zeroBalances = balances.filter(b =>
+          parseFloat(b.debitAmount) === 0 && parseFloat(b.creditAmount) === 0
+        );
+        if (zeroBalances.length > 0) {
+          issues.push({
+            severity: "info",
+            message: `${zeroBalances.length} accounts have zero balances. These can be removed if not needed.`,
+          });
+        }
+
+        // Check conversion date
+        if (!session.conversionDate) {
+          issues.push({
+            severity: "error",
+            message: "Conversion date is not set.",
+            fix: "Set the conversion date in the Dates step of the wizard.",
+          });
+        }
+
+        return {
+          sessionId,
+          status: session.status,
+          isReady: issues.filter(i => i.severity === "error").length === 0,
+          issues,
+          summary: {
+            totalAccounts: balances.length,
+            mappedAccounts: entriesWithAccounts,
+            totalDebits: totals.totalDebits,
+            totalCredits: totals.totalCredits,
+            isBalanced,
+          },
+        };
+      },
+    }),
+
+    explainMigrationConcept: tool({
+      description: "Explain migration and accounting concepts to help users understand the setup process.",
+      inputSchema: z.object({
+        concept: z.enum([
+          "opening_balance",
+          "trial_balance",
+          "conversion_date",
+          "account_mapping",
+          "subledger",
+          "payroll_ytd",
+          "double_entry",
+          "chart_of_accounts",
+        ]).describe("The concept to explain"),
+      }),
+      execute: async ({ concept }) => {
+        const explanations: Record<string, { title: string; explanation: string; example?: string }> = {
+          opening_balance: {
+            title: "Opening Balance",
+            explanation: "Opening balances are the account balances at the start of using a new accounting system. They represent the cumulative effect of all past transactions and ensure continuity from your previous system.",
+            example: "If your bank account had RM 50,000 at the conversion date, that's your opening balance for the bank account.",
+          },
+          trial_balance: {
+            title: "Trial Balance",
+            explanation: "A trial balance is a list of all accounts with their debit and credit balances. The sum of all debits must equal the sum of all credits (double-entry bookkeeping principle). If they don't match, there's an error.",
+            example: "Assets (debits) = RM 100,000, Liabilities + Equity (credits) = RM 100,000. Balanced!",
+          },
+          conversion_date: {
+            title: "Conversion Date",
+            explanation: "The conversion date is the cut-off date when you switch to the new accounting system. All transactions before this date are summarized as opening balances. New transactions after this date are recorded in the new system.",
+            example: "If converting on Jan 1, 2024, all 2023 transactions are summarized as opening balances, and 2024 transactions start fresh.",
+          },
+          account_mapping: {
+            title: "Account Mapping",
+            explanation: "Account mapping links your imported accounts to the chart of accounts in the new system. This ensures data is correctly categorized and reports are accurate.",
+            example: "Your old 'Office Supplies' account maps to '6210 - Office Expenses' in the new chart of accounts.",
+          },
+          subledger: {
+            title: "Subledger Detail",
+            explanation: "Subledgers provide detailed breakdown of control accounts. Accounts Receivable subledger shows individual customer balances, and Accounts Payable shows vendor balances.",
+            example: "AR Control: RM 50,000 = Customer A: RM 20,000 + Customer B: RM 30,000",
+          },
+          payroll_ytd: {
+            title: "Payroll Year-to-Date (YTD)",
+            explanation: "When migrating mid-year, you need to enter YTD payroll figures for accurate statutory calculations. This includes gross salary, EPF, SOCSO, EIS, and PCB already paid.",
+            example: "If an employee earned RM 30,000 Jan-Jun, their PCB calculation for Jul onwards needs to know this YTD amount.",
+          },
+          double_entry: {
+            title: "Double-Entry Bookkeeping",
+            explanation: "Every transaction affects at least two accounts - a debit and a credit of equal amounts. Assets and expenses increase with debits; liabilities, equity, and revenue increase with credits.",
+            example: "Buying supplies (RM 100): Debit 'Office Supplies' RM 100, Credit 'Cash' RM 100.",
+          },
+          chart_of_accounts: {
+            title: "Chart of Accounts",
+            explanation: "The chart of accounts is a categorized list of all accounts used to record transactions. It's organized by type: Assets (1xxx), Liabilities (2xxx), Equity (3xxx), Revenue (4xxx), Expenses (5-6xxx).",
+            example: "1010 - Cash, 2010 - Accounts Payable, 4010 - Sales Revenue, 6010 - Salaries Expense",
+          },
+        };
+
+        return explanations[concept] ?? { title: "Unknown Concept", explanation: "I don't have information about this concept." };
+      },
+    }),
+
+    getMigrationHelp: tool({
+      description: "Get contextual help for the migration wizard. Use this when users ask for help or are stuck.",
+      inputSchema: z.object({
+        currentStep: z.string().optional().describe("The current wizard step the user is on"),
+        issue: z.string().optional().describe("Specific issue the user is facing"),
+      }),
+      execute: async ({ currentStep, issue }) => {
+        const stepGuides: Record<string, { title: string; instructions: string[]; tips: string[] }> = {
+          welcome: {
+            title: "Welcome - Choose Source System",
+            instructions: [
+              "Select the accounting software you're migrating from",
+              "Choose 'Other / Manual' if your system isn't listed or you're starting fresh",
+              "This helps us provide relevant import templates and guidance",
+            ],
+            tips: [
+              "Have your previous system's trial balance report ready",
+              "Export customer and vendor lists if you want to import them",
+            ],
+          },
+          date: {
+            title: "Set Key Dates",
+            instructions: [
+              "Conversion Date: When you're switching to the new system (usually month/year end)",
+              "Financial Year Start: First day of your financial year",
+            ],
+            tips: [
+              "Use month-end dates for cleaner cut-offs",
+              "Malaysian tax year runs Jan-Dec, but fiscal year can be different",
+            ],
+          },
+          balances: {
+            title: "Opening Balances (Trial Balance)",
+            instructions: [
+              "Import your trial balance CSV or add entries manually",
+              "Each account needs a debit OR credit amount (not both)",
+              "Total debits must equal total credits",
+              "Map each imported account to your chart of accounts",
+            ],
+            tips: [
+              "Start with your main bank accounts and work outward",
+              "Use the 'Import CSV' button to bulk import",
+              "The system will suggest account mappings automatically",
+            ],
+          },
+          subledger: {
+            title: "Subledger Detail (Optional)",
+            instructions: [
+              "Add individual customer balances if Accounts Receivable has a balance",
+              "Add individual vendor balances if Accounts Payable has a balance",
+              "Subledger totals should match the control account balances",
+            ],
+            tips: [
+              "Skip this step if AR/AP are zero or you want to start fresh",
+              "You can add this detail later if needed",
+            ],
+          },
+          payroll: {
+            title: "Payroll Year-to-Date (Optional)",
+            instructions: [
+              "Only needed if migrating mid-year",
+              "Enter YTD gross salary, EPF, SOCSO, EIS, and PCB for each employee",
+              "This ensures accurate statutory calculations going forward",
+            ],
+            tips: [
+              "Skip if starting at the beginning of the year",
+              "Get these figures from your previous payroll system or payslips",
+            ],
+          },
+          review: {
+            title: "Review & Apply",
+            instructions: [
+              "Click 'Validate' to check for errors",
+              "Fix any errors before applying",
+              "Click 'Apply Migration' to create opening journal entries",
+            ],
+            tips: [
+              "Green checkmarks mean validation passed",
+              "Yellow warnings are advisory - you can proceed",
+              "Red errors must be fixed before applying",
+            ],
+          },
+        };
+
+        const guide = currentStep ? stepGuides[currentStep] : null;
+
+        return {
+          currentStep,
+          guide,
+          commonIssues: [
+            { issue: "Trial balance doesn't balance", solution: "Check that you haven't mixed up debits and credits. Assets, expenses = debit. Liabilities, equity, revenue = credit." },
+            { issue: "Can't find account to map to", solution: "Create a new account in Chart of Accounts, or map to the closest existing account." },
+            { issue: "Import CSV not working", solution: "Ensure your CSV has headers matching our template. Download the template first." },
+          ],
+          specificHelp: issue ? `For "${issue}", please provide more details about what you're trying to do.` : null,
+        };
+      },
+    }),
   };
 
   // Build the enhanced system prompt - OPTIMIZED for token efficiency
@@ -2238,6 +2620,8 @@ UPDATE: markInvoiceAsPaid, markBillAsPaid, updateInvoiceStatus, postJournalEntry
 MEMORY: rememberPreference, recallMemories, updateUserContext
 
 DOCUMENTS: listVaultDocuments, processDocuments, getDocumentDetails, queryDocumentCabinet, createEntriesFromDocument
+
+MIGRATION: getMigrationStatus, getOpeningBalances, suggestAccountMapping, validateMigrationData, explainMigrationConcept, getMigrationHelp
 
 =====================================
 DOCUMENT PROCESSING WORKFLOW

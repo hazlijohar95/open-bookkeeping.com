@@ -54,7 +54,7 @@ const CTASection = () => {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
-          <Link to={LINKS.DASHBOARD}>
+          <Link to={LINKS.LOGIN}>
             <Button
               size="lg"
               className="h-12 sm:h-13 px-8 text-base font-medium shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/25 transition-all duration-300 gap-2"

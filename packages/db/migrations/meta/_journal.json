@@ -148,6 +148,48 @@
       "when": 1765427727603,
       "tag": "0020_cute_firelord",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1765606898462,
+      "tag": "0021_ordinary_ultragirl",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1765636156880,
+      "tag": "0022_premium_epoch",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1765638719506,
+      "tag": "0023_white_golden_guardian",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1765639461770,
+      "tag": "0024_yellow_deathstrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1765641522366,
+      "tag": "0025_oval_nova",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1765643732921,
+      "tag": "0026_heavy_mimic",
+      "breakpoints": true
     }
   ]
 }

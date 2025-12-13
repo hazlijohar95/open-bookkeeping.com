@@ -13,6 +13,11 @@ export interface CreateBillInput {
   status?: BillStatus;
   notes?: string | null;
   attachmentUrl?: string | null;
+  // Financial totals
+  subtotal?: string | null;
+  taxRate?: string | null;
+  taxAmount?: string | null;
+  total?: string | null;
   items?: Array<{
     description: string;
     quantity: string;
@@ -30,6 +35,11 @@ export interface UpdateBillInput {
   status?: BillStatus;
   notes?: string | null;
   attachmentUrl?: string | null;
+  // Financial totals
+  subtotal?: string | null;
+  taxRate?: string | null;
+  taxAmount?: string | null;
+  total?: string | null;
   items?: Array<{
     description: string;
     quantity: string;
@@ -229,6 +239,11 @@ export const billRepository = {
           status: input.status ?? "pending",
           notes: input.notes ?? null,
           attachmentUrl: input.attachmentUrl ?? null,
+          // Financial totals
+          subtotal: input.subtotal ?? null,
+          taxRate: input.taxRate ?? null,
+          taxAmount: input.taxAmount ?? null,
+          total: input.total ?? null,
         })
         .returning();
 
@@ -387,6 +402,11 @@ export const billRepository = {
       },
     });
 
+    // Helper to sum amounts for a bucket of bills
+    const sumBucketAmounts = (billList: typeof unpaidBills): number => {
+      return billList.reduce((sum, bill) => sum + parseFloat(bill.total ?? "0"), 0);
+    };
+
     // Calculate aging buckets
     const now = new Date();
     const buckets = {
@@ -420,15 +440,24 @@ export const billRepository = {
       }
     }
 
+    // Calculate both counts and amounts for each bucket (matches invoice aging report)
     return {
       buckets,
       totals: {
-        current: buckets.current.length,
-        days1to30: buckets.days1to30.length,
-        days31to60: buckets.days31to60.length,
-        days61to90: buckets.days61to90.length,
-        over90: buckets.over90.length,
-        total: unpaidBills.length,
+        // Counts (number of bills)
+        currentCount: buckets.current.length,
+        days1to30Count: buckets.days1to30.length,
+        days31to60Count: buckets.days31to60.length,
+        days61to90Count: buckets.days61to90.length,
+        over90Count: buckets.over90.length,
+        totalCount: unpaidBills.length,
+        // Amounts (sum of bill totals) - the critical financial metric
+        current: sumBucketAmounts(buckets.current),
+        days1to30: sumBucketAmounts(buckets.days1to30),
+        days31to60: sumBucketAmounts(buckets.days31to60),
+        days61to90: sumBucketAmounts(buckets.days61to90),
+        over90: sumBucketAmounts(buckets.over90),
+        total: sumBucketAmounts(unpaidBills),
       },
     };
   },

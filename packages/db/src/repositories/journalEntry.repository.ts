@@ -1,4 +1,5 @@
 import { eq, and, desc, asc, sql, inArray, gte, lte } from "drizzle-orm";
+import Decimal from "decimal.js";
 import { db } from "../index";
 import {
   accounts,
@@ -69,16 +70,16 @@ export const journalEntryRepository = {
   },
 
   create: async (input: CreateJournalEntryInput) => {
-    // Validate debits equal credits
-    let totalDebit = 0;
-    let totalCredit = 0;
+    // Validate debits equal credits using Decimal.js for precision
+    let totalDebit = new Decimal(0);
+    let totalCredit = new Decimal(0);
 
     for (const line of input.lines) {
-      totalDebit += parseFloat(line.debitAmount ?? "0");
-      totalCredit += parseFloat(line.creditAmount ?? "0");
+      totalDebit = totalDebit.plus(line.debitAmount ?? "0");
+      totalCredit = totalCredit.plus(line.creditAmount ?? "0");
     }
 
-    if (Math.abs(totalDebit - totalCredit) > 0.001) {
+    if (!totalDebit.equals(totalCredit)) {
       throw new Error(
         `Debits (${totalDebit.toFixed(2)}) must equal credits (${totalCredit.toFixed(2)})`
       );
@@ -110,7 +111,7 @@ export const journalEntryRepository = {
       input.userId
     );
 
-    // Create journal entry
+    // Create journal entry with audit trail
     const [entry] = await db
       .insert(journalEntries)
       .values({
@@ -124,6 +125,7 @@ export const journalEntryRepository = {
         sourceId: input.sourceId ?? null,
         totalDebit: totalDebit.toFixed(2),
         totalCredit: totalCredit.toFixed(2),
+        createdBy: input.userId, // Audit: who created this entry
       })
       .returning();
 
@@ -233,12 +235,14 @@ export const journalEntryRepository = {
       );
     }
 
-    // Update entry status
+    // Update entry status with audit trail
     await db
       .update(journalEntries)
       .set({
         status: "posted",
         postedAt: new Date(),
+        postedBy: userId, // Audit: who posted this entry
+        updatedBy: userId, // Audit: who last updated
         updatedAt: new Date(),
       })
       .where(eq(journalEntries.id, id));
@@ -305,20 +309,22 @@ export const journalEntryRepository = {
       lines: reversalLines,
     });
 
-    // Link reversal to original
+    // Link reversal to original with audit trail
     await db
       .update(journalEntries)
       .set({
         reversedEntryId: original.id,
+        updatedBy: userId, // Audit: who last updated
         updatedAt: new Date(),
       })
       .where(eq(journalEntries.id, reversalEntry.id));
 
-    // Mark original as reversed
+    // Mark original as reversed with audit trail
     await db
       .update(journalEntries)
       .set({
         status: "reversed",
+        updatedBy: userId, // Audit: who last updated
         updatedAt: new Date(),
       })
       .where(eq(journalEntries.id, id));
@@ -338,6 +344,26 @@ export const journalEntryRepository = {
     debitAmount: number,
     creditAmount: number
   ) => {
+    // Fetch account to get normalBalance for correct calculation
+    const account = await db.query.accounts.findFirst({
+      where: eq(accounts.id, accountId),
+    });
+
+    // Helper function to calculate closing balance based on account's normal balance
+    // Using Decimal.js for precision
+    const calculateClosingBalance = (
+      opening: Decimal,
+      debits: Decimal,
+      credits: Decimal
+    ): Decimal => {
+      // Credit-normal accounts (liabilities, equity, revenue): balance increases with credits
+      // Debit-normal accounts (assets, expenses): balance increases with debits
+      if (account?.normalBalance === "credit") {
+        return opening.plus(credits).minus(debits);
+      }
+      return opening.plus(debits).minus(credits);
+    };
+
     // Get or create balance record
     const existing = await db.query.accountBalances.findFirst({
       where: and(
@@ -347,12 +373,18 @@ export const journalEntryRepository = {
       ),
     });
 
+    const debitDecimal = new Decimal(debitAmount);
+    const creditDecimal = new Decimal(creditAmount);
+
     if (existing) {
-      // Update existing balance
-      const newDebit = parseFloat(existing.periodDebit) + debitAmount;
-      const newCredit = parseFloat(existing.periodCredit) + creditAmount;
-      const newClosing =
-        parseFloat(existing.openingBalance) + newDebit - newCredit;
+      // Update existing balance using Decimal for precision
+      const newDebit = new Decimal(existing.periodDebit).plus(debitDecimal);
+      const newCredit = new Decimal(existing.periodCredit).plus(creditDecimal);
+      const newClosing = calculateClosingBalance(
+        new Decimal(existing.openingBalance),
+        newDebit,
+        newCredit
+      );
 
       await db
         .update(accountBalances)
@@ -365,7 +397,7 @@ export const journalEntryRepository = {
         .where(eq(accountBalances.id, existing.id));
     } else {
       // Get previous month's closing balance
-      let openingBalance = "0";
+      let openingBalance = new Decimal(0);
 
       const prevMonth = month === 1 ? 12 : month - 1;
       const prevYear = month === 1 ? year - 1 : year;
@@ -379,27 +411,27 @@ export const journalEntryRepository = {
       });
 
       if (prevBalance) {
-        openingBalance = prevBalance.closingBalance;
+        openingBalance = new Decimal(prevBalance.closingBalance);
       } else {
         // Check account opening balance
-        const account = await db.query.accounts.findFirst({
-          where: eq(accounts.id, accountId),
-        });
         if (account?.openingBalance) {
-          openingBalance = account.openingBalance;
+          openingBalance = new Decimal(account.openingBalance);
         }
       }
 
-      const closingBalance =
-        parseFloat(openingBalance) + debitAmount - creditAmount;
+      const closingBalance = calculateClosingBalance(
+        openingBalance,
+        debitDecimal,
+        creditDecimal
+      );
 
       await db.insert(accountBalances).values({
         accountId,
         year,
         month,
-        openingBalance,
-        periodDebit: debitAmount.toFixed(2),
-        periodCredit: creditAmount.toFixed(2),
+        openingBalance: openingBalance.toFixed(2),
+        periodDebit: debitDecimal.toFixed(2),
+        periodCredit: creditDecimal.toFixed(2),
         closingBalance: closingBalance.toFixed(2),
       });
     }
@@ -431,29 +463,33 @@ export const journalEntryRepository = {
       },
     });
 
-    let totalDebit = parseFloat(account.openingBalance ?? "0");
-    let totalCredit = 0;
+    // Use Decimal.js for precision
+    let totalDebit = new Decimal(0);
+    let totalCredit = new Decimal(0);
+    const openingBalance = new Decimal(account.openingBalance ?? "0");
 
-    // If account has credit normal balance, swap
+    // Initialize based on normal balance type
     if (account.normalBalance === "credit") {
-      totalCredit = parseFloat(account.openingBalance ?? "0");
-      totalDebit = 0;
+      totalCredit = openingBalance;
+    } else {
+      totalDebit = openingBalance;
     }
 
     for (const line of lines) {
       if (line.journalEntry.status !== "posted") continue;
 
+      // Compare dates properly (ISO format string comparison works for YYYY-MM-DD)
       if (asOfDate && line.journalEntry.entryDate > asOfDate) continue;
 
-      totalDebit += parseFloat(line.debitAmount);
-      totalCredit += parseFloat(line.creditAmount);
+      totalDebit = totalDebit.plus(line.debitAmount);
+      totalCredit = totalCredit.plus(line.creditAmount);
     }
 
     // Calculate balance based on normal balance type
     const balance =
       account.normalBalance === "debit"
-        ? totalDebit - totalCredit
-        : totalCredit - totalDebit;
+        ? totalDebit.minus(totalCredit)
+        : totalCredit.minus(totalDebit);
 
     return {
       accountId,

@@ -118,13 +118,15 @@ export class ReconciliationService {
         // Get the category's linked account (if any)
         const category = await db.query.transactionCategories.findFirst({
           where: eq(transactionCategories.id, categoryId),
+          with: {
+            account: true,
+          },
         });
 
         if (category) {
           offsetAccountDescription = category.name;
-          // TODO: Link categories to accounts in schema
-          // For now, use suspense account
-          offsetAccountId = defaultAccounts.suspenseAccountId;
+          // Use linked account if available, otherwise use suspense account
+          offsetAccountId = category.accountId ?? defaultAccounts.suspenseAccountId;
         }
       } else if (matchedInvoiceId) {
         // Matched to invoice - use Accounts Receivable

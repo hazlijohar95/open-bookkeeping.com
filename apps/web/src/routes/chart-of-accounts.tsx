@@ -1,4 +1,4 @@
-import { useCheckHasAccounts, useAccountTree, useAccountSummary, useDeleteAccount } from "@/api/chart-of-accounts";
+import { useCheckHasAccounts, useAccountTree, useAccountSummary, useDeleteAccount, type Account } from "@/api/chart-of-accounts";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page-container";
@@ -30,12 +30,20 @@ import {
   Sparkles,
 } from "@/components/ui/icons";
 import { useState } from "react";
-import { AccountTree, type AccountTreeNode } from "@/components/chart-of-accounts/account-tree";
+import { AccountTree } from "@/components/chart-of-accounts/account-tree";
 import { AccountFormModal } from "@/components/chart-of-accounts/account-form-modal";
 import { JournalEntryModal } from "@/components/chart-of-accounts/journal-entry-modal";
 import { InitializeDefaultsModal } from "@/components/chart-of-accounts/initialize-defaults-modal";
 import { cn } from "@/lib/utils";
 import type { AccountType } from "@/zod-schemas/chart-of-accounts";
+
+// Type for editing account form - can be an existing Account or parent info for new child
+type EditingAccountData = Account | {
+  parentId: string;
+  parentName: string;
+  accountType: AccountType;
+  normalBalance: "debit" | "credit";
+};
 
 interface SummaryCardProps {
   label: string;
@@ -73,10 +81,10 @@ export function ChartOfAccounts() {
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isJournalEntryModalOpen, setIsJournalEntryModalOpen] = useState(false);
   const [isInitializeModalOpen, setIsInitializeModalOpen] = useState(false);
-  const [editingAccount, setEditingAccount] = useState<any | null>(null);
+  const [editingAccount, setEditingAccount] = useState<EditingAccountData | null>(null);
   const [selectedType, setSelectedType] = useState<AccountType | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [accountToDelete, setAccountToDelete] = useState<any | null>(null);
+  const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
 
   const deleteAccount = useDeleteAccount();
 
@@ -93,12 +101,12 @@ export function ChartOfAccounts() {
     enabled: !!user && !isAuthLoading && hasAccounts?.hasAccounts,
   });
 
-  const handleEditAccount = (account: any) => {
+  const handleEditAccount = (account: Account) => {
     setEditingAccount(account);
     setIsAccountModalOpen(true);
   };
 
-  const handleAddChildAccount = (parentAccount: any) => {
+  const handleAddChildAccount = (parentAccount: Account) => {
     setEditingAccount({
       parentId: parentAccount.id,
       parentName: parentAccount.name,
@@ -113,7 +121,7 @@ export function ChartOfAccounts() {
     setEditingAccount(null);
   };
 
-  const handleDeleteAccount = (account: any) => {
+  const handleDeleteAccount = (account: Account) => {
     setAccountToDelete(account);
   };
 
@@ -124,8 +132,9 @@ export function ChartOfAccounts() {
       await deleteAccount.mutateAsync(accountToDelete.id);
       toast.success(`Account "${accountToDelete.name}" deleted successfully`);
       setAccountToDelete(null);
-    } catch (error: any) {
-      toast.error(error?.message ?? "Failed to delete account");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to delete account";
+      toast.error(message);
     }
   };
 
@@ -244,7 +253,7 @@ export function ChartOfAccounts() {
                 </div>
               ) : accountTree && accountTree.length > 0 ? (
                 <AccountTree
-                  accounts={accountTree as unknown as AccountTreeNode[]}
+                  accounts={accountTree}
                   searchQuery={searchQuery}
                   onEditAccount={handleEditAccount}
                   onAddChildAccount={handleAddChildAccount}

@@ -38,6 +38,8 @@ export const LINKS = {
   DEVELOPER_WEBHOOKS: "/developer/webhooks",
   FIXED_ASSETS: "/fixed-assets",
   AGENT: "/agent",
+  EMPLOYEES: "/employees",
+  PAYROLL_RUNS: "/payroll",
   CREATE: {
     INVOICE: "/create/invoice",
     QUOTATION: "/create/quotation",

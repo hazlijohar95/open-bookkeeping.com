@@ -536,7 +536,12 @@ export const creditNoteRouter = router({
               label: b.label,
               type: b.type as "fixed" | "percentage",
               value: parseFloat(b.value),
-              isSstTax: b.label.toLowerCase().includes("sst") || b.label.toLowerCase().includes("tax"),
+              // Use isSstTax field if available (from BillingDetailV2), otherwise detect from label
+              isSstTax: "isSstTax" in b && typeof b.isSstTax === "boolean"
+                ? b.isSstTax
+                : b.label.toLowerCase().includes("sst") ||
+                  b.label.toLowerCase().includes("sales tax") ||
+                  b.label.toLowerCase().includes("service tax"),
             })),
             clientDetails: {
               name: fields.clientDetails?.name ?? "Customer",

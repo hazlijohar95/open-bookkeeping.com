@@ -1,0 +1,2 @@
+CREATE TYPE "public"."account_sub_type" AS ENUM('current_asset', 'fixed_asset', 'current_liability', 'non_current_liability', 'share_capital', 'retained_earnings', 'reserves', 'operating_revenue', 'other_income', 'cost_of_goods_sold', 'operating_expense', 'other_expense');--> statement-breakpoint
+ALTER TABLE "accounts" ADD COLUMN "sub_type" "account_sub_type";

@@ -1,9 +1,11 @@
 /**
  * Journal Entry Integration Service
  * Creates automatic journal entries for invoices, bills, and payments
+ *
+ * All journal entries created here are auto-posted and ledger transactions updated.
  */
 
-import { chartOfAccountsRepository } from "@open-bookkeeping/db";
+import { chartOfAccountsRepository, ledgerRepository, journalEntryRepository } from "@open-bookkeeping/db";
 import { createLogger } from "@open-bookkeeping/shared";
 import Decimal from "decimal.js";
 
@@ -137,6 +139,34 @@ async function getAccountByCode(
 }
 
 /**
+ * Validate that required system accounts exist and are active
+ * Returns list of missing account codes or empty array if all exist
+ */
+async function validateSystemAccounts(
+  userId: string,
+  requiredCodes: string[]
+): Promise<{ valid: boolean; missing: string[] }> {
+  const accounts = await chartOfAccountsRepository.findAllAccounts(userId, {
+    isActive: true,
+  });
+  const existingCodes = new Set(accounts.map((a) => a.code));
+  const missing = requiredCodes.filter((code) => !existingCodes.has(code));
+  return { valid: missing.length === 0, missing };
+}
+
+/**
+ * Log warning if system accounts are missing
+ */
+function logMissingAccounts(userId: string, context: string, missing: string[]): void {
+  if (missing.length > 0) {
+    logger.warn(
+      { userId, context, missingAccounts: missing },
+      `System accounts not found: ${missing.join(", ")}. Journal entry may be incomplete.`
+    );
+  }
+}
+
+/**
  * Calculate invoice totals including tax
  */
 function calculateInvoiceTotals(invoice: InvoiceForJournalEntry): {
@@ -231,9 +261,15 @@ export async function createInvoiceJournalEntry(
       return { success: false, error: "Failed to create journal entry" };
     }
 
+    // Auto-post the journal entry
+    await journalEntryRepository.post(entry.id, userId);
+
+    // Update ledger transactions
+    await ledgerRepository.updateLedgerTransactions(entry.id, userId);
+
     logger.info(
       { userId, invoiceId: invoice.id, entryId: entry.id },
-      `Created journal entry ${entry.entryNumber} for invoice ${invoice.serialNumber}`
+      `Created and posted journal entry ${entry.entryNumber} for invoice ${invoice.serialNumber}`
     );
 
     return { success: true, entryId: entry.id };
@@ -401,9 +437,15 @@ export async function createBillJournalEntry(
       return { success: false, error: "Failed to create bill journal entry" };
     }
 
+    // Auto-post the journal entry
+    await journalEntryRepository.post(entry.id, userId);
+
+    // Update ledger transactions
+    await ledgerRepository.updateLedgerTransactions(entry.id, userId);
+
     logger.info(
       { userId, billId: bill.id, entryId: entry.id },
-      `Created journal entry ${entry.entryNumber} for bill ${bill.billNumber}`
+      `Created and posted journal entry ${entry.entryNumber} for bill ${bill.billNumber}`
     );
 
     return { success: true, entryId: entry.id };
@@ -418,12 +460,30 @@ export async function createBillJournalEntry(
 
 /**
  * Check if a user has chart of accounts initialized
+ * Also validates that core system accounts exist
  */
 export async function hasChartOfAccounts(userId: string): Promise<boolean> {
   const accounts = await chartOfAccountsRepository.findAllAccounts(userId, {
     isActive: true,
   });
-  return accounts.length > 0;
+
+  if (accounts.length === 0) {
+    return false;
+  }
+
+  // Validate core system accounts exist
+  const coreAccounts = [
+    SYSTEM_ACCOUNTS.ACCOUNTS_RECEIVABLE, // 1100
+    SYSTEM_ACCOUNTS.ACCOUNTS_PAYABLE,    // 2100
+    SYSTEM_ACCOUNTS.SALES_REVENUE,       // 4100
+  ];
+
+  const validation = await validateSystemAccounts(userId, coreAccounts);
+  if (!validation.valid) {
+    logMissingAccounts(userId, "hasChartOfAccounts", validation.missing);
+  }
+
+  return true;
 }
 
 /**
@@ -530,9 +590,15 @@ export async function createCreditNoteJournalEntry(
       return { success: false, error: "Failed to create credit note journal entry" };
     }
 
+    // Auto-post the journal entry
+    await journalEntryRepository.post(entry.id, userId);
+
+    // Update ledger transactions
+    await ledgerRepository.updateLedgerTransactions(entry.id, userId);
+
     logger.info(
       { userId, creditNoteId: creditNote.id, entryId: entry.id },
-      `Created journal entry ${entry.entryNumber} for credit note ${creditNote.serialNumber}`
+      `Created and posted journal entry ${entry.entryNumber} for credit note ${creditNote.serialNumber}`
     );
 
     return { success: true, entryId: entry.id };
@@ -615,9 +681,15 @@ export async function createDebitNoteJournalEntry(
       return { success: false, error: "Failed to create debit note journal entry" };
     }
 
+    // Auto-post the journal entry
+    await journalEntryRepository.post(entry.id, userId);
+
+    // Update ledger transactions
+    await ledgerRepository.updateLedgerTransactions(entry.id, userId);
+
     logger.info(
       { userId, debitNoteId: debitNote.id, entryId: entry.id },
-      `Created journal entry ${entry.entryNumber} for debit note ${debitNote.serialNumber}`
+      `Created and posted journal entry ${entry.entryNumber} for debit note ${debitNote.serialNumber}`
     );
 
     return { success: true, entryId: entry.id };

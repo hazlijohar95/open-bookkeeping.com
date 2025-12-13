@@ -48,120 +48,113 @@ interface ParsedTransaction {
   balance: string | null;
 }
 
-// Malaysian bank CSV presets
-const BANK_PRESETS = [
-  { value: "maybank", label: "Maybank", dateFormat: "DD/MM/YYYY", amountCol: 3, descCol: 2 },
-  { value: "cimb", label: "CIMB Bank", dateFormat: "DD/MM/YYYY", amountCol: 4, descCol: 2 },
-  { value: "public_bank", label: "Public Bank", dateFormat: "DD/MM/YYYY", amountCol: 3, descCol: 2 },
-  { value: "rhb", label: "RHB Bank", dateFormat: "DD/MM/YYYY", amountCol: 3, descCol: 2 },
-  { value: "hong_leong", label: "Hong Leong Bank", dateFormat: "DD/MM/YYYY", amountCol: 3, descCol: 2 },
-  { value: "custom", label: "Custom/Other", dateFormat: "YYYY-MM-DD", amountCol: 2, descCol: 1 },
-] as const;
+// Malaysian bank CSV presets with actual column mappings
+// Based on common export formats from Malaysian banks
+interface BankPreset {
+  value: string;
+  label: string;
+  dateFormat: "DD/MM/YYYY" | "YYYY-MM-DD" | "DD-MM-YYYY";
+  dateCol: number;      // Column index for date
+  descCol: number;      // Column index for description
+  debitCol: number;     // Column index for debit/withdrawal amount
+  creditCol: number;    // Column index for credit/deposit amount (-1 if same column with sign)
+  balanceCol: number;   // Column index for balance (-1 if not available)
+  refCol: number;       // Column index for reference/check number (-1 if not available)
+  skipRows: number;     // Number of header rows to skip
+}
 
+const BANK_PRESETS: BankPreset[] = [
+  // Maybank: Date, Description, Check No, Debit, Credit, Balance
+  { value: "maybank", label: "Maybank", dateFormat: "DD/MM/YYYY", dateCol: 0, descCol: 1, debitCol: 3, creditCol: 4, balanceCol: 5, refCol: 2, skipRows: 1 },
+  // CIMB: Date, Description, Reference, Debit, Credit, Balance
+  { value: "cimb", label: "CIMB Bank", dateFormat: "DD/MM/YYYY", dateCol: 0, descCol: 1, debitCol: 3, creditCol: 4, balanceCol: 5, refCol: 2, skipRows: 1 },
+  // Public Bank: Date, Description, Debit, Credit, Balance
+  { value: "public_bank", label: "Public Bank", dateFormat: "DD/MM/YYYY", dateCol: 0, descCol: 1, debitCol: 2, creditCol: 3, balanceCol: 4, refCol: -1, skipRows: 1 },
+  // RHB: Date, Description, Reference, Debit, Credit, Balance
+  { value: "rhb", label: "RHB Bank", dateFormat: "DD/MM/YYYY", dateCol: 0, descCol: 1, debitCol: 3, creditCol: 4, balanceCol: 5, refCol: 2, skipRows: 1 },
+  // Hong Leong: Date, Description, Debit, Credit, Balance
+  { value: "hong_leong", label: "Hong Leong Bank", dateFormat: "DD/MM/YYYY", dateCol: 0, descCol: 1, debitCol: 2, creditCol: 3, balanceCol: 4, refCol: -1, skipRows: 1 },
+  // Custom: Auto-detect (Date, Description, Amount or Date, Description, Debit, Credit)
+  { value: "custom", label: "Custom/Other", dateFormat: "YYYY-MM-DD", dateCol: 0, descCol: 1, debitCol: 2, creditCol: 3, balanceCol: -1, refCol: -1, skipRows: 1 },
+];
+
+/**
+ * Parse CSV content using the selected bank preset configuration
+ */
 function parseCSV(
   content: string,
-  _preset: string
+  presetValue: string
 ): { transactions: ParsedTransaction[]; errors: string[] } {
+  // Get the preset configuration
+  const preset = BANK_PRESETS.find((p) => p.value === presetValue) ?? BANK_PRESETS[BANK_PRESETS.length - 1]!;
+
   const lines = content.split("\n").filter((line) => line.trim());
   const transactions: ParsedTransaction[] = [];
   const errors: string[] = [];
 
-  // Skip header row
-  for (let i = 1; i < lines.length; i++) {
+  // Skip header rows based on preset
+  for (let i = preset.skipRows; i < lines.length; i++) {
     try {
       const line = lines[i];
       if (!line) {
         continue;
       }
-      // Handle quoted CSV fields
-      const cols: string[] = [];
-      let inQuote = false;
-      let current = "";
 
-      for (const char of line) {
-        if (char === '"') {
-          inQuote = !inQuote;
-        } else if (char === "," && !inQuote) {
-          cols.push(current.trim());
-          current = "";
-        } else {
-          current += char;
-        }
-      }
-      cols.push(current.trim());
+      // Parse CSV line handling quoted fields
+      const cols = parseCSVLine(line);
 
-      if (cols.length < 3) {
-        errors.push(`Row ${i + 1}: Not enough columns`);
+      // Minimum columns check based on preset
+      const minCols = Math.max(preset.dateCol, preset.descCol, preset.debitCol) + 1;
+      if (cols.length < minCols) {
+        errors.push(`Row ${i + 1}: Not enough columns (expected at least ${minCols}, got ${cols.length})`);
         continue;
       }
 
-      // Parse date (handle common formats)
-      const dateStr = cols[0];
+      // Parse date using preset's date column and format
+      const dateStr = cols[preset.dateCol]?.trim();
       if (!dateStr) {
         errors.push(`Row ${i + 1}: Missing date`);
         continue;
       }
-      let date: Date;
 
-      if (dateStr.includes("/")) {
-        // DD/MM/YYYY format (Malaysian banks)
-        const parts = dateStr.split("/");
-        const day = parts[0] ?? "1";
-        const month = parts[1] ?? "1";
-        const year = parts[2] ?? "2000";
-        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-      } else if (dateStr.includes("-")) {
-        // YYYY-MM-DD or DD-MM-YYYY
-        const parts = dateStr.split("-");
-        const firstPart = parts[0] ?? "";
-        if (firstPart.length === 4) {
-          date = new Date(dateStr);
-        } else {
-          const day = parts[0] ?? "1";
-          const month = parts[1] ?? "1";
-          const year = parts[2] ?? "2000";
-          date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-        }
-      } else {
-        errors.push(`Row ${i + 1}: Invalid date format`);
+      const date = parseDate(dateStr, preset.dateFormat);
+      if (!date || isNaN(date.getTime())) {
+        errors.push(`Row ${i + 1}: Invalid date "${dateStr}"`);
         continue;
       }
 
-      if (isNaN(date.getTime())) {
-        errors.push(`Row ${i + 1}: Invalid date`);
-        continue;
-      }
+      // Parse description using preset's description column
+      const description = cols[preset.descCol]?.trim() || "No description";
 
-      // Parse description
-      const description = cols[1] ?? "No description";
+      // Parse reference if available
+      const reference = preset.refCol >= 0 ? cols[preset.refCol]?.trim() || null : null;
 
-      // Parse amount - handle debit/credit or single amount column
+      // Parse amount using preset's debit/credit columns
       let amount = 0;
       let type: "deposit" | "withdrawal" = "deposit";
 
-      // Try to find the amount - check for separate debit/credit columns or single amount
-      const amountStr = cols[2]?.replace(/[,\s]/g, "") ?? "0";
-      const creditStr = cols[3]?.replace(/[,\s]/g, "") ?? "";
+      const debitStr = cleanAmount(cols[preset.debitCol]);
+      const creditStr = preset.creditCol >= 0 ? cleanAmount(cols[preset.creditCol]) : "";
 
-      if (creditStr && parseFloat(creditStr)) {
+      const debitAmount = parseFloat(debitStr) || 0;
+      const creditAmount = parseFloat(creditStr) || 0;
+
+      if (preset.creditCol >= 0) {
         // Separate debit/credit columns
-        const debit = parseFloat(amountStr) ?? 0;
-        const credit = parseFloat(creditStr) ?? 0;
-        if (credit > 0) {
-          amount = credit;
+        if (creditAmount > 0) {
+          amount = creditAmount;
           type = "deposit";
-        } else {
-          amount = debit;
+        } else if (debitAmount > 0) {
+          amount = debitAmount;
           type = "withdrawal";
         }
       } else {
         // Single amount column (negative = withdrawal)
-        const parsed = parseFloat(amountStr);
-        if (parsed < 0) {
-          amount = Math.abs(parsed);
+        if (debitAmount < 0) {
+          amount = Math.abs(debitAmount);
           type = "withdrawal";
         } else {
-          amount = parsed;
+          amount = debitAmount;
           type = "deposit";
         }
       }
@@ -171,14 +164,19 @@ function parseCSV(
         continue;
       }
 
-      // Balance (optional)
-      const balanceStr = cols[cols.length - 1]?.replace(/[,\s]/g, "");
-      const balance = balanceStr && parseFloat(balanceStr) ? balanceStr : null;
+      // Parse balance if available
+      let balance: string | null = null;
+      if (preset.balanceCol >= 0 && cols[preset.balanceCol]) {
+        const balanceStr = cleanAmount(cols[preset.balanceCol]);
+        if (balanceStr && !isNaN(parseFloat(balanceStr))) {
+          balance = parseFloat(balanceStr).toFixed(2);
+        }
+      }
 
       transactions.push({
         transactionDate: date,
         description,
-        reference: null,
+        reference,
         amount: amount.toFixed(2),
         type,
         balance,
@@ -189,6 +187,94 @@ function parseCSV(
   }
 
   return { transactions, errors };
+}
+
+/**
+ * Parse a CSV line handling quoted fields correctly
+ */
+function parseCSVLine(line: string): string[] {
+  const cols: string[] = [];
+  let inQuote = false;
+  let current = "";
+
+  for (const char of line) {
+    if (char === '"') {
+      inQuote = !inQuote;
+    } else if (char === "," && !inQuote) {
+      cols.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  cols.push(current.trim());
+  return cols;
+}
+
+/**
+ * Parse date string using the specified format
+ */
+function parseDate(dateStr: string, format: BankPreset["dateFormat"]): Date | null {
+  try {
+    if (format === "DD/MM/YYYY" && dateStr.includes("/")) {
+      const parts = dateStr.split("/");
+      if (parts.length === 3) {
+        const day = parseInt(parts[0]!, 10);
+        const month = parseInt(parts[1]!, 10) - 1;
+        const year = parseInt(parts[2]!, 10);
+        return new Date(year, month, day);
+      }
+    } else if (format === "YYYY-MM-DD" && dateStr.includes("-")) {
+      const parts = dateStr.split("-");
+      if (parts.length === 3 && parts[0]!.length === 4) {
+        return new Date(dateStr);
+      }
+    } else if (format === "DD-MM-YYYY" && dateStr.includes("-")) {
+      const parts = dateStr.split("-");
+      if (parts.length === 3) {
+        const day = parseInt(parts[0]!, 10);
+        const month = parseInt(parts[1]!, 10) - 1;
+        const year = parseInt(parts[2]!, 10);
+        return new Date(year, month, day);
+      }
+    }
+
+    // Fallback: try auto-detection
+    if (dateStr.includes("/")) {
+      const parts = dateStr.split("/");
+      if (parts.length === 3) {
+        const day = parseInt(parts[0]!, 10);
+        const month = parseInt(parts[1]!, 10) - 1;
+        const year = parseInt(parts[2]!, 10);
+        return new Date(year, month, day);
+      }
+    } else if (dateStr.includes("-")) {
+      const parts = dateStr.split("-");
+      if (parts.length === 3) {
+        // Check if YYYY-MM-DD or DD-MM-YYYY
+        if (parts[0]!.length === 4) {
+          return new Date(dateStr);
+        } else {
+          const day = parseInt(parts[0]!, 10);
+          const month = parseInt(parts[1]!, 10) - 1;
+          const year = parseInt(parts[2]!, 10);
+          return new Date(year, month, day);
+        }
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clean amount string by removing currency symbols, commas, and whitespace
+ */
+function cleanAmount(value: string | undefined): string {
+  if (!value) return "0";
+  return value.replace(/[RM$,\s]/gi, "").trim() || "0";
 }
 
 export function ImportTransactionsModal({
@@ -263,7 +349,10 @@ export function ImportTransactionsModal({
       })),
     }, {
       onSuccess: (result) => {
-        toast.success(`Imported ${result.transactionCount} transactions`);
+        const message = result.duplicatesSkipped && result.duplicatesSkipped > 0
+          ? `Imported ${result.transactionCount} transactions (${result.duplicatesSkipped} duplicates skipped)`
+          : `Imported ${result.transactionCount} transactions`;
+        toast.success(message);
         handleClose();
       },
       onError: (error) => {

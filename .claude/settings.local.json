@@ -39,7 +39,17 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(NODE_ENV=production npx vite:*)",
+      "Bash(grep:*)",
+      "Bash(VITE_API_URL=\"\" yarn build:*)",
+      "Bash(curl:*)",
+      "Bash(wc:*)",
+      "Bash(yarn db:generate)",
+      "Bash(yarn db:migrate:*)",
+      "Bash(timeout 60 npx tsc:*)",
+      "Bash(yarn test:run:*)",
+      "WebFetch(domain:monk.com)"
     ],
     "deny": [],
     "ask": []

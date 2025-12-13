@@ -1,9 +1,10 @@
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/providers/auth-provider";
 import { LogoBrandMinimal } from "@/components/brand/logo-brand";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { LINKS } from "@/constants/links";
 import ThemeSwitch from "@/components/table-columns/theme-switch";
 import {
@@ -39,16 +40,38 @@ export function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const { signInWithGoogle, user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  // If already logged in, redirect to dashboard
+  // Get the return URL from query params, default to /dashboard
+  const returnUrl = searchParams.get("returnUrl");
+  const redirectTo = returnUrl ? decodeURIComponent(returnUrl) : "/dashboard";
+
+  // If already logged in, redirect to the return URL or dashboard
+  useEffect(() => {
+    if (user) {
+      navigate(redirectTo, { replace: true });
+    }
+  }, [user, navigate, redirectTo]);
+
+  // Don't render the login form if user is already logged in
   if (user) {
-    void navigate("/dashboard");
-    return null;
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
   }
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
-    await signInWithGoogle();
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Sign in failed";
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const features = [

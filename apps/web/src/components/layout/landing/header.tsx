@@ -45,7 +45,7 @@ const Header = () => {
 
           <ThemeSwitch />
 
-          <Link to={LINKS.DASHBOARD}>
+          <Link to={LINKS.LOGIN}>
             <Button size="sm" className="ml-2">
               <span>Get Started</span>
               <CircleOpenArrowRight className="-rotate-45 ml-1 size-3.5" />
