@@ -119,7 +119,7 @@ const InvoiceTableMockup = () => {
                 "rounded sm:rounded-none",
                 row.storage === "local"
                   ? "bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400"
-                  : "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                  : "bg-primary/10 text-primary"
               )}
             >
               {row.storage === "local" ? (
@@ -222,7 +222,7 @@ const MetricsCardsMockup = () => {
       value: "RM 3,200",
       sub: "Awaiting",
       icon: ClockIcon,
-      color: "blue",
+      color: "orange",
     },
     {
       label: "Overdue",
@@ -253,7 +253,7 @@ const MetricsCardsMockup = () => {
               className={cn(
                 "flex size-5 sm:size-6 items-center justify-center rounded",
                 metric.color === "emerald" && "bg-emerald-100 dark:bg-emerald-900/40",
-                metric.color === "blue" && "bg-blue-100 dark:bg-blue-900/40",
+                metric.color === "orange" && "bg-primary/10",
                 metric.color === "amber" && "bg-amber-100 dark:bg-amber-900/40"
               )}
             >
@@ -262,7 +262,7 @@ const MetricsCardsMockup = () => {
                   "size-2.5 sm:size-3",
                   metric.color === "emerald" &&
                     "text-emerald-600 dark:text-emerald-400",
-                  metric.color === "blue" && "text-blue-600 dark:text-blue-400",
+                  metric.color === "orange" && "text-primary",
                   metric.color === "amber" && "text-amber-600 dark:text-amber-400"
                 )}
               />
@@ -414,7 +414,7 @@ const Showcase = () => {
       {/* Background decoration */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/4 left-0 w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] rounded-full bg-primary/[0.02] blur-3xl" />
-        <div className="absolute bottom-1/4 right-0 w-[200px] sm:w-[400px] h-[200px] sm:h-[400px] rounded-full bg-violet-500/[0.02] blur-3xl" />
+        <div className="absolute bottom-1/4 right-0 w-[200px] sm:w-[400px] h-[200px] sm:h-[400px] rounded-full bg-amber-500/[0.02] blur-3xl" />
       </div>
 
       {/* Section Header */}
@@ -442,8 +442,8 @@ const Showcase = () => {
         <BentoCard index={0} className="md:col-span-2 lg:col-span-2">
           <div className="relative h-full p-4 sm:p-5 md:p-6 flex flex-col">
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-blue-500/10 rounded-lg">
-                <ReceiptIcon className="size-4 text-blue-600 dark:text-blue-400" />
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <ReceiptIcon className="size-4 text-primary" />
               </div>
               <div>
                 <span className="text-sm font-semibold block">
@@ -491,8 +491,8 @@ const Showcase = () => {
         <BentoCard index={2} className="min-h-[260px] sm:min-h-[300px]">
           <div className="relative h-full p-4 sm:p-5 md:p-6 flex flex-col">
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-violet-500/10 rounded-lg">
-                <SquareWandSparkleIcon className="size-4 text-violet-600 dark:text-violet-400" />
+              <div className="p-2 bg-amber-500/10 rounded-lg">
+                <SquareWandSparkleIcon className="size-4 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
                 <span className="text-sm font-semibold block">AI Assistant</span>

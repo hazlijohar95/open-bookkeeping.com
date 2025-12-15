@@ -10,7 +10,9 @@ import {
   varchar,
   date,
   unique,
+  check,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
 import {
@@ -62,6 +64,11 @@ export const accounts = pgTable(
 
     // Tax settings (Malaysian SST)
     sstTaxCode: sstTaxCodeEnum("sst_tax_code").default("none"),
+
+    // Multi-currency support (foundation for future multi-currency features)
+    // When null, account uses the company's base currency (typically MYR)
+    // When set, indicates this is a foreign currency account
+    currency: varchar("currency", { length: 3 }), // ISO 4217 code (USD, EUR, SGD, etc.)
 
     // Account flags
     isActive: boolean("is_active").default(true).notNull(),
@@ -116,9 +123,15 @@ export const journalEntries = pgTable(
       { onDelete: "set null" }
     ),
 
-    // Calculated totals (for quick reference)
+    // Calculated totals (for quick reference, in base currency)
     totalDebit: numeric("total_debit", { precision: 15, scale: 2 }).default("0").notNull(),
     totalCredit: numeric("total_credit", { precision: 15, scale: 2 }).default("0").notNull(),
+
+    // Multi-currency support (foundation for future features)
+    // Base currency is always the company's default (typically MYR)
+    // When null, transaction is in base currency only
+    transactionCurrency: varchar("transaction_currency", { length: 3 }), // ISO 4217 code
+    exchangeRate: numeric("exchange_rate", { precision: 15, scale: 6 }), // Rate to base currency
 
     // Audit trail
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
@@ -136,6 +149,9 @@ export const journalEntries = pgTable(
     index("journal_entries_status_idx").on(table.status),
     index("journal_entries_source_idx").on(table.sourceType, table.sourceId),
     unique("journal_entries_user_number_unique").on(table.userId, table.entryNumber),
+    // CRITICAL: Ensure journal entries balance (debit = credit)
+    // This is fundamental to double-entry bookkeeping integrity
+    check("journal_entries_balanced", sql`${table.totalDebit} = ${table.totalCredit}`),
   ]
 );
 
@@ -154,9 +170,16 @@ export const journalEntryLines = pgTable(
     // Line order
     lineNumber: integer("line_number").default(1).notNull(),
 
-    // Amounts (one or the other, stored as positive values)
+    // Amounts (one or the other, stored as positive values in BASE currency)
     debitAmount: numeric("debit_amount", { precision: 15, scale: 2 }).default("0").notNull(),
     creditAmount: numeric("credit_amount", { precision: 15, scale: 2 }).default("0").notNull(),
+
+    // Multi-currency support (amounts in foreign currency if applicable)
+    // These are null for base currency transactions
+    foreignDebitAmount: numeric("foreign_debit_amount", { precision: 15, scale: 2 }),
+    foreignCreditAmount: numeric("foreign_credit_amount", { precision: 15, scale: 2 }),
+    lineCurrency: varchar("line_currency", { length: 3 }), // ISO 4217 code
+    lineExchangeRate: numeric("line_exchange_rate", { precision: 15, scale: 6 }),
 
     // Tax information
     sstTaxCode: sstTaxCodeEnum("sst_tax_code"),
@@ -274,10 +297,16 @@ export const ledgerTransactions = pgTable(
     sourceType: sourceDocumentTypeEnum("source_type"),
     sourceId: uuid("source_id"),
 
-    // Amounts
+    // Amounts (in base currency)
     debitAmount: numeric("debit_amount", { precision: 15, scale: 2 }).default("0").notNull(),
     creditAmount: numeric("credit_amount", { precision: 15, scale: 2 }).default("0").notNull(),
     runningBalance: numeric("running_balance", { precision: 15, scale: 2 }).notNull(),
+
+    // Multi-currency support (denormalized for reporting)
+    foreignDebitAmount: numeric("foreign_debit_amount", { precision: 15, scale: 2 }),
+    foreignCreditAmount: numeric("foreign_credit_amount", { precision: 15, scale: 2 }),
+    transactionCurrency: varchar("transaction_currency", { length: 3 }),
+    exchangeRate: numeric("exchange_rate", { precision: 15, scale: 6 }),
 
     // Account metadata for reporting
     accountCode: varchar("account_code", { length: 20 }).notNull(),

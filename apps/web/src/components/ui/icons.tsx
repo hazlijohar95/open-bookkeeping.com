@@ -217,6 +217,8 @@ export {
   ArrowCounterClockwise as RotateCcw,
   Pulse as Activity,
   ChatCircle as MessageSquare,
+  Command as CommandIcon,
+  Question as HelpCircle,
 
   // Employee/HR icons
   UserCheck,

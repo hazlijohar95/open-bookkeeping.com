@@ -2538,7 +2538,7 @@ __metadata:
     "@hono/trpc-server": "npm:^0.3.2"
     "@open-bookkeeping/db": "workspace:*"
     "@sentry/node": "npm:^10.28.0"
-    "@supabase/supabase-js": "npm:^2.49.1"
+    "@supabase/supabase-js": "npm:^2.87.1"
     "@trpc/server": "npm:^11.1.2"
     "@types/node": "npm:^22.15.3"
     "@types/uuid": "npm:^11.0.0"
@@ -2640,7 +2640,7 @@ __metadata:
     "@radix-ui/react-tooltip": "npm:^1.2.8"
     "@react-pdf/renderer": "npm:^4.3.0"
     "@sentry/react": "npm:^10.29.0"
-    "@supabase/supabase-js": "npm:^2.49.1"
+    "@supabase/supabase-js": "npm:^2.87.1"
     "@tailwindcss/vite": "npm:^4.1.11"
     "@tanstack/react-query": "npm:^5.76.1"
     "@tanstack/react-table": "npm:^8.21.3"
@@ -2688,10 +2688,10 @@ __metadata:
     postcss: "npm:^8.4.49"
     posthog-js: "npm:^1.299.0"
     qrcode: "npm:^1.5.4"
-    react: "npm:^19.1.0"
+    react: "npm:19.1.4"
     react-colorful: "npm:^5.6.1"
     react-day-picker: "npm:^9.4.4"
-    react-dom: "npm:^19.1.0"
+    react-dom: "npm:19.1.4"
     react-dropzone: "npm:^14.3.8"
     react-hook-form: "npm:^7.54.0"
     react-markdown: "npm:^10.1.0"
@@ -5042,65 +5042,65 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@supabase/auth-js@npm:2.86.0":
-  version: 2.86.0
-  resolution: "@supabase/auth-js@npm:2.86.0"
+"@supabase/auth-js@npm:2.87.1":
+  version: 2.87.1
+  resolution: "@supabase/auth-js@npm:2.87.1"
   dependencies:
     tslib: "npm:2.8.1"
-  checksum: 10c0/a70fd3156535bd9d7d57da9cfbdad305f01c3d17c0442559af50f57b2409c734825db8749986982b69f8107864592551442518c73da909a7e03c8d9ca4bef45d
+  checksum: 10c0/f3291de845e6f1639816b841eebb44d743ba3c9bd0c952c582e0188c9647585e2bfed37b38b29f4fb656d20f2dfc426d2741a13e0c1c2b85ec26950578addfa5
   languageName: node
   linkType: hard
 
-"@supabase/functions-js@npm:2.86.0":
-  version: 2.86.0
-  resolution: "@supabase/functions-js@npm:2.86.0"
+"@supabase/functions-js@npm:2.87.1":
+  version: 2.87.1
+  resolution: "@supabase/functions-js@npm:2.87.1"
   dependencies:
     tslib: "npm:2.8.1"
-  checksum: 10c0/24cc3271cf1c2b315b4eb5e79a9d9e478da74c6a2f8dc01a097d211f7d5ac596c003e8ee5f8c74041c94f455eb6c3e2aaf6809892f8d8b04ab3ab7bafc5a186d
+  checksum: 10c0/5606c43a936be6a2b3e86122847a1cf9d4924ac461e079af48f9e7c945287d710e0aa1168d7a6df44c0096ca7c6cb254188d2d70268c32b1b04c22b5151a460d
   languageName: node
   linkType: hard
 
-"@supabase/postgrest-js@npm:2.86.0":
-  version: 2.86.0
-  resolution: "@supabase/postgrest-js@npm:2.86.0"
+"@supabase/postgrest-js@npm:2.87.1":
+  version: 2.87.1
+  resolution: "@supabase/postgrest-js@npm:2.87.1"
   dependencies:
     tslib: "npm:2.8.1"
-  checksum: 10c0/066ee3dc8e24c8658c93c3b89346542bd4c58e4e14df21ef21d4b5597f01a710f8088c3705fb30791314028de5ca55db6cfee339c707e6b585085c4e9e35742a
+  checksum: 10c0/51fca543a0f39e8a16ff68b70002773442f056febdac02c95318acbfe8800c457e3645fa64529b860450fcc3a04b02ae17b4dc7814a978e202e671679c8bc107
   languageName: node
   linkType: hard
 
-"@supabase/realtime-js@npm:2.86.0":
-  version: 2.86.0
-  resolution: "@supabase/realtime-js@npm:2.86.0"
+"@supabase/realtime-js@npm:2.87.1":
+  version: 2.87.1
+  resolution: "@supabase/realtime-js@npm:2.87.1"
   dependencies:
     "@types/phoenix": "npm:^1.6.6"
     "@types/ws": "npm:^8.18.1"
     tslib: "npm:2.8.1"
     ws: "npm:^8.18.2"
-  checksum: 10c0/5c18c79422436900540243f06bf64e15523ae2eaaf7111b7ee243d803b00f4d85e148cb03b686f03519bb97505b716fbb3aebf70e0adf187b464a6193cf477ce
+  checksum: 10c0/54e11a4c6f038b8db9f5bcf8878e53b7083fbd633c8cb0d407e2b27a0d449571422568c0a09681377b0ccaffcffe6c69632618d2de4091f1007197f6ff3c2959
   languageName: node
   linkType: hard
 
-"@supabase/storage-js@npm:2.86.0":
-  version: 2.86.0
-  resolution: "@supabase/storage-js@npm:2.86.0"
+"@supabase/storage-js@npm:2.87.1":
+  version: 2.87.1
+  resolution: "@supabase/storage-js@npm:2.87.1"
   dependencies:
-    iceberg-js: "npm:^0.8.0"
+    iceberg-js: "npm:^0.8.1"
     tslib: "npm:2.8.1"
-  checksum: 10c0/e8fe6b838d3ff64daa144f4e393f5f02caf8c10d5c0657832656cc2d3f864fb46ae6a44665ed932ba231f768b8a5e6d14f66ed354070676f64ee1430c43f4210
+  checksum: 10c0/9518ae13e6cb4b876ece0bd1ea54861bfc18d279bf77c8340654cd99de1d867fcf7748636c7fc59061cfdc1a8056450e34cef9c340f0d4daa07bec4a8ab26329
   languageName: node
   linkType: hard
 
-"@supabase/supabase-js@npm:^2.49.1":
-  version: 2.86.0
-  resolution: "@supabase/supabase-js@npm:2.86.0"
+"@supabase/supabase-js@npm:^2.87.1":
+  version: 2.87.1
+  resolution: "@supabase/supabase-js@npm:2.87.1"
   dependencies:
-    "@supabase/auth-js": "npm:2.86.0"
-    "@supabase/functions-js": "npm:2.86.0"
-    "@supabase/postgrest-js": "npm:2.86.0"
-    "@supabase/realtime-js": "npm:2.86.0"
-    "@supabase/storage-js": "npm:2.86.0"
-  checksum: 10c0/dbb58383f3d03d9b13e594674989fdd17931236f68e1d4036b34be49876e0f3f2cf41087e8d88ab578ca0291411d9b7e520179b4ed3be6e056ee02bf0aac3554
+    "@supabase/auth-js": "npm:2.87.1"
+    "@supabase/functions-js": "npm:2.87.1"
+    "@supabase/postgrest-js": "npm:2.87.1"
+    "@supabase/realtime-js": "npm:2.87.1"
+    "@supabase/storage-js": "npm:2.87.1"
+  checksum: 10c0/3e340c02d6f9116a34758757b84e1fb75432d3799a24711bacdc03f0f23f605afc1b1a82435c4b2a8b9139f89959e0e2a40bd8afdacf2f985d488688a7abf3a9
   languageName: node
   linkType: hard
 
@@ -9114,10 +9114,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"iceberg-js@npm:^0.8.0":
-  version: 0.8.0
-  resolution: "iceberg-js@npm:0.8.0"
-  checksum: 10c0/ffacf0b939a85dde35a5728aed4abf0780de8b83e76d9b3b173566862015723cc6092d919dbfba0c1b72b725b77be41cfb3938b03d2058714e8407253020990a
+"iceberg-js@npm:^0.8.1":
+  version: 0.8.1
+  resolution: "iceberg-js@npm:0.8.1"
+  checksum: 10c0/e504da64cc26e8ad7c5344353a7203c671a740c14eb6086f20505f5e9739cab774493e616032530c962df97f2a855115cc2e89a47dd81581df5917b21a69ec48
   languageName: node
   linkType: hard
 
@@ -11986,14 +11986,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-dom@npm:^19.1.0":
-  version: 19.2.0
-  resolution: "react-dom@npm:19.2.0"
+"react-dom@npm:19.1.4":
+  version: 19.1.4
+  resolution: "react-dom@npm:19.1.4"
   dependencies:
-    scheduler: "npm:^0.27.0"
+    scheduler: "npm:^0.26.0"
   peerDependencies:
-    react: ^19.2.0
-  checksum: 10c0/fa2cae05248d01288e91523b590ce4e7635b1e13f1344e225f850d722a8da037bf0782f63b1c1d46353334e0c696909b82e582f8cad607948fde6f7646cc18d9
+    react: ^19.1.4
+  checksum: 10c0/fffb4c273773727c9b6e79418626bbe4f2546ad92018fe6e6b6b7df5a5ed96ef61602805662012b4e53c0a6d339cf83030fe09baadd688cd3587d6f780f39028
   languageName: node
   linkType: hard
 
@@ -12255,10 +12255,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react@npm:^19.1.0":
-  version: 19.2.0
-  resolution: "react@npm:19.2.0"
-  checksum: 10c0/1b6d64eacb9324725bfe1e7860cb7a6b8a34bc89a482920765ebff5c10578eb487e6b46b2f0df263bd27a25edbdae2c45e5ea5d81ae61404301c1a7192c38330
+"react@npm:19.1.4":
+  version: 19.1.4
+  resolution: "react@npm:19.1.4"
+  checksum: 10c0/159257dbaf168facecc0a34825114e2b00624d315b7dca8468afcc790eadf5a49f90c0234be7492c7207239292e789e443ca419a83121898b82b0824454900f2
   languageName: node
   linkType: hard
 
@@ -12753,10 +12753,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"scheduler@npm:^0.27.0":
-  version: 0.27.0
-  resolution: "scheduler@npm:0.27.0"
-  checksum: 10c0/4f03048cb05a3c8fddc45813052251eca00688f413a3cee236d984a161da28db28ba71bd11e7a3dd02f7af84ab28d39fb311431d3b3772fed557945beb00c452
+"scheduler@npm:^0.26.0":
+  version: 0.26.0
+  resolution: "scheduler@npm:0.26.0"
+  checksum: 10c0/5b8d5bfddaae3513410eda54f2268e98a376a429931921a81b5c3a2873aab7ca4d775a8caac5498f8cbc7d0daeab947cf923dbd8e215d61671f9f4e392d34356
   languageName: node
   linkType: hard
 

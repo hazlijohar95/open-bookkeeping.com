@@ -23,7 +23,7 @@ import { useDebounceCallback } from "../hooks/use-debounce-callback";
 import { numberFilterOperators } from "../core/operators";
 import { DebouncedInput } from "../ui/debounced-input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarIcon as CalendarComponent } from "@/components/ui/calendar";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { createNumberRange } from "../lib/helpers";
 import type { DateRange } from "react-day-picker";
 import { Slider } from "@/components/ui/slider";

@@ -25,9 +25,28 @@ import {
 import { authenticateRequest } from "../lib/auth-helpers";
 import { createLogger } from "@open-bookkeeping/shared";
 import { agentMemoryService } from "../services/agent-memory.service";
+import { agentSafetyService } from "../services/agent-safety.service";
+import { approvalService, type AgentAction, type AgentActionType } from "../services/approval.service";
+import { agentAuditService } from "../services/agent-audit.service";
 import { documentProcessorService } from "../services/document-processor.service";
-import { db, vaultDocuments, vaultProcessingJobs } from "@open-bookkeeping/db";
-import { eq, and, desc, ilike, or, gte, lte, sql } from "drizzle-orm";
+import {
+  db,
+  vaultDocuments,
+  vaultProcessingJobs,
+  creditNotes,
+  debitNotes,
+  bankAccounts,
+  bankTransactions,
+  fixedAssets,
+  fixedAssetCategories,
+  fixedAssetDepreciations,
+  employees,
+  employeeSalaries,
+  payrollRuns,
+  paySlips,
+  bills,
+} from "@open-bookkeeping/db";
+import { eq, and, desc, ilike, or, gte, lte, sql, isNull } from "drizzle-orm";
 
 const logger = createLogger("ai-routes");
 
@@ -77,6 +96,86 @@ function formatCurrency(amount: number, currency: string = "MYR"): string {
   }).format(amount);
 }
 
+// Helper to get month name
+function getMonthName(month: number): string {
+  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  return months[month - 1] || `Month ${month}`;
+}
+
+// ============================================
+// TYPE-SAFE EXTRACTION HELPERS
+// ============================================
+
+/**
+ * Safely extract a string ID from an unknown result object
+ * Returns undefined if not a valid string/number ID
+ */
+function extractResourceId(result: unknown): string | undefined {
+  if (typeof result !== "object" || result === null) {
+    return undefined;
+  }
+  if (!("id" in result)) {
+    return undefined;
+  }
+  const id = (result as { id: unknown }).id;
+  if (typeof id === "string" && id.length > 0) {
+    return id;
+  }
+  if (typeof id === "number" && !isNaN(id)) {
+    return String(id);
+  }
+  return undefined;
+}
+
+/**
+ * Safely extract an error message from an unknown result object
+ * Returns undefined if not a valid error message
+ */
+function extractErrorMessage(result: unknown): string | undefined {
+  if (typeof result !== "object" || result === null) {
+    return undefined;
+  }
+  if (!("error" in result)) {
+    return undefined;
+  }
+  const error = (result as { error: unknown }).error;
+  if (typeof error === "string" && error.length > 0) {
+    return error;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return undefined;
+}
+
+/**
+ * Safely parse a numeric string, returning undefined for invalid values
+ */
+function safeParseFloat(value: string | number | null | undefined): number | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  if (typeof value === "number") {
+    return isNaN(value) ? undefined : value;
+  }
+  const parsed = parseFloat(value);
+  return isNaN(parsed) ? undefined : parsed;
+}
+
+/**
+ * Safely parse an integer, returning undefined for invalid values
+ */
+function safeParseInt(value: string | number | null | undefined): number | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  if (typeof value === "number") {
+    return isNaN(value) || !Number.isInteger(value) ? Math.floor(value) : value;
+  }
+  const parsed = parseInt(value, 10);
+  return isNaN(parsed) ? undefined : parsed;
+}
+
 // Helper to calculate invoice total with NaN protection
 function calculateInvoiceTotal(items: Array<{ quantity: number | string; unitPrice: number | string }>) {
   return items.reduce((sum, item) => {
@@ -116,6 +215,203 @@ async function withToolTimeout<T>(
   }
 }
 
+// ============================================
+// TOOL → ACTION TYPE MAPPING
+// Maps AI tool names to approval action types
+// ============================================
+const TOOL_ACTION_MAPPING: Record<string, AgentActionType> = {
+  // Invoice actions
+  createInvoice: "create_invoice",
+  updateInvoice: "update_invoice",
+  updateInvoiceStatus: "update_invoice",
+  markInvoiceAsPaid: "mark_invoice_paid",
+  postInvoiceToLedger: "send_invoice", // Posting = finalizing
+  // Bill actions
+  createBill: "create_bill",
+  updateBill: "update_bill",
+  markBillAsPaid: "mark_bill_paid",
+  // Quotation actions
+  createQuotation: "create_quotation",
+  updateQuotation: "update_quotation",
+  updateQuotationStatus: "update_quotation",
+  convertQuotationToInvoice: "convert_quotation",
+  // Customer/Vendor actions
+  createCustomer: "create_customer",
+  updateCustomer: "update_customer",
+  createVendor: "create_vendor",
+  updateVendor: "update_vendor",
+  // Journal entry actions
+  createJournalEntry: "create_journal_entry",
+  postJournalEntry: "create_journal_entry",
+  reverseJournalEntry: "reverse_journal_entry",
+  // Smart accounting tools (create journal entries)
+  recordSalesRevenue: "create_journal_entry",
+  recordExpense: "create_journal_entry",
+  recordPaymentReceived: "create_journal_entry",
+  recordPaymentMade: "create_journal_entry",
+  createEntriesFromDocument: "create_journal_entry",
+  // Bank transaction matching
+  matchTransaction: "match_transaction",
+  createMatchingEntry: "create_matching_entry",
+};
+
+// Resource type mapping for audit logs
+const TOOL_RESOURCE_MAPPING: Record<string, string> = {
+  createInvoice: "invoice",
+  updateInvoice: "invoice",
+  updateInvoiceStatus: "invoice",
+  markInvoiceAsPaid: "invoice",
+  postInvoiceToLedger: "invoice",
+  createBill: "bill",
+  updateBill: "bill",
+  markBillAsPaid: "bill",
+  createQuotation: "quotation",
+  updateQuotation: "quotation",
+  updateQuotationStatus: "quotation",
+  convertQuotationToInvoice: "quotation",
+  createCustomer: "customer",
+  updateCustomer: "customer",
+  createVendor: "vendor",
+  updateVendor: "vendor",
+  createJournalEntry: "journal_entry",
+  postJournalEntry: "journal_entry",
+  reverseJournalEntry: "journal_entry",
+  recordSalesRevenue: "journal_entry",
+  recordExpense: "journal_entry",
+  recordPaymentReceived: "journal_entry",
+  recordPaymentMade: "journal_entry",
+  createEntriesFromDocument: "journal_entry",
+};
+
+/**
+ * Check quota and approval for write tools
+ * Returns approval result or null if no approval needed
+ * Enforces: rate limits, daily quotas, amount limits, emergency stop
+ */
+async function checkToolApproval(
+  userId: string,
+  sessionId: string | undefined,
+  toolName: string,
+  args: Record<string, unknown>,
+  estimatedAmount?: number
+): Promise<{ requiresApproval: boolean; approvalId?: string; message?: string; blocked?: boolean } | null> {
+  const actionType = TOOL_ACTION_MAPPING[toolName];
+  if (!actionType) {
+    // Not a write tool, no approval needed
+    return null;
+  }
+
+  // =====================================
+  // STEP 1: Check quota limits FIRST
+  // This includes: emergency stop, rate limit, daily quotas, amount limits
+  // =====================================
+  const quotaResult = await agentSafetyService.checkQuota(userId, actionType, estimatedAmount);
+  if (!quotaResult.allowed) {
+    logger.warn({ userId, toolName, reason: quotaResult.reason }, "Tool blocked by quota");
+    return {
+      requiresApproval: true, // Treat as "requires approval" but actually blocked
+      blocked: true,
+      message: `⛔ Action blocked: ${quotaResult.reason}${quotaResult.remaining !== undefined ? `. Remaining: ${quotaResult.remaining}` : ""}`,
+    };
+  }
+
+  // =====================================
+  // STEP 2: Check approval requirements
+  // =====================================
+  const action: AgentAction = {
+    type: actionType,
+    payload: args,
+    estimatedAmount,
+    currency: "MYR",
+    resourceType: TOOL_RESOURCE_MAPPING[toolName],
+  };
+
+  const checkResult = await approvalService.checkRequiresApproval(userId, action);
+
+  if (!checkResult.requiresApproval) {
+    return { requiresApproval: false };
+  }
+
+  // Create approval request
+  const approval = await approvalService.createApprovalRequest({
+    userId,
+    actionType,
+    actionPayload: args,
+    sessionId,
+    reasoning: `AI agent requested to execute ${toolName}`,
+    estimatedImpact: {
+      amount: estimatedAmount,
+      currency: "MYR",
+      resourceType: TOOL_RESOURCE_MAPPING[toolName],
+    },
+    previewData: args,
+  });
+
+  return {
+    requiresApproval: true,
+    approvalId: approval.id,
+    message: `⏳ This action requires approval. ${checkResult.reason}. Please review in your approval queue.`,
+  };
+}
+
+/**
+ * Log tool execution to audit trail and record usage for quota tracking
+ */
+async function logToolAudit(
+  userId: string,
+  sessionId: string | undefined,
+  toolName: string,
+  args: Record<string, unknown>,
+  result: unknown,
+  success: boolean,
+  estimatedAmount?: number,
+  approvalType: "auto" | "manual" | "threshold" = "auto"
+): Promise<void> {
+  const actionType = TOOL_ACTION_MAPPING[toolName];
+  if (!actionType) {
+    // Not a write tool, don't log
+    return;
+  }
+
+  try {
+    // =====================================
+    // STEP 1: Log to audit trail (always)
+    // =====================================
+    await agentAuditService.logAction({
+      userId,
+      sessionId,
+      action: actionType,
+      resourceType: TOOL_RESOURCE_MAPPING[toolName] || "unknown",
+      resourceId: extractResourceId(result),
+      newState: typeof result === "object" && result !== null ? result as Record<string, unknown> : { result },
+      reasoning: `Executed ${toolName} via chat`,
+      approvalType,
+      success,
+      errorMessage: !success ? extractErrorMessage(result) : undefined,
+      financialImpact: estimatedAmount !== undefined && estimatedAmount > 0 ? {
+        amount: estimatedAmount,
+        currency: "MYR",
+        direction: actionType.includes("expense") || actionType.includes("bill") || actionType.includes("payment_made") ? "decrease" : "increase",
+      } : undefined,
+    });
+
+    // =====================================
+    // STEP 2: Record usage for quota tracking (only on success)
+    // This updates daily counters: invoicesCreated, billsCreated, etc.
+    // =====================================
+    if (success) {
+      await agentSafetyService.recordUsage(userId, {
+        action: actionType,
+        amount: estimatedAmount,
+        currency: "MYR",
+      });
+      logger.debug({ userId, toolName, actionType, estimatedAmount }, "Usage recorded for quota tracking");
+    }
+  } catch (error) {
+    logger.error({ error, toolName, userId }, "Failed to log tool audit or record usage");
+  }
+}
+
 const aiRoutes = new Hono();
 
 /**
@@ -141,6 +437,48 @@ aiRoutes.post("/chat", async (c) => {
     logger.debug({ userId: user.id, sessionId: session.id }, "Session loaded/created");
   } catch (error) {
     logger.error({ error, userId: user.id }, "Failed to load session, continuing without persistence");
+  }
+
+  // ============================================
+  // TOKEN BUDGET PRE-CHECK
+  // ============================================
+  try {
+    const usage = await agentSafetyService.getTodayUsage(user.id);
+    const quotas = await agentSafetyService.getQuotas(user.id);
+
+    // Estimate minimum tokens needed for this request (conservative estimate)
+    // A typical request uses ~500-2000 tokens for prompt + ~500-1500 for completion
+    const estimatedMinTokens = 1500;
+
+    if (usage.tokensUsed + estimatedMinTokens > quotas.dailyTokenLimit) {
+      logger.warn(
+        { userId: user.id, tokensUsed: usage.tokensUsed, dailyLimit: quotas.dailyTokenLimit },
+        "Token budget would be exceeded"
+      );
+      return c.json(
+        {
+          error: "Daily token limit reached",
+          details: `You've used ${usage.tokensUsed.toLocaleString()} of ${quotas.dailyTokenLimit.toLocaleString()} tokens today. Please try again tomorrow or contact support to increase your limit.`,
+          tokensUsed: usage.tokensUsed,
+          dailyLimit: quotas.dailyTokenLimit,
+        },
+        429
+      );
+    }
+
+    // Also check if emergency stop is enabled
+    if (quotas.emergencyStopEnabled) {
+      logger.warn({ userId: user.id }, "Emergency stop is enabled");
+      return c.json(
+        {
+          error: "AI agent is paused",
+          details: "AI agent actions are currently disabled. Please contact support or disable emergency stop in settings.",
+        },
+        403
+      );
+    }
+  } catch (error) {
+    logger.error({ error, userId: user.id }, "Failed to check token budget, continuing anyway");
   }
 
   // ============================================
@@ -606,6 +944,294 @@ aiRoutes.post("/chat", async (c) => {
       },
     }),
 
+    getSSTReport: tool({
+      description: "Get the SST (Sales and Service Tax) report for a period showing taxable sales, SST collected, and SST payable.",
+      inputSchema: z.object({
+        startDate: z.string().describe("Report start date (YYYY-MM-DD)"),
+        endDate: z.string().describe("Report end date (YYYY-MM-DD)"),
+      }),
+      execute: async ({ startDate, endDate }) => {
+        try {
+          const { invoices } = await import("@open-bookkeeping/db");
+
+          // Query successful (paid) invoices for the period
+          const invoiceList = await db.query.invoices.findMany({
+            where: and(
+              eq(invoices.userId, user.id),
+              eq(invoices.status, "success"),
+              gte(invoices.createdAt, new Date(startDate)),
+              lte(invoices.createdAt, new Date(endDate))
+            ),
+            with: {
+              invoiceFields: {
+                with: {
+                  invoiceDetails: {
+                    with: {
+                      billingDetails: true,
+                    },
+                  },
+                  items: true,
+                },
+              },
+            },
+          });
+
+          let totalSales = 0;
+          let totalSST = 0;
+          const sstBreakdown: Record<string, { sales: number; sst: number; count: number }> = {};
+
+          for (const invoice of invoiceList) {
+            const invoiceDetails = invoice.invoiceFields?.invoiceDetails;
+            const billingDetails = invoiceDetails?.billingDetails || [];
+            const items = invoice.invoiceFields?.items || [];
+
+            // Calculate invoice total from items
+            let itemsTotal = 0;
+            for (const item of items) {
+              itemsTotal += Number(item.quantity) * Number(item.unitPrice);
+            }
+
+            // Find SST from billing details (type="additional" with isSstTax=true or label contains "SST")
+            let invoiceSst = 0;
+            for (const bd of billingDetails) {
+              if (bd.isSstTax || bd.label?.toLowerCase().includes("sst")) {
+                invoiceSst += Number(bd.value);
+              }
+            }
+
+            // Calculate grand total from items + billing details
+            // Billing details include taxes, discounts etc. - all values are added
+            // (discounts would be negative values)
+            let grandTotal = itemsTotal;
+            for (const bd of billingDetails) {
+              grandTotal += Number(bd.value);
+            }
+
+            totalSales += grandTotal - invoiceSst;
+            totalSST += invoiceSst;
+
+            // Group by SST rate (6% standard, 0% exempted)
+            const sstRate = invoiceSst > 0 ? "6%" : "0%";
+            if (!sstBreakdown[sstRate]) {
+              sstBreakdown[sstRate] = { sales: 0, sst: 0, count: 0 };
+            }
+            sstBreakdown[sstRate].sales += grandTotal - invoiceSst;
+            sstBreakdown[sstRate].sst += invoiceSst;
+            sstBreakdown[sstRate].count += 1;
+          }
+
+          return {
+            period: { startDate, endDate },
+            summary: {
+              totalInvoices: invoiceList.length,
+              totalTaxableSales: formatCurrency(totalSales),
+              totalSSTCollected: formatCurrency(totalSST),
+              netSSTPayable: formatCurrency(totalSST),
+            },
+            breakdown: Object.entries(sstBreakdown).map(([rate, data]) => ({
+              rate,
+              sales: formatCurrency(data.sales),
+              sst: formatCurrency(data.sst),
+              invoiceCount: data.count,
+            })),
+            note: "This is a simplified SST report. For official SST-02 filing, please use the complete SST module.",
+          };
+        } catch (error) {
+          logger.error({ error }, "getSSTReport failed");
+          return { error: "Failed to generate SST report" };
+        }
+      },
+    }),
+
+    getCustomerStatement: tool({
+      description: "Get a statement of account for a specific customer showing all invoices, payments, and outstanding balance.",
+      inputSchema: z.object({
+        customerId: z.string().describe("The customer ID"),
+        startDate: z.string().optional().describe("Statement start date (YYYY-MM-DD, defaults to 90 days ago)"),
+        endDate: z.string().optional().describe("Statement end date (YYYY-MM-DD, defaults to today)"),
+      }),
+      execute: async ({ customerId, startDate, endDate }) => {
+        try {
+          const customer = await customerRepository.findById(customerId, user.id);
+          if (!customer) {
+            return { error: "Customer not found" };
+          }
+
+          const now = new Date();
+          const defaultStart = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          const effectiveStartDate = startDate || defaultStart.toISOString().split("T")[0];
+          const effectiveEndDate = endDate || now.toISOString().split("T")[0];
+
+          const { invoices } = await import("@open-bookkeeping/db");
+
+          // Get invoices for the customer within the period
+          const invoiceList = await db.query.invoices.findMany({
+            where: and(
+              eq(invoices.userId, user.id),
+              eq(invoices.customerId, customerId),
+              gte(invoices.createdAt, new Date(effectiveStartDate)),
+              lte(invoices.createdAt, new Date(effectiveEndDate))
+            ),
+            with: {
+              invoiceFields: {
+                with: {
+                  invoiceDetails: {
+                    with: {
+                      billingDetails: true,
+                    },
+                  },
+                  items: true,
+                },
+              },
+            },
+            orderBy: (inv, { desc }) => [desc(inv.createdAt)],
+          });
+
+          let totalInvoiced = 0;
+          let totalPaid = 0;
+
+          const transactions = invoiceList.map((inv) => {
+            const invoiceDetails = inv.invoiceFields?.invoiceDetails;
+            const billingDetails = invoiceDetails?.billingDetails || [];
+            const items = inv.invoiceFields?.items || [];
+
+            // Calculate invoice total from items
+            let itemsTotal = 0;
+            for (const item of items) {
+              itemsTotal += Number(item.quantity) * Number(item.unitPrice);
+            }
+
+            // Calculate grand total from items + billing details
+            // Billing details include taxes, discounts etc. - all values are added
+            // (discounts would be negative values)
+            let invoiceTotal = itemsTotal;
+            for (const bd of billingDetails) {
+              invoiceTotal += Number(bd.value);
+            }
+
+            // Paid status based on invoice status
+            const isPaid = inv.status === "success";
+            const amountPaid = isPaid ? invoiceTotal : 0;
+
+            totalInvoiced += invoiceTotal;
+            totalPaid += amountPaid;
+
+            return {
+              date: new Date(inv.createdAt).toLocaleDateString(),
+              type: "Invoice",
+              reference: inv.invoiceNumber,
+              description: `Invoice #${inv.invoiceNumber}`,
+              amount: formatCurrency(invoiceTotal),
+              amountPaid: formatCurrency(amountPaid),
+              balance: formatCurrency(invoiceTotal - amountPaid),
+              status: inv.status,
+            };
+          });
+
+          const outstandingBalance = totalInvoiced - totalPaid;
+
+          return {
+            customer: {
+              id: customer.id,
+              name: customer.name,
+              email: customer.email,
+            },
+            period: { startDate: effectiveStartDate, endDate: effectiveEndDate },
+            summary: {
+              totalInvoiced: formatCurrency(totalInvoiced),
+              totalPaid: formatCurrency(totalPaid),
+              outstandingBalance: formatCurrency(outstandingBalance),
+              invoiceCount: invoiceList.length,
+            },
+            transactions,
+          };
+        } catch (error) {
+          logger.error({ error }, "getCustomerStatement failed");
+          return { error: "Failed to generate customer statement" };
+        }
+      },
+    }),
+
+    getVendorStatement: tool({
+      description: "Get a statement of account for a specific vendor showing all bills, payments, and outstanding balance.",
+      inputSchema: z.object({
+        vendorId: z.string().describe("The vendor ID"),
+        startDate: z.string().optional().describe("Statement start date (YYYY-MM-DD, defaults to 90 days ago)"),
+        endDate: z.string().optional().describe("Statement end date (YYYY-MM-DD, defaults to today)"),
+      }),
+      execute: async ({ vendorId, startDate, endDate }) => {
+        try {
+          const vendor = await vendorRepository.findById(vendorId, user.id);
+          if (!vendor) {
+            return { error: "Vendor not found" };
+          }
+
+          const now = new Date();
+          const defaultStart = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          const effectiveStartDate = startDate || defaultStart.toISOString().split("T")[0];
+          const effectiveEndDate = endDate || now.toISOString().split("T")[0];
+
+          // Get bills for the vendor within the period
+          const billList = await db.query.bills.findMany({
+            where: and(
+              eq(bills.userId, user.id),
+              eq(bills.vendorId, vendorId),
+              gte(bills.billDate, new Date(effectiveStartDate)),
+              lte(bills.billDate, new Date(effectiveEndDate))
+            ),
+            orderBy: (b, { desc }) => [desc(b.billDate)],
+          });
+
+          let totalBilled = 0;
+          let totalPaid = 0;
+
+          const transactions = billList.map((bill) => {
+            // Calculate total from subtotal + tax
+            const subtotal = bill.subtotal ? Number(bill.subtotal) : 0;
+            const taxAmount = bill.taxAmount ? Number(bill.taxAmount) : 0;
+            const billTotal = subtotal + taxAmount;
+            // Status-based paid calculation
+            const isPaid = bill.status === "paid";
+            const amountPaid = isPaid ? billTotal : 0;
+            totalBilled += billTotal;
+            totalPaid += amountPaid;
+
+            return {
+              date: new Date(bill.billDate).toLocaleDateString(),
+              type: "Bill",
+              reference: bill.billNumber,
+              description: `Bill #${bill.billNumber}`,
+              amount: formatCurrency(billTotal),
+              amountPaid: formatCurrency(amountPaid),
+              balance: formatCurrency(billTotal - amountPaid),
+              status: bill.status,
+            };
+          });
+
+          const outstandingBalance = totalBilled - totalPaid;
+
+          return {
+            vendor: {
+              id: vendor.id,
+              name: vendor.name,
+              email: vendor.email,
+            },
+            period: { startDate: effectiveStartDate, endDate: effectiveEndDate },
+            summary: {
+              totalBilled: formatCurrency(totalBilled),
+              totalPaid: formatCurrency(totalPaid),
+              outstandingBalance: formatCurrency(outstandingBalance),
+              billCount: billList.length,
+            },
+            transactions,
+          };
+        } catch (error) {
+          logger.error({ error }, "getVendorStatement failed");
+          return { error: "Failed to generate vendor statement" };
+        }
+      },
+    }),
+
     getAccountingPeriodStatus: tool({
       description: "Get the status of accounting periods (open, closed, or locked). IMPORTANT: In this system, accounting periods are IMPLICITLY OPEN by default - you do NOT need to create them. If no period records exist, all periods are open and ready for posting. Period records are only created when periods are explicitly closed.",
       inputSchema: z.object({
@@ -696,7 +1322,20 @@ aiRoutes.post("/chat", async (c) => {
         address: z.string().optional().describe("Customer's billing address"),
       }),
       execute: async ({ name, email, phone, address }) => {
+        const toolArgs = { name, email, phone, address };
+
         try {
+          // Check approval before executing
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "createCustomer", toolArgs);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: { type: "customer", name },
+            };
+          }
+
           const customer = await customerRepository.create({
             userId: user.id,
             name,
@@ -705,7 +1344,7 @@ aiRoutes.post("/chat", async (c) => {
             address: address ?? null,
           });
 
-          return {
+          const result = {
             success: true,
             message: `Customer "${name}" created successfully`,
             customer: {
@@ -716,8 +1355,14 @@ aiRoutes.post("/chat", async (c) => {
               address: customer.address,
             },
           };
+
+          await logToolAudit(user.id, session?.id, "createCustomer", toolArgs, result.customer, true);
+
+          return result;
         } catch (error) {
-          return { error: "Failed to create customer", details: String(error) };
+          const errorResult = { error: "Failed to create customer", details: String(error) };
+          await logToolAudit(user.id, session?.id, "createCustomer", toolArgs, errorResult, false);
+          return errorResult;
         }
       },
     }),
@@ -731,7 +1376,20 @@ aiRoutes.post("/chat", async (c) => {
         address: z.string().optional().describe("Vendor's address"),
       }),
       execute: async ({ name, email, phone, address }) => {
+        const toolArgs = { name, email, phone, address };
+
         try {
+          // Check approval before executing
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "createVendor", toolArgs);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: { type: "vendor", name },
+            };
+          }
+
           const vendor = await vendorRepository.create({
             userId: user.id,
             name,
@@ -740,7 +1398,7 @@ aiRoutes.post("/chat", async (c) => {
             address: address ?? null,
           });
 
-          return {
+          const result = {
             success: true,
             message: `Vendor "${name}" created successfully`,
             vendor: {
@@ -750,8 +1408,14 @@ aiRoutes.post("/chat", async (c) => {
               phone: vendor.phone,
             },
           };
+
+          await logToolAudit(user.id, session?.id, "createVendor", toolArgs, result.vendor, true);
+
+          return result;
         } catch (error) {
-          return { error: "Failed to create vendor", details: String(error) };
+          const errorResult = { error: "Failed to create vendor", details: String(error) };
+          await logToolAudit(user.id, session?.id, "createVendor", toolArgs, errorResult, false);
+          return errorResult;
         }
       },
     }),
@@ -762,10 +1426,27 @@ aiRoutes.post("/chat", async (c) => {
         invoiceId: z.string().describe("The ID of the invoice to mark as paid"),
       }),
       execute: async ({ invoiceId }) => {
+        const toolArgs = { invoiceId };
+
         try {
           const invoice = await invoiceRepository.findById(invoiceId, user.id);
           if (!invoice) {
             return { error: "Invoice not found" };
+          }
+
+          // Calculate estimated amount for approval check
+          const items = invoice.invoiceFields?.items ?? [];
+          const estimatedAmount = calculateInvoiceTotal(items);
+
+          // Check approval before executing
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "markInvoiceAsPaid", toolArgs, estimatedAmount);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: { type: "invoice_payment", invoiceId, amount: formatCurrency(estimatedAmount) },
+            };
           }
 
           if (invoice.status === "success") {
@@ -779,7 +1460,7 @@ aiRoutes.post("/chat", async (c) => {
 
           const serialNumber = `${invoice.invoiceFields?.invoiceDetails?.prefix ?? ""}${invoice.invoiceFields?.invoiceDetails?.serialNumber ?? ""}`;
 
-          return {
+          const result = {
             success: true,
             message: `Invoice ${serialNumber} has been marked as paid`,
             invoice: {
@@ -789,8 +1470,14 @@ aiRoutes.post("/chat", async (c) => {
               paidAt: updated.paidAt ? new Date(updated.paidAt).toLocaleDateString() : null,
             },
           };
+
+          await logToolAudit(user.id, session?.id, "markInvoiceAsPaid", toolArgs, result.invoice, true, estimatedAmount);
+
+          return result;
         } catch (error) {
-          return { error: "Failed to mark invoice as paid", details: String(error) };
+          const errorResult = { error: "Failed to mark invoice as paid", details: String(error) };
+          await logToolAudit(user.id, session?.id, "markInvoiceAsPaid", toolArgs, errorResult, false);
+          return errorResult;
         }
       },
     }),
@@ -801,10 +1488,27 @@ aiRoutes.post("/chat", async (c) => {
         quotationId: z.string().describe("The ID of the quotation to convert"),
       }),
       execute: async ({ quotationId }) => {
+        const toolArgs = { quotationId };
+
         try {
           const quotation = await quotationRepository.findById(quotationId, user.id);
           if (!quotation) {
             return { error: "Quotation not found" };
+          }
+
+          // Calculate estimated amount for approval check
+          const items = quotation.quotationFields?.items ?? [];
+          const estimatedAmount = calculateInvoiceTotal(items);
+
+          // Check approval before executing
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "convertQuotationToInvoice", toolArgs, estimatedAmount);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: { type: "quotation_conversion", quotationId, amount: formatCurrency(estimatedAmount) },
+            };
           }
 
           if (quotation.status === "converted") {
@@ -815,12 +1519,13 @@ aiRoutes.post("/chat", async (c) => {
 
           // Handle error case from repository
           if ('error' in result) {
+            await logToolAudit(user.id, session?.id, "convertQuotationToInvoice", toolArgs, result, false, estimatedAmount);
             return { error: result.error };
           }
 
           const quotationNumber = `${quotation.quotationFields?.quotationDetails?.prefix ?? ""}${quotation.quotationFields?.quotationDetails?.serialNumber ?? ""}`;
 
-          return {
+          const successResult = {
             success: true,
             message: `Quotation ${quotationNumber} has been converted to an invoice`,
             invoice: {
@@ -834,8 +1539,14 @@ aiRoutes.post("/chat", async (c) => {
               newStatus: "converted",
             },
           };
+
+          await logToolAudit(user.id, session?.id, "convertQuotationToInvoice", toolArgs, successResult, true, estimatedAmount);
+
+          return successResult;
         } catch (error) {
-          return { error: "Failed to convert quotation", details: String(error) };
+          const errorResult = { error: "Failed to convert quotation", details: String(error) };
+          await logToolAudit(user.id, session?.id, "convertQuotationToInvoice", toolArgs, errorResult, false);
+          return errorResult;
         }
       },
     }),
@@ -847,10 +1558,27 @@ aiRoutes.post("/chat", async (c) => {
         status: z.enum(["pending", "success", "expired", "refunded"]).describe("The new status for the invoice"),
       }),
       execute: async ({ invoiceId, status }) => {
+        const toolArgs = { invoiceId, status };
+
         try {
           const invoice = await invoiceRepository.findById(invoiceId, user.id);
           if (!invoice) {
             return { error: "Invoice not found" };
+          }
+
+          // Calculate estimated amount for approval check
+          const items = invoice.invoiceFields?.items ?? [];
+          const estimatedAmount = calculateInvoiceTotal(items);
+
+          // Check approval before executing
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateInvoiceStatus", toolArgs, estimatedAmount);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: { type: "invoice_status_update", invoiceId, newStatus: status },
+            };
           }
 
           const updated = await invoiceRepository.updateStatus(invoiceId, user.id, status);
@@ -860,7 +1588,7 @@ aiRoutes.post("/chat", async (c) => {
 
           const serialNumber = `${invoice.invoiceFields?.invoiceDetails?.prefix ?? ""}${invoice.invoiceFields?.invoiceDetails?.serialNumber ?? ""}`;
 
-          return {
+          const result = {
             success: true,
             message: `Invoice ${serialNumber} status updated to "${status}"`,
             invoice: {
@@ -870,8 +1598,14 @@ aiRoutes.post("/chat", async (c) => {
               newStatus: updated.status,
             },
           };
+
+          await logToolAudit(user.id, session?.id, "updateInvoiceStatus", toolArgs, result.invoice, true, estimatedAmount);
+
+          return result;
         } catch (error) {
-          return { error: "Failed to update invoice status", details: String(error) };
+          const errorResult = { error: "Failed to update invoice status", details: String(error) };
+          await logToolAudit(user.id, session?.id, "updateInvoiceStatus", toolArgs, errorResult, false);
+          return errorResult;
         }
       },
     }),
@@ -883,10 +1617,23 @@ aiRoutes.post("/chat", async (c) => {
         status: z.enum(["draft", "sent", "accepted", "rejected", "expired"]).describe("The new status for the quotation"),
       }),
       execute: async ({ quotationId, status }) => {
+        const toolArgs = { quotationId, status };
+
         try {
           const quotation = await quotationRepository.findById(quotationId, user.id);
           if (!quotation) {
             return { error: "Quotation not found" };
+          }
+
+          // Check approval before executing
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateQuotationStatus", toolArgs);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: { type: "quotation_status_update", quotationId, newStatus: status },
+            };
           }
 
           if (quotation.status === "converted") {
@@ -900,12 +1647,13 @@ aiRoutes.post("/chat", async (c) => {
 
           // Handle error case from repository
           if ('error' in updated) {
+            await logToolAudit(user.id, session?.id, "updateQuotationStatus", toolArgs, updated, false);
             return { error: updated.error };
           }
 
           const serialNumber = `${quotation.quotationFields?.quotationDetails?.prefix ?? ""}${quotation.quotationFields?.quotationDetails?.serialNumber ?? ""}`;
 
-          return {
+          const result = {
             success: true,
             message: `Quotation ${serialNumber} status updated to "${status}"`,
             quotation: {
@@ -915,8 +1663,14 @@ aiRoutes.post("/chat", async (c) => {
               newStatus: updated.status,
             },
           };
+
+          await logToolAudit(user.id, session?.id, "updateQuotationStatus", toolArgs, result.quotation, true);
+
+          return result;
         } catch (error) {
-          return { error: "Failed to update quotation status", details: String(error) };
+          const errorResult = { error: "Failed to update quotation status", details: String(error) };
+          await logToolAudit(user.id, session?.id, "updateQuotationStatus", toolArgs, errorResult, false);
+          return errorResult;
         }
       },
     }),
@@ -1010,10 +1764,26 @@ aiRoutes.post("/chat", async (c) => {
         billId: z.string().describe("The ID of the bill to mark as paid"),
       }),
       execute: async ({ billId }) => {
+        const toolArgs = { billId };
+
         try {
           const bill = await billRepository.findById(billId, user.id);
           if (!bill) {
             return { error: "Bill not found" };
+          }
+
+          // Calculate estimated amount for approval check
+          const estimatedAmount = Number(bill.total ?? 0);
+
+          // Check approval before executing
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "markBillAsPaid", toolArgs, estimatedAmount);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: { type: "bill_payment", billId, amount: formatCurrency(estimatedAmount, bill.currency) },
+            };
           }
 
           if (bill.status === "paid") {
@@ -1025,7 +1795,7 @@ aiRoutes.post("/chat", async (c) => {
             return { error: "Failed to update bill status" };
           }
 
-          return {
+          const result = {
             success: true,
             message: `Bill ${bill.billNumber} has been marked as paid`,
             bill: {
@@ -1036,8 +1806,14 @@ aiRoutes.post("/chat", async (c) => {
               paidAt: updated.paidAt ? new Date(updated.paidAt).toLocaleDateString() : null,
             },
           };
+
+          await logToolAudit(user.id, session?.id, "markBillAsPaid", toolArgs, result.bill, true, estimatedAmount);
+
+          return result;
         } catch (error) {
-          return { error: "Failed to mark bill as paid", details: String(error) };
+          const errorResult = { error: "Failed to mark bill as paid", details: String(error) };
+          await logToolAudit(user.id, session?.id, "markBillAsPaid", toolArgs, errorResult, false);
+          return errorResult;
         }
       },
     }),
@@ -1069,11 +1845,31 @@ aiRoutes.post("/chat", async (c) => {
         terms: z.string().optional().describe("Payment terms"),
       }),
       execute: async ({ customerId, companyName, companyAddress, clientName, clientAddress, currency, prefix, serialNumber, date, dueDate, items, notes, terms }) => {
+        const toolArgs = { customerId, companyName, companyAddress, clientName, clientAddress, currency, prefix, serialNumber, date, dueDate, items, notes, terms };
+        const estimatedAmount = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+
         try {
+          // Check approval before executing
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "createInvoice", toolArgs, estimatedAmount);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: {
+                type: "invoice",
+                clientName,
+                amount: formatCurrency(estimatedAmount, currency),
+                items: items.length,
+              },
+            };
+          }
+
           // Validate customer if provided
           if (customerId) {
             const customer = await customerRepository.findById(customerId, user.id);
             if (!customer) {
+              await logToolAudit(user.id, session?.id, "createInvoice", toolArgs, { error: "Customer not found" }, false, estimatedAmount);
               return { error: "Customer not found" };
             }
           }
@@ -1108,17 +1904,15 @@ aiRoutes.post("/chat", async (c) => {
             },
           });
 
-          const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-
-          return {
+          const result = {
             success: true,
             message: `Invoice ${prefix}${serialNumber} created successfully for ${clientName}`,
             invoice: {
               id: invoice.invoiceId,
               serialNumber: `${prefix}${serialNumber}`,
               clientName,
-              amount: formatCurrency(total, currency),
-              amountRaw: total,
+              amount: formatCurrency(estimatedAmount, currency),
+              amountRaw: estimatedAmount,
               currency,
               date,
               dueDate: dueDate ?? null,
@@ -1126,9 +1920,16 @@ aiRoutes.post("/chat", async (c) => {
               status: "pending",
             },
           };
+
+          // Log successful execution to audit
+          await logToolAudit(user.id, session?.id, "createInvoice", toolArgs, result.invoice, true, estimatedAmount);
+
+          return result;
         } catch (error) {
           logger.error({ error }, "createInvoice failed");
-          return { error: "Failed to create invoice", details: String(error) };
+          const errorResult = { error: "Failed to create invoice", details: String(error) };
+          await logToolAudit(user.id, session?.id, "createInvoice", toolArgs, errorResult, false, estimatedAmount);
+          return errorResult;
         }
       },
     }),
@@ -1150,12 +1951,32 @@ aiRoutes.post("/chat", async (c) => {
         notes: z.string().optional().describe("Additional notes"),
       }),
       execute: async ({ vendorId, billNumber, description, currency, billDate, dueDate, items, notes }) => {
+        const toolArgs = { vendorId, billNumber, description, currency, billDate, dueDate, items, notes };
+        const estimatedAmount = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+
         try {
+          // Check approval before executing
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "createBill", toolArgs, estimatedAmount);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: {
+                type: "bill",
+                billNumber,
+                amount: formatCurrency(estimatedAmount, currency),
+                items: items.length,
+              },
+            };
+          }
+
           // Validate vendor if provided
           let vendorName: string | null = null;
           if (vendorId) {
             const vendor = await vendorRepository.findById(vendorId, user.id);
             if (!vendor) {
+              await logToolAudit(user.id, session?.id, "createBill", toolArgs, { error: "Vendor not found" }, false, estimatedAmount);
               return { error: "Vendor not found" };
             }
             vendorName = vendor.name;
@@ -1178,17 +1999,15 @@ aiRoutes.post("/chat", async (c) => {
             })),
           });
 
-          const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-
-          return {
+          const result = {
             success: true,
             message: `Bill ${billNumber} created successfully${vendorName ? ` from ${vendorName}` : ""}`,
             bill: {
               id: bill!.id,
               billNumber,
               vendorName,
-              amount: formatCurrency(total, currency),
-              amountRaw: total,
+              amount: formatCurrency(estimatedAmount, currency),
+              amountRaw: estimatedAmount,
               currency,
               billDate,
               dueDate: dueDate ?? null,
@@ -1196,9 +2015,16 @@ aiRoutes.post("/chat", async (c) => {
               status: "pending",
             },
           };
+
+          // Log successful execution to audit
+          await logToolAudit(user.id, session?.id, "createBill", toolArgs, result.bill, true, estimatedAmount);
+
+          return result;
         } catch (error) {
           logger.error({ error }, "createBill failed");
-          return { error: "Failed to create bill", details: String(error) };
+          const errorResult = { error: "Failed to create bill", details: String(error) };
+          await logToolAudit(user.id, session?.id, "createBill", toolArgs, errorResult, false, estimatedAmount);
+          return errorResult;
         }
       },
     }),
@@ -1247,7 +2073,20 @@ The tool automatically: DR appropriate Asset account, CR Sales Revenue account.`
         reference: z.string().optional().describe("Invoice number or reference"),
       }),
       execute: async ({ amount, description, entryDate, paymentMethod, reference }) => {
+        const toolArgs = { amount, description, entryDate, paymentMethod, reference };
+
         try {
+          // Check approval before executing
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "recordSalesRevenue", toolArgs, amount);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: { type: "sales_revenue", amount: formatCurrency(amount), description, paymentMethod },
+            };
+          }
+
           // Get standard accounts based on payment method
           const accounts = await accountRepository.findAll(user.id, { isHeader: false });
 
@@ -1268,10 +2107,12 @@ The tool automatically: DR appropriate Asset account, CR Sales Revenue account.`
           );
 
           if (!debitAccount || !revenueAccount) {
-            return {
+            const errorResult = {
               error: "Could not find required accounts. Please ensure Chart of Accounts has Cash/Bank/AR and Sales Revenue accounts.",
               suggestion: "Use listAccounts to see available accounts, then use createJournalEntry for custom entries.",
             };
+            await logToolAudit(user.id, session?.id, "recordSalesRevenue", toolArgs, errorResult, false, amount);
+            return errorResult;
           }
 
           const entry = await journalEntryRepository.create({
@@ -1289,7 +2130,7 @@ The tool automatically: DR appropriate Asset account, CR Sales Revenue account.`
           // Auto-post the entry
           await journalEntryRepository.post(entry.id, user.id);
 
-          return {
+          const result = {
             success: true,
             message: `Sales revenue recorded and posted: ${formatCurrency(amount)}`,
             entry: {
@@ -1301,9 +2142,15 @@ The tool automatically: DR appropriate Asset account, CR Sales Revenue account.`
               status: "posted",
             },
           };
+
+          await logToolAudit(user.id, session?.id, "recordSalesRevenue", toolArgs, result.entry, true, amount);
+
+          return result;
         } catch (error) {
           logger.error({ error }, "recordSalesRevenue failed");
-          return { error: "Failed to record sales revenue", details: String(error) };
+          const errorResult = { error: "Failed to record sales revenue", details: String(error) };
+          await logToolAudit(user.id, session?.id, "recordSalesRevenue", toolArgs, errorResult, false, amount);
+          return errorResult;
         }
       },
     }),
@@ -1320,7 +2167,20 @@ The tool automatically: DR Expense account, CR Cash/Bank/AP.`,
         reference: z.string().optional().describe("Bill number or reference"),
       }),
       execute: async ({ amount, description, entryDate, expenseType, paymentMethod, reference }) => {
+        const toolArgs = { amount, description, entryDate, expenseType, paymentMethod, reference };
+
         try {
+          // Check approval before executing
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "recordExpense", toolArgs, amount);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: { type: "expense", amount: formatCurrency(amount), description, expenseType },
+            };
+          }
+
           const accounts = await accountRepository.findAll(user.id, { isHeader: false });
 
           // Map expense type to account
@@ -1354,10 +2214,12 @@ The tool automatically: DR Expense account, CR Cash/Bank/AP.`,
           }
 
           if (!expenseAccount || !creditAccount) {
-            return {
+            const errorResult = {
               error: "Could not find required accounts.",
               suggestion: "Use listAccounts to see available accounts.",
             };
+            await logToolAudit(user.id, session?.id, "recordExpense", toolArgs, errorResult, false, amount);
+            return errorResult;
           }
 
           const entry = await journalEntryRepository.create({
@@ -1374,7 +2236,7 @@ The tool automatically: DR Expense account, CR Cash/Bank/AP.`,
 
           await journalEntryRepository.post(entry.id, user.id);
 
-          return {
+          const result = {
             success: true,
             message: `Expense recorded and posted: ${formatCurrency(amount)}`,
             entry: {
@@ -1386,9 +2248,15 @@ The tool automatically: DR Expense account, CR Cash/Bank/AP.`,
               status: "posted",
             },
           };
+
+          await logToolAudit(user.id, session?.id, "recordExpense", toolArgs, result.entry, true, amount);
+
+          return result;
         } catch (error) {
           logger.error({ error }, "recordExpense failed");
-          return { error: "Failed to record expense", details: String(error) };
+          const errorResult = { error: "Failed to record expense", details: String(error) };
+          await logToolAudit(user.id, session?.id, "recordExpense", toolArgs, errorResult, false, amount);
+          return errorResult;
         }
       },
     }),
@@ -1404,7 +2272,20 @@ Automatically: DR Cash/Bank, CR Accounts Receivable.`,
         reference: z.string().optional().describe("Invoice or receipt number"),
       }),
       execute: async ({ amount, customerName, entryDate, depositTo, reference }) => {
+        const toolArgs = { amount, customerName, entryDate, depositTo, reference };
+
         try {
+          // Check approval before executing
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "recordPaymentReceived", toolArgs, amount);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: { type: "payment_received", amount: formatCurrency(amount), customerName, depositTo },
+            };
+          }
+
           const accounts = await accountRepository.findAll(user.id, { isHeader: false });
 
           const cashOrBank = depositTo === "cash"
@@ -1414,7 +2295,9 @@ Automatically: DR Cash/Bank, CR Accounts Receivable.`,
           const ar = accounts.find(a => a.code === "1200" || a.name.toLowerCase().includes("accounts receivable"));
 
           if (!cashOrBank || !ar) {
-            return { error: "Could not find Cash/Bank or Accounts Receivable accounts." };
+            const errorResult = { error: "Could not find Cash/Bank or Accounts Receivable accounts." };
+            await logToolAudit(user.id, session?.id, "recordPaymentReceived", toolArgs, errorResult, false, amount);
+            return errorResult;
           }
 
           const entry = await journalEntryRepository.create({
@@ -1431,7 +2314,7 @@ Automatically: DR Cash/Bank, CR Accounts Receivable.`,
 
           await journalEntryRepository.post(entry.id, user.id);
 
-          return {
+          const result = {
             success: true,
             message: `Payment received: ${formatCurrency(amount)} from ${customerName}`,
             entry: {
@@ -1441,9 +2324,15 @@ Automatically: DR Cash/Bank, CR Accounts Receivable.`,
               status: "posted",
             },
           };
+
+          await logToolAudit(user.id, session?.id, "recordPaymentReceived", toolArgs, result.entry, true, amount);
+
+          return result;
         } catch (error) {
           logger.error({ error }, "recordPaymentReceived failed");
-          return { error: "Failed to record payment", details: String(error) };
+          const errorResult = { error: "Failed to record payment", details: String(error) };
+          await logToolAudit(user.id, session?.id, "recordPaymentReceived", toolArgs, errorResult, false, amount);
+          return errorResult;
         }
       },
     }),
@@ -1459,7 +2348,20 @@ Automatically: DR Accounts Payable, CR Cash/Bank.`,
         reference: z.string().optional().describe("Bill or check number"),
       }),
       execute: async ({ amount, vendorName, entryDate, paidFrom, reference }) => {
+        const toolArgs = { amount, vendorName, entryDate, paidFrom, reference };
+
         try {
+          // Check approval before executing
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "recordPaymentMade", toolArgs, amount);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: { type: "payment_made", amount: formatCurrency(amount), vendorName, paidFrom },
+            };
+          }
+
           const accounts = await accountRepository.findAll(user.id, { isHeader: false });
 
           const ap = accounts.find(a => a.code === "2100" || a.name.toLowerCase().includes("accounts payable"));
@@ -1468,7 +2370,9 @@ Automatically: DR Accounts Payable, CR Cash/Bank.`,
             : accounts.find(a => a.code === "1110" || a.name.toLowerCase().includes("bank"));
 
           if (!ap || !cashOrBank) {
-            return { error: "Could not find Accounts Payable or Cash/Bank accounts." };
+            const errorResult = { error: "Could not find Accounts Payable or Cash/Bank accounts." };
+            await logToolAudit(user.id, session?.id, "recordPaymentMade", toolArgs, errorResult, false, amount);
+            return errorResult;
           }
 
           const entry = await journalEntryRepository.create({
@@ -1485,7 +2389,7 @@ Automatically: DR Accounts Payable, CR Cash/Bank.`,
 
           await journalEntryRepository.post(entry.id, user.id);
 
-          return {
+          const result = {
             success: true,
             message: `Payment made: ${formatCurrency(amount)} to ${vendorName}`,
             entry: {
@@ -1495,9 +2399,15 @@ Automatically: DR Accounts Payable, CR Cash/Bank.`,
               status: "posted",
             },
           };
+
+          await logToolAudit(user.id, session?.id, "recordPaymentMade", toolArgs, result.entry, true, amount);
+
+          return result;
         } catch (error) {
           logger.error({ error }, "recordPaymentMade failed");
-          return { error: "Failed to record payment", details: String(error) };
+          const errorResult = { error: "Failed to record payment", details: String(error) };
+          await logToolAudit(user.id, session?.id, "recordPaymentMade", toolArgs, errorResult, false, amount);
+          return errorResult;
         }
       },
     }),
@@ -1510,6 +2420,8 @@ Use when user wants to "record invoice in books", "post invoice to accounting", 
         entryDate: z.string().optional().describe("Date (YYYY-MM-DD), defaults to invoice date"),
       }),
       execute: async ({ invoiceId, entryDate }) => {
+        const toolArgs = { invoiceId, entryDate };
+
         try {
           const invoice = await invoiceRepository.findById(invoiceId, user.id);
           if (!invoice) {
@@ -1524,6 +2436,17 @@ Use when user wants to "record invoice in books", "post invoice to accounting", 
             ? new Date(invoice.invoiceFields.invoiceDetails.date).toISOString().split("T")[0]
             : new Date().toISOString().split("T")[0];
 
+          // Check approval before executing
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "postInvoiceToLedger", toolArgs, total);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: { type: "invoice_to_ledger", invoiceNumber, clientName, amount: formatCurrency(total) },
+            };
+          }
+
           const accounts = await accountRepository.findAll(user.id, { isHeader: false });
           const ar = accounts.find(a => a.code === "1200" || a.name.toLowerCase().includes("accounts receivable"));
           const revenue = accounts.find(a =>
@@ -1532,7 +2455,9 @@ Use when user wants to "record invoice in books", "post invoice to accounting", 
           );
 
           if (!ar || !revenue) {
-            return { error: "Could not find AR or Sales Revenue accounts in Chart of Accounts." };
+            const errorResult = { error: "Could not find AR or Sales Revenue accounts in Chart of Accounts." };
+            await logToolAudit(user.id, session?.id, "postInvoiceToLedger", toolArgs, errorResult, false, total);
+            return errorResult;
           }
 
           const entry = await journalEntryRepository.create({
@@ -1550,7 +2475,7 @@ Use when user wants to "record invoice in books", "post invoice to accounting", 
 
           await journalEntryRepository.post(entry.id, user.id);
 
-          return {
+          const result = {
             success: true,
             message: `Invoice ${invoiceNumber} posted to ledger`,
             entry: {
@@ -1564,9 +2489,15 @@ Use when user wants to "record invoice in books", "post invoice to accounting", 
               status: "posted",
             },
           };
+
+          await logToolAudit(user.id, session?.id, "postInvoiceToLedger", toolArgs, result.entry, true, total);
+
+          return result;
         } catch (error) {
           logger.error({ error }, "postInvoiceToLedger failed");
-          return { error: "Failed to post invoice to ledger", details: String(error) };
+          const errorResult = { error: "Failed to post invoice to ledger", details: String(error) };
+          await logToolAudit(user.id, session?.id, "postInvoiceToLedger", toolArgs, errorResult, false);
+          return errorResult;
         }
       },
     }),
@@ -1928,6 +2859,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         })).min(2).describe("Entry lines - must use different accounts for debit/credit"),
       }),
       execute: async ({ entryDate, description, reference, lines }) => {
+        const toolArgs = { entryDate, description, reference, lines };
+
         try {
           let totalDebit = 0;
           let totalCredit = 0;
@@ -1935,6 +2868,17 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           for (const line of lines) {
             totalDebit += line.debitAmount ?? 0;
             totalCredit += line.creditAmount ?? 0;
+          }
+
+          // Check approval before executing (use total debit as estimated amount)
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs, totalDebit);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: { type: "journal_entry", description, totalDebit: formatCurrency(totalDebit), lines: lines.length },
+            };
           }
 
           if (Math.abs(totalDebit - totalCredit) > 0.01) {
@@ -1964,7 +2908,7 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             })),
           });
 
-          return {
+          const result = {
             success: true,
             message: `Journal entry ${entry.entryNumber} created (draft - use postJournalEntry to post)`,
             entry: {
@@ -1975,9 +2919,15 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
               status: entry.status,
             },
           };
+
+          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, result.entry, true, totalDebit);
+
+          return result;
         } catch (error) {
           logger.error({ error }, "createJournalEntry failed");
-          return { error: "Failed to create journal entry", details: String(error) };
+          const errorResult = { error: "Failed to create journal entry", details: String(error) };
+          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, errorResult, false);
+          return errorResult;
         }
       },
     }),
@@ -1988,10 +2938,26 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         entryId: z.string().describe("The journal entry ID to post"),
       }),
       execute: async ({ entryId }) => {
+        const toolArgs = { entryId };
+
         try {
           const entry = await journalEntryRepository.findById(entryId, user.id);
           if (!entry) {
             return { error: "Journal entry not found" };
+          }
+
+          // Calculate estimated amount from entry lines
+          const estimatedAmount = entry.lines?.reduce((sum, line) => sum + Number(line.debitAmount ?? 0), 0) ?? 0;
+
+          // Check approval before executing
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "postJournalEntry", toolArgs, estimatedAmount);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: { type: "journal_entry_post", entryNumber: entry.entryNumber, amount: formatCurrency(estimatedAmount) },
+            };
           }
 
           if (entry.status === "posted") {
@@ -2004,7 +2970,7 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
           await journalEntryRepository.post(entryId, user.id);
 
-          return {
+          const result = {
             success: true,
             message: `Journal entry ${entry.entryNumber} has been posted to the ledger`,
             entry: {
@@ -2014,8 +2980,14 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
               postedAt: new Date().toLocaleDateString(),
             },
           };
+
+          await logToolAudit(user.id, session?.id, "postJournalEntry", toolArgs, result.entry, true, estimatedAmount);
+
+          return result;
         } catch (error) {
-          return { error: "Failed to post journal entry", details: String(error) };
+          const errorResult = { error: "Failed to post journal entry", details: String(error) };
+          await logToolAudit(user.id, session?.id, "postJournalEntry", toolArgs, errorResult, false);
+          return errorResult;
         }
       },
     }),
@@ -2027,10 +2999,26 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         reason: z.string().describe("Reason for reversal"),
       }),
       execute: async ({ entryId, reason }) => {
+        const toolArgs = { entryId, reason };
+
         try {
           const entry = await journalEntryRepository.findById(entryId, user.id);
           if (!entry) {
             return { error: "Journal entry not found" };
+          }
+
+          // Calculate estimated amount from entry lines
+          const estimatedAmount = entry.lines?.reduce((sum, line) => sum + Number(line.debitAmount ?? 0), 0) ?? 0;
+
+          // Check approval before executing (reversals always require approval when enabled)
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "reverseJournalEntry", toolArgs, estimatedAmount);
+          if (approvalCheck?.requiresApproval) {
+            return {
+              pending: true,
+              approvalId: approvalCheck.approvalId,
+              message: approvalCheck.message,
+              preview: { type: "journal_entry_reversal", entryNumber: entry.entryNumber, reason, amount: formatCurrency(estimatedAmount) },
+            };
           }
 
           if (entry.status !== "posted") {
@@ -2039,7 +3027,7 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
           const reversal = await journalEntryRepository.reverse(entryId, user.id, reason);
 
-          return {
+          const result = {
             success: true,
             message: `Journal entry ${entry.entryNumber} has been reversed`,
             originalEntry: {
@@ -2053,8 +3041,14 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
               description: reversal.description,
             },
           };
+
+          await logToolAudit(user.id, session?.id, "reverseJournalEntry", toolArgs, result, true, estimatedAmount);
+
+          return result;
         } catch (error) {
-          return { error: "Failed to reverse journal entry", details: String(error) };
+          const errorResult = { error: "Failed to reverse journal entry", details: String(error) };
+          await logToolAudit(user.id, session?.id, "reverseJournalEntry", toolArgs, errorResult, false);
+          return errorResult;
         }
       },
     }),
@@ -2093,13 +3087,17 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     recallMemories: tool({
-      description: "Search and recall stored memories about user preferences, facts, or instructions. Use this to find relevant context before taking actions.",
+      description: "Search and recall stored memories about user preferences, facts, or instructions using semantic similarity. Use this to find relevant context before taking actions - even if the exact words don't match, this will find conceptually related memories.",
       inputSchema: z.object({
-        query: z.string().describe("Search term to find relevant memories"),
+        query: z.string().describe("Natural language query to find relevant memories (uses semantic search)"),
       }),
       execute: async ({ query }) => {
         try {
-          const memories = await agentMemoryService.searchMemories(user.id, query, 5);
+          // Use semantic search for better memory recall
+          const memories = await agentMemoryService.searchMemoriesSemantic(user.id, query, {
+            threshold: 0.6,  // Lower threshold for broader recall
+            limit: 5,
+          });
 
           if (memories.length === 0) {
             return { message: "No relevant memories found", memories: [] };
@@ -2111,6 +3109,7 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
               category: m.category,
               key: m.key,
               value: m.value,
+              similarity: m.similarity,
             })),
           };
         } catch (error) {
@@ -2576,6 +3575,3139 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         };
       },
     }),
+
+    // ============================================
+    // CREDIT NOTE OPERATIONS
+    // ============================================
+
+    listCreditNotes: tool({
+      description: "List credit notes with optional filters. Credit notes are used to reduce amounts owed by customers (e.g., for returns, discounts, pricing errors).",
+      inputSchema: z.object({
+        limit: z.number().max(50).optional().describe("Number of credit notes to return (default 20, max 50)"),
+        status: z.enum(["draft", "issued", "applied", "cancelled"]).optional().describe("Filter by status"),
+      }),
+      execute: async ({ limit = 20, status }) => {
+        return withToolTimeout("listCreditNotes", async () => {
+          try {
+            const userCreditNotes = await db.query.creditNotes.findMany({
+              where: status
+                ? and(eq(creditNotes.userId, user.id), eq(creditNotes.status, status))
+                : eq(creditNotes.userId, user.id),
+              with: {
+                customer: true,
+                creditNoteFields: {
+                  with: {
+                    creditNoteDetails: true,
+                    items: true,
+                  },
+                },
+              },
+              limit,
+              orderBy: (creditNotes, { desc }) => [desc(creditNotes.createdAt)],
+            });
+
+            return {
+              creditNotes: userCreditNotes.map((cn) => {
+                const details = cn.creditNoteFields?.creditNoteDetails;
+                const items = cn.creditNoteFields?.items ?? [];
+                const total = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+                const currency = details?.currency ?? "MYR";
+                return {
+                  id: cn.id,
+                  serialNumber: `${details?.prefix ?? "CN-"}${details?.serialNumber ?? ""}`,
+                  customerName: cn.customer?.name ?? "Unknown",
+                  amount: formatCurrency(total, currency),
+                  amountRaw: total,
+                  status: cn.status,
+                  reason: cn.reason,
+                  originalInvoiceNumber: details?.originalInvoiceNumber ?? null,
+                  date: details?.date ? new Date(details.date).toLocaleDateString() : null,
+                  createdAt: new Date(cn.createdAt).toLocaleDateString(),
+                };
+              }),
+              total: userCreditNotes.length,
+            };
+          } catch (error) {
+            logger.error({ error }, "listCreditNotes failed");
+            return { error: "Failed to fetch credit notes" };
+          }
+        });
+      },
+    }),
+
+    getCreditNoteDetails: tool({
+      description: "Get detailed information about a specific credit note by ID.",
+      inputSchema: z.object({
+        creditNoteId: z.string().describe("The credit note ID to look up"),
+      }),
+      execute: async ({ creditNoteId }) => {
+        try {
+          const creditNote = await db.query.creditNotes.findFirst({
+            where: and(eq(creditNotes.id, creditNoteId), eq(creditNotes.userId, user.id)),
+            with: {
+              customer: true,
+              invoice: true,
+              creditNoteFields: {
+                with: {
+                  companyDetails: true,
+                  clientDetails: true,
+                  creditNoteDetails: { with: { billingDetails: true } },
+                  items: true,
+                  metadata: true,
+                },
+              },
+            },
+          });
+
+          if (!creditNote) {
+            return { error: "Credit note not found" };
+          }
+
+          const fields = creditNote.creditNoteFields;
+          const details = fields?.creditNoteDetails;
+          const items = fields?.items ?? [];
+          const total = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+          const currency = details?.currency ?? "MYR";
+
+          return {
+            id: creditNote.id,
+            serialNumber: `${details?.prefix ?? "CN-"}${details?.serialNumber ?? ""}`,
+            status: creditNote.status,
+            reason: creditNote.reason,
+            reasonDescription: creditNote.reasonDescription,
+            customerName: creditNote.customer?.name ?? fields?.clientDetails?.name ?? "Unknown",
+            customerAddress: fields?.clientDetails?.address ?? "",
+            companyName: fields?.companyDetails?.name ?? "",
+            originalInvoiceNumber: details?.originalInvoiceNumber ?? null,
+            date: details?.date ? new Date(details.date).toLocaleDateString() : null,
+            items: items.map((item) => ({
+              name: item.name,
+              description: item.description,
+              quantity: Number(item.quantity),
+              unitPrice: formatCurrency(Number(item.unitPrice), currency),
+              total: formatCurrency(Number(item.quantity) * Number(item.unitPrice), currency),
+            })),
+            subtotal: formatCurrency(total, currency),
+            total: formatCurrency(total, currency),
+            currency,
+            notes: fields?.metadata?.notes ?? "",
+            terms: fields?.metadata?.terms ?? "",
+            issuedAt: creditNote.issuedAt ? new Date(creditNote.issuedAt).toLocaleDateString() : null,
+            createdAt: new Date(creditNote.createdAt).toLocaleDateString(),
+          };
+        } catch (error) {
+          logger.error({ error }, "getCreditNoteDetails failed");
+          return { error: "Failed to fetch credit note details" };
+        }
+      },
+    }),
+
+    // ============================================
+    // DEBIT NOTE OPERATIONS
+    // ============================================
+
+    listDebitNotes: tool({
+      description: "List debit notes with optional filters. Debit notes are used to increase amounts owed by customers (e.g., for undercharges, additional services).",
+      inputSchema: z.object({
+        limit: z.number().max(50).optional().describe("Number of debit notes to return (default 20, max 50)"),
+        status: z.enum(["draft", "issued", "applied", "cancelled"]).optional().describe("Filter by status"),
+      }),
+      execute: async ({ limit = 20, status }) => {
+        return withToolTimeout("listDebitNotes", async () => {
+          try {
+            const userDebitNotes = await db.query.debitNotes.findMany({
+              where: status
+                ? and(eq(debitNotes.userId, user.id), eq(debitNotes.status, status))
+                : eq(debitNotes.userId, user.id),
+              with: {
+                customer: true,
+                debitNoteFields: {
+                  with: {
+                    debitNoteDetails: true,
+                    items: true,
+                  },
+                },
+              },
+              limit,
+              orderBy: (debitNotes, { desc }) => [desc(debitNotes.createdAt)],
+            });
+
+            return {
+              debitNotes: userDebitNotes.map((dn) => {
+                const details = dn.debitNoteFields?.debitNoteDetails;
+                const items = dn.debitNoteFields?.items ?? [];
+                const total = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+                const currency = details?.currency ?? "MYR";
+                return {
+                  id: dn.id,
+                  serialNumber: `${details?.prefix ?? "DN-"}${details?.serialNumber ?? ""}`,
+                  customerName: dn.customer?.name ?? "Unknown",
+                  amount: formatCurrency(total, currency),
+                  amountRaw: total,
+                  status: dn.status,
+                  reason: dn.reason,
+                  originalInvoiceNumber: details?.originalInvoiceNumber ?? null,
+                  date: details?.date ? new Date(details.date).toLocaleDateString() : null,
+                  createdAt: new Date(dn.createdAt).toLocaleDateString(),
+                };
+              }),
+              total: userDebitNotes.length,
+            };
+          } catch (error) {
+            logger.error({ error }, "listDebitNotes failed");
+            return { error: "Failed to fetch debit notes" };
+          }
+        });
+      },
+    }),
+
+    getDebitNoteDetails: tool({
+      description: "Get detailed information about a specific debit note by ID.",
+      inputSchema: z.object({
+        debitNoteId: z.string().describe("The debit note ID to look up"),
+      }),
+      execute: async ({ debitNoteId }) => {
+        try {
+          const debitNote = await db.query.debitNotes.findFirst({
+            where: and(eq(debitNotes.id, debitNoteId), eq(debitNotes.userId, user.id)),
+            with: {
+              customer: true,
+              invoice: true,
+              debitNoteFields: {
+                with: {
+                  companyDetails: true,
+                  clientDetails: true,
+                  debitNoteDetails: { with: { billingDetails: true } },
+                  items: true,
+                  metadata: true,
+                },
+              },
+            },
+          });
+
+          if (!debitNote) {
+            return { error: "Debit note not found" };
+          }
+
+          const fields = debitNote.debitNoteFields;
+          const details = fields?.debitNoteDetails;
+          const items = fields?.items ?? [];
+          const total = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+          const currency = details?.currency ?? "MYR";
+
+          return {
+            id: debitNote.id,
+            serialNumber: `${details?.prefix ?? "DN-"}${details?.serialNumber ?? ""}`,
+            status: debitNote.status,
+            reason: debitNote.reason,
+            reasonDescription: debitNote.reasonDescription,
+            customerName: debitNote.customer?.name ?? fields?.clientDetails?.name ?? "Unknown",
+            customerAddress: fields?.clientDetails?.address ?? "",
+            companyName: fields?.companyDetails?.name ?? "",
+            originalInvoiceNumber: details?.originalInvoiceNumber ?? null,
+            date: details?.date ? new Date(details.date).toLocaleDateString() : null,
+            items: items.map((item) => ({
+              name: item.name,
+              description: item.description,
+              quantity: Number(item.quantity),
+              unitPrice: formatCurrency(Number(item.unitPrice), currency),
+              total: formatCurrency(Number(item.quantity) * Number(item.unitPrice), currency),
+            })),
+            subtotal: formatCurrency(total, currency),
+            total: formatCurrency(total, currency),
+            currency,
+            notes: fields?.metadata?.notes ?? "",
+            terms: fields?.metadata?.terms ?? "",
+            issuedAt: debitNote.issuedAt ? new Date(debitNote.issuedAt).toLocaleDateString() : null,
+            createdAt: new Date(debitNote.createdAt).toLocaleDateString(),
+          };
+        } catch (error) {
+          logger.error({ error }, "getDebitNoteDetails failed");
+          return { error: "Failed to fetch debit note details" };
+        }
+      },
+    }),
+
+    // ============================================
+    // QUOTATION DETAILS
+    // ============================================
+
+    getQuotationDetails: tool({
+      description: "Get detailed information about a specific quotation by ID.",
+      inputSchema: z.object({
+        quotationId: z.string().describe("The quotation ID to look up"),
+      }),
+      execute: async ({ quotationId }) => {
+        try {
+          const quotation = await quotationRepository.findById(quotationId, user.id);
+          if (!quotation) {
+            return { error: "Quotation not found" };
+          }
+
+          const items = quotation.quotationFields?.items ?? [];
+          const total = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+          const currency = quotation.quotationFields?.quotationDetails?.currency ?? "MYR";
+
+          return {
+            id: quotation.id,
+            serialNumber: `${quotation.quotationFields?.quotationDetails?.prefix ?? ""}${quotation.quotationFields?.quotationDetails?.serialNumber ?? ""}`,
+            status: quotation.status,
+            clientName: quotation.quotationFields?.clientDetails?.name ?? "Unknown",
+            clientAddress: quotation.quotationFields?.clientDetails?.address ?? "",
+            companyName: quotation.quotationFields?.companyDetails?.name ?? "",
+            date: quotation.quotationFields?.quotationDetails?.date
+              ? new Date(quotation.quotationFields.quotationDetails.date).toLocaleDateString()
+              : "",
+            validUntil: quotation.quotationFields?.quotationDetails?.validUntil
+              ? new Date(quotation.quotationFields.quotationDetails.validUntil).toLocaleDateString()
+              : "No expiry",
+            items: items.map((item) => ({
+              name: item.name,
+              description: item.description,
+              quantity: Number(item.quantity),
+              unitPrice: formatCurrency(Number(item.unitPrice), currency),
+              total: formatCurrency(Number(item.quantity) * Number(item.unitPrice), currency),
+            })),
+            subtotal: formatCurrency(total, currency),
+            total: formatCurrency(total, currency),
+            currency,
+            notes: quotation.quotationFields?.metadata?.notes ?? "",
+            terms: quotation.quotationFields?.metadata?.terms ?? "",
+            createdAt: new Date(quotation.createdAt).toLocaleDateString(),
+          };
+        } catch (error) {
+          logger.error({ error }, "getQuotationDetails failed");
+          return { error: "Failed to fetch quotation details" };
+        }
+      },
+    }),
+
+    // ============================================
+    // BILL DETAILS
+    // ============================================
+
+    getBillDetails: tool({
+      description: "Get detailed information about a specific bill by ID.",
+      inputSchema: z.object({
+        billId: z.string().describe("The bill ID to look up"),
+      }),
+      execute: async ({ billId }) => {
+        try {
+          const bill = await billRepository.findById(billId, user.id);
+          if (!bill) {
+            return { error: "Bill not found" };
+          }
+
+          return {
+            id: bill.id,
+            billNumber: bill.billNumber,
+            status: bill.status,
+            vendorName: bill.vendor?.name ?? "Unknown",
+            description: bill.description,
+            billDate: new Date(bill.billDate).toLocaleDateString(),
+            dueDate: bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : "No due date",
+            subtotal: formatCurrency(Number(bill.subtotal ?? 0), bill.currency),
+            taxAmount: formatCurrency(Number(bill.taxAmount ?? 0), bill.currency),
+            total: formatCurrency(Number(bill.total ?? 0), bill.currency),
+            currency: bill.currency,
+            paymentTerms: bill.paymentTerms,
+            notes: bill.notes,
+            items: bill.items?.map((item) => ({
+              description: item.description,
+              quantity: Number(item.quantity ?? 1),
+              unitPrice: formatCurrency(Number(item.unitPrice ?? 0), bill.currency),
+              amount: formatCurrency(Number(item.amount ?? 0), bill.currency),
+            })) ?? [],
+            paidAt: bill.paidAt ? new Date(bill.paidAt).toLocaleDateString() : null,
+            createdAt: new Date(bill.createdAt).toLocaleDateString(),
+          };
+        } catch (error) {
+          logger.error({ error }, "getBillDetails failed");
+          return { error: "Failed to fetch bill details" };
+        }
+      },
+    }),
+
+    // ============================================
+    // JOURNAL ENTRY OPERATIONS
+    // ============================================
+
+    listJournalEntries: tool({
+      description: "List journal entries with optional filters. Use this to view manual entries, posted transactions, or find specific entries.",
+      inputSchema: z.object({
+        limit: z.number().max(50).optional().describe("Number of entries to return (default 20, max 50)"),
+        status: z.enum(["draft", "posted", "reversed"]).optional().describe("Filter by status"),
+      }),
+      execute: async ({ limit = 20, status }) => {
+        return withToolTimeout("listJournalEntries", async () => {
+          try {
+            const { journalEntries } = await import("@open-bookkeeping/db");
+            const entries = await db.query.journalEntries.findMany({
+              where: status
+                ? and(eq(journalEntries.userId, user.id), eq(journalEntries.status, status))
+                : eq(journalEntries.userId, user.id),
+              with: { lines: { with: { account: true } } },
+              limit,
+              orderBy: (je, { desc }) => [desc(je.createdAt)],
+            });
+
+            return {
+              entries: entries.map((entry) => ({
+                id: entry.id,
+                entryNumber: entry.entryNumber,
+                description: entry.description,
+                status: entry.status,
+                totalDebit: formatCurrency(Number(entry.totalDebit ?? 0)),
+                totalCredit: formatCurrency(Number(entry.totalCredit ?? 0)),
+                lineCount: entry.lines?.length ?? 0,
+                createdAt: new Date(entry.createdAt).toLocaleDateString(),
+              })),
+              total: entries.length,
+            };
+          } catch (error) {
+            logger.error({ error }, "listJournalEntries failed");
+            return { error: "Failed to fetch journal entries" };
+          }
+        });
+      },
+    }),
+
+    getJournalEntryDetails: tool({
+      description: "Get detailed information about a specific journal entry including all debit/credit lines.",
+      inputSchema: z.object({
+        entryId: z.string().describe("The journal entry ID to look up"),
+      }),
+      execute: async ({ entryId }) => {
+        try {
+          const { journalEntries } = await import("@open-bookkeeping/db");
+          const entry = await db.query.journalEntries.findFirst({
+            where: and(eq(journalEntries.id, entryId), eq(journalEntries.userId, user.id)),
+            with: { lines: { with: { account: true } } },
+          });
+
+          if (!entry) {
+            return { error: "Journal entry not found" };
+          }
+
+          return {
+            id: entry.id,
+            entryNumber: entry.entryNumber,
+            description: entry.description,
+            reference: entry.reference,
+            status: entry.status,
+            lines: (entry.lines ?? []).map((line) => ({
+              accountCode: line.account?.code ?? "",
+              accountName: line.account?.name ?? "",
+              description: line.description,
+              debit: Number(line.debitAmount ?? 0) > 0 ? formatCurrency(Number(line.debitAmount)) : null,
+              credit: Number(line.creditAmount ?? 0) > 0 ? formatCurrency(Number(line.creditAmount)) : null,
+            })),
+            totalDebit: formatCurrency(Number(entry.totalDebit ?? 0)),
+            totalCredit: formatCurrency(Number(entry.totalCredit ?? 0)),
+            isBalanced: Number(entry.totalDebit ?? 0) === Number(entry.totalCredit ?? 0),
+            postedAt: entry.postedAt ? new Date(entry.postedAt).toLocaleDateString() : null,
+            createdAt: new Date(entry.createdAt).toLocaleDateString(),
+          };
+        } catch (error) {
+          logger.error({ error }, "getJournalEntryDetails failed");
+          return { error: "Failed to fetch journal entry details" };
+        }
+      },
+    }),
+
+    // ============================================
+    // CHART OF ACCOUNTS DETAILS
+    // ============================================
+
+    getAccountDetails: tool({
+      description: "Get detailed information about a specific account from the chart of accounts.",
+      inputSchema: z.object({
+        accountId: z.string().describe("The account ID to look up"),
+      }),
+      execute: async ({ accountId }) => {
+        try {
+          const account = await accountRepository.findById(accountId, user.id);
+          if (!account) {
+            return { error: "Account not found" };
+          }
+
+          return {
+            id: account.id,
+            code: account.code,
+            name: account.name,
+            accountType: account.accountType,
+            subType: account.subType,
+            description: account.description,
+            isActive: account.isActive,
+            normalBalance: ["asset", "expense"].includes(account.accountType ?? "") ? "debit" : "credit",
+            createdAt: new Date(account.createdAt).toLocaleDateString(),
+          };
+        } catch (error) {
+          logger.error({ error }, "getAccountDetails failed");
+          return { error: "Failed to fetch account details" };
+        }
+      },
+    }),
+
+    // ============================================
+    // BANK FEED OPERATIONS (READ)
+    // ============================================
+
+    listBankAccounts: tool({
+      description: "List all bank accounts connected for bank feeds.",
+      inputSchema: z.object({
+        limit: z.number().max(20).optional().describe("Number of accounts to return (default 10)"),
+      }),
+      execute: async ({ limit = 10 }) => {
+        return withToolTimeout("listBankAccounts", async () => {
+          try {
+            const accounts = await db.query.bankAccounts.findMany({
+              where: eq(bankAccounts.userId, user.id),
+              limit,
+              orderBy: (bankAccounts, { desc }) => [desc(bankAccounts.createdAt)],
+            });
+
+            return {
+              accounts: accounts.map((acc) => ({
+                id: acc.id,
+                name: acc.accountName,
+                bankName: acc.bankName,
+                accountNumber: acc.accountNumber ? `****${acc.accountNumber.slice(-4)}` : null,
+                currency: acc.currency,
+                openingBalance: acc.openingBalance ? formatCurrency(Number(acc.openingBalance), acc.currency) : null,
+                isActive: acc.isActive,
+              })),
+              total: accounts.length,
+            };
+          } catch (error) {
+            logger.error({ error }, "listBankAccounts failed");
+            return { error: "Failed to fetch bank accounts" };
+          }
+        });
+      },
+    }),
+
+    listBankTransactions: tool({
+      description: "List bank transactions with optional filters. Use this to view imported transactions or find unmatched transactions.",
+      inputSchema: z.object({
+        bankAccountId: z.string().optional().describe("Filter by bank account ID"),
+        limit: z.number().max(100).optional().describe("Number of transactions to return (default 50)"),
+      }),
+      execute: async ({ bankAccountId, limit = 50 }) => {
+        return withToolTimeout("listBankTransactions", async () => {
+          try {
+            const conditions = [eq(bankTransactions.userId, user.id)];
+            if (bankAccountId) {
+              conditions.push(eq(bankTransactions.bankAccountId, bankAccountId));
+            }
+
+            const transactions = await db.query.bankTransactions.findMany({
+              where: and(...conditions),
+              with: { bankAccount: true },
+              limit,
+              orderBy: (bt, { desc }) => [desc(bt.transactionDate)],
+            });
+
+            return {
+              transactions: transactions.map((tx) => ({
+                id: tx.id,
+                date: new Date(tx.transactionDate).toLocaleDateString(),
+                description: tx.description,
+                amount: formatCurrency(Number(tx.amount), tx.bankAccount?.currency ?? "MYR"),
+                amountRaw: Number(tx.amount),
+                type: Number(tx.amount) >= 0 ? "credit" : "debit",
+                matchStatus: tx.matchStatus,
+                bankAccountName: tx.bankAccount?.accountName ?? null,
+              })),
+              total: transactions.length,
+            };
+          } catch (error) {
+            logger.error({ error }, "listBankTransactions failed");
+            return { error: "Failed to fetch bank transactions" };
+          }
+        });
+      },
+    }),
+
+    // ============================================
+    // BANK FEED OPERATIONS (WRITE/RECONCILIATION)
+    // ============================================
+
+    getBankAccountDetails: tool({
+      description: "Get detailed information about a specific bank account including balance summary and recent transactions.",
+      inputSchema: z.object({
+        bankAccountId: z.string().describe("The bank account ID"),
+      }),
+      execute: async ({ bankAccountId }) => {
+        return withToolTimeout("getBankAccountDetails", async () => {
+          try {
+            const account = await db.query.bankAccounts.findFirst({
+              where: and(eq(bankAccounts.id, bankAccountId), eq(bankAccounts.userId, user.id)),
+            });
+
+            if (!account) {
+              return { error: "Bank account not found" };
+            }
+
+            // Get transaction summary
+            const transactions = await db.query.bankTransactions.findMany({
+              where: eq(bankTransactions.bankAccountId, bankAccountId),
+            });
+
+            const unmatchedCount = transactions.filter((tx) => tx.matchStatus === "unmatched").length;
+            const matchedCount = transactions.filter((tx) => tx.matchStatus === "matched").length;
+            const reconciledCount = transactions.filter((tx) => tx.isReconciled).length;
+
+            // Calculate current balance from transactions
+            const totalDeposits = transactions
+              .filter((tx) => tx.type === "deposit")
+              .reduce((sum, tx) => sum + Number(tx.amount), 0);
+            const totalWithdrawals = transactions
+              .filter((tx) => tx.type === "withdrawal")
+              .reduce((sum, tx) => sum + Number(tx.amount), 0);
+            const calculatedBalance = Number(account.openingBalance ?? 0) + totalDeposits - totalWithdrawals;
+
+            return {
+              account: {
+                id: account.id,
+                name: account.accountName,
+                bankName: account.bankName,
+                accountNumber: account.accountNumber ? `****${account.accountNumber.slice(-4)}` : null,
+                currency: account.currency,
+                openingBalance: formatCurrency(Number(account.openingBalance ?? 0), account.currency),
+                currentBalance: formatCurrency(calculatedBalance, account.currency),
+                isActive: account.isActive,
+              },
+              summary: {
+                totalTransactions: transactions.length,
+                unmatchedCount,
+                matchedCount,
+                reconciledCount,
+                pendingReconciliation: matchedCount - reconciledCount,
+              },
+            };
+          } catch (error) {
+            logger.error({ error }, "getBankAccountDetails failed");
+            return { error: "Failed to fetch bank account details" };
+          }
+        });
+      },
+    }),
+
+    matchBankTransaction: tool({
+      description: "Match a bank transaction to an invoice (for deposits) or bill (for withdrawals). This links the payment to the accounting record.",
+      inputSchema: z.object({
+        transactionId: z.string().describe("The bank transaction ID to match"),
+        matchType: z.enum(["invoice", "bill"]).describe("Type of document to match"),
+        documentId: z.string().describe("The invoice or bill ID to match to"),
+      }),
+      execute: async ({ transactionId, matchType, documentId }) => {
+        const toolArgs = { transactionId, matchType, documentId };
+
+        try {
+          const transaction = await db.query.bankTransactions.findFirst({
+            where: and(eq(bankTransactions.id, transactionId), eq(bankTransactions.userId, user.id)),
+          });
+
+          if (!transaction) {
+            return { error: "Bank transaction not found" };
+          }
+
+          if (transaction.matchStatus === "matched") {
+            return { error: "Transaction is already matched" };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "match_transaction", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Matching transaction requires approval" };
+          }
+
+          // Validate the document exists
+          if (matchType === "invoice") {
+            const invoice = await invoiceRepository.findById(documentId, user.id);
+            if (!invoice) {
+              return { error: "Invoice not found" };
+            }
+
+            await db
+              .update(bankTransactions)
+              .set({
+                matchedInvoiceId: documentId,
+                matchStatus: "matched",
+                updatedAt: new Date(),
+              })
+              .where(eq(bankTransactions.id, transactionId));
+
+            await logToolAudit(user.id, session?.id, "match_transaction", toolArgs, { matched: true }, true);
+
+            return {
+              status: "success",
+              message: `Transaction matched to invoice #${invoice.invoiceNumber}`,
+            };
+          } else {
+            const bill = await db.query.bills.findFirst({
+              where: and(eq(bills.id, documentId), eq(bills.userId, user.id)),
+            });
+
+            if (!bill) {
+              return { error: "Bill not found" };
+            }
+
+            await db
+              .update(bankTransactions)
+              .set({
+                matchedBillId: documentId,
+                matchStatus: "matched",
+                updatedAt: new Date(),
+              })
+              .where(eq(bankTransactions.id, transactionId));
+
+            await logToolAudit(user.id, session?.id, "match_transaction", toolArgs, { matched: true }, true);
+
+            return {
+              status: "success",
+              message: `Transaction matched to bill #${bill.billNumber}`,
+            };
+          }
+        } catch (error) {
+          logger.error({ error }, "matchBankTransaction failed");
+          return { error: "Failed to match transaction" };
+        }
+      },
+    }),
+
+    unmatchBankTransaction: tool({
+      description: "Remove the match from a bank transaction. Use this when a transaction was incorrectly matched.",
+      inputSchema: z.object({
+        transactionId: z.string().describe("The bank transaction ID to unmatch"),
+      }),
+      execute: async ({ transactionId }) => {
+        const toolArgs = { transactionId };
+
+        try {
+          const transaction = await db.query.bankTransactions.findFirst({
+            where: and(eq(bankTransactions.id, transactionId), eq(bankTransactions.userId, user.id)),
+          });
+
+          if (!transaction) {
+            return { error: "Bank transaction not found" };
+          }
+
+          if (transaction.matchStatus !== "matched") {
+            return { error: "Transaction is not matched" };
+          }
+
+          if (transaction.isReconciled) {
+            return { error: "Cannot unmatch a reconciled transaction" };
+          }
+
+          await db
+            .update(bankTransactions)
+            .set({
+              matchedInvoiceId: null,
+              matchedBillId: null,
+              matchedCustomerId: null,
+              matchedVendorId: null,
+              matchStatus: "unmatched",
+              updatedAt: new Date(),
+            })
+            .where(eq(bankTransactions.id, transactionId));
+
+          await logToolAudit(user.id, session?.id, "match_transaction", toolArgs, { unmatched: true }, true);
+
+          return { status: "success", message: "Transaction match removed" };
+        } catch (error) {
+          logger.error({ error }, "unmatchBankTransaction failed");
+          return { error: "Failed to unmatch transaction" };
+        }
+      },
+    }),
+
+    reconcileBankTransaction: tool({
+      description: "Mark a matched bank transaction as reconciled. This confirms the transaction has been verified against accounting records.",
+      inputSchema: z.object({
+        transactionId: z.string().describe("The bank transaction ID to reconcile"),
+      }),
+      execute: async ({ transactionId }) => {
+        const toolArgs = { transactionId };
+
+        try {
+          const transaction = await db.query.bankTransactions.findFirst({
+            where: and(eq(bankTransactions.id, transactionId), eq(bankTransactions.userId, user.id)),
+          });
+
+          if (!transaction) {
+            return { error: "Bank transaction not found" };
+          }
+
+          if (transaction.matchStatus !== "matched") {
+            return { error: "Transaction must be matched before reconciling" };
+          }
+
+          if (transaction.isReconciled) {
+            return { error: "Transaction is already reconciled" };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "create_matching_entry", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Reconciling transaction requires approval" };
+          }
+
+          await db
+            .update(bankTransactions)
+            .set({
+              isReconciled: true,
+              reconciledAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(bankTransactions.id, transactionId));
+
+          await logToolAudit(user.id, session?.id, "create_matching_entry", toolArgs, { reconciled: true }, true);
+
+          return { status: "success", message: "Transaction reconciled successfully" };
+        } catch (error) {
+          logger.error({ error }, "reconcileBankTransaction failed");
+          return { error: "Failed to reconcile transaction" };
+        }
+      },
+    }),
+
+    // ============================================
+    // FIXED ASSET OPERATIONS (READ)
+    // ============================================
+
+    listFixedAssets: tool({
+      description: "List all fixed assets with their current book values and depreciation status.",
+      inputSchema: z.object({
+        limit: z.number().max(50).optional().describe("Number of assets to return (default 20)"),
+      }),
+      execute: async ({ limit = 20 }) => {
+        return withToolTimeout("listFixedAssets", async () => {
+          try {
+            const assets = await db.query.fixedAssets.findMany({
+              where: eq(fixedAssets.userId, user.id),
+              with: { category: true },
+              limit,
+              orderBy: (fa, { desc }) => [desc(fa.createdAt)],
+            });
+
+            return {
+              assets: assets.map((asset) => ({
+                id: asset.id,
+                name: asset.name,
+                assetCode: asset.assetCode,
+                category: asset.category?.name ?? "Uncategorized",
+                acquisitionDate: asset.acquisitionDate ? new Date(asset.acquisitionDate).toLocaleDateString() : null,
+                acquisitionCost: formatCurrency(Number(asset.acquisitionCost ?? 0)),
+                netBookValue: formatCurrency(Number(asset.netBookValue ?? asset.acquisitionCost ?? 0)),
+                accumulatedDepreciation: formatCurrency(Number(asset.accumulatedDepreciation ?? 0)),
+                status: asset.status,
+                usefulLifeMonths: asset.usefulLifeMonths,
+                depreciationMethod: asset.depreciationMethod,
+              })),
+              total: assets.length,
+            };
+          } catch (error) {
+            logger.error({ error }, "listFixedAssets failed");
+            return { error: "Failed to fetch fixed assets" };
+          }
+        });
+      },
+    }),
+
+    getFixedAssetDetails: tool({
+      description: "Get detailed information about a specific fixed asset including depreciation schedule.",
+      inputSchema: z.object({
+        assetId: z.string().describe("The fixed asset ID to look up"),
+      }),
+      execute: async ({ assetId }) => {
+        try {
+          const asset = await db.query.fixedAssets.findFirst({
+            where: and(eq(fixedAssets.id, assetId), eq(fixedAssets.userId, user.id)),
+            with: { category: true, vendor: true },
+          });
+
+          if (!asset) {
+            return { error: "Fixed asset not found" };
+          }
+
+          return {
+            id: asset.id,
+            name: asset.name,
+            description: asset.description,
+            assetCode: asset.assetCode,
+            category: asset.category?.name ?? "Uncategorized",
+            location: asset.location,
+            acquisitionDate: asset.acquisitionDate ? new Date(asset.acquisitionDate).toLocaleDateString() : null,
+            acquisitionCost: formatCurrency(Number(asset.acquisitionCost ?? 0)),
+            salvageValue: formatCurrency(Number(asset.salvageValue ?? 0)),
+            netBookValue: formatCurrency(Number(asset.netBookValue ?? asset.acquisitionCost ?? 0)),
+            accumulatedDepreciation: formatCurrency(Number(asset.accumulatedDepreciation ?? 0)),
+            usefulLifeMonths: asset.usefulLifeMonths,
+            depreciationMethod: asset.depreciationMethod,
+            depreciationStartDate: asset.depreciationStartDate ? new Date(asset.depreciationStartDate).toLocaleDateString() : null,
+            status: asset.status,
+            serialNumber: asset.serialNumber,
+            vendor: asset.vendor?.name ?? null,
+            createdAt: new Date(asset.createdAt).toLocaleDateString(),
+          };
+        } catch (error) {
+          logger.error({ error }, "getFixedAssetDetails failed");
+          return { error: "Failed to fetch fixed asset details" };
+        }
+      },
+    }),
+
+    listFixedAssetCategories: tool({
+      description: "List all fixed asset categories with their default depreciation settings.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        try {
+          const categories = await db.query.fixedAssetCategories.findMany({
+            where: eq(fixedAssetCategories.userId, user.id),
+            orderBy: (cats, { asc }) => [asc(cats.name)],
+          });
+
+          return {
+            categories: categories.map((cat) => ({
+              id: cat.id,
+              name: cat.name,
+              description: cat.description,
+              defaultUsefulLifeMonths: cat.defaultUsefulLifeMonths,
+              defaultDepreciationMethod: cat.defaultDepreciationMethod,
+            })),
+            total: categories.length,
+          };
+        } catch (error) {
+          logger.error({ error }, "listFixedAssetCategories failed");
+          return { error: "Failed to fetch asset categories" };
+        }
+      },
+    }),
+
+    // ============================================
+    // FIXED ASSET OPERATIONS (WRITE)
+    // ============================================
+
+    createFixedAsset: tool({
+      description: "Create a new fixed asset. Requires asset account, depreciation expense account, and accumulated depreciation account IDs.",
+      inputSchema: z.object({
+        name: z.string().describe("Asset name"),
+        description: z.string().optional().describe("Asset description"),
+        categoryId: z.string().optional().describe("Asset category ID"),
+        acquisitionDate: z.string().describe("Date acquired (YYYY-MM-DD)"),
+        acquisitionCost: z.number().describe("Purchase cost"),
+        acquisitionMethod: z.enum(["purchase", "donation", "transfer", "lease_to_own"]).default("purchase"),
+        depreciationMethod: z.enum(["straight_line", "declining_balance", "double_declining"]).default("straight_line"),
+        usefulLifeMonths: z.number().describe("Useful life in months (e.g., 60 for 5 years)"),
+        salvageValue: z.number().default(0).describe("Residual value at end of life"),
+        assetAccountId: z.string().describe("Account ID for the asset (asset type)"),
+        depreciationExpenseAccountId: z.string().describe("Account ID for depreciation expense"),
+        accumulatedDepreciationAccountId: z.string().describe("Account ID for accumulated depreciation"),
+        location: z.string().optional().describe("Physical location"),
+        serialNumber: z.string().optional().describe("Serial number"),
+      }),
+      execute: async ({
+        name,
+        description,
+        categoryId,
+        acquisitionDate,
+        acquisitionCost,
+        acquisitionMethod,
+        depreciationMethod,
+        usefulLifeMonths,
+        salvageValue,
+        assetAccountId,
+        depreciationExpenseAccountId,
+        accumulatedDepreciationAccountId,
+        location,
+        serialNumber,
+      }) => {
+        const toolArgs = { name, acquisitionDate, acquisitionCost };
+
+        try {
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Creating fixed asset requires approval" };
+          }
+
+          // Generate asset code
+          const existingCount = await db.query.fixedAssets.findMany({
+            where: eq(fixedAssets.userId, user.id),
+          });
+          const year = new Date().getFullYear();
+          const assetCode = `FA-${year}-${String(existingCount.length + 1).padStart(5, "0")}`;
+
+          // Calculate initial net book value
+          const netBookValue = acquisitionCost;
+
+          const [asset] = await db
+            .insert(fixedAssets)
+            .values({
+              userId: user.id,
+              assetCode,
+              name,
+              description,
+              categoryId: categoryId ?? null,
+              acquisitionDate,
+              acquisitionCost: String(acquisitionCost),
+              acquisitionMethod,
+              depreciationMethod,
+              usefulLifeMonths,
+              salvageValue: String(salvageValue),
+              depreciationStartDate: acquisitionDate,
+              netBookValue: String(netBookValue),
+              assetAccountId,
+              depreciationExpenseAccountId,
+              accumulatedDepreciationAccountId,
+              status: "active",
+              location,
+              serialNumber,
+            })
+            .returning();
+
+          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, { assetId: asset!.id }, true);
+
+          return {
+            status: "success",
+            assetId: asset!.id,
+            assetCode: asset!.assetCode,
+            message: `Fixed asset '${name}' created with code ${assetCode}`,
+          };
+        } catch (error) {
+          logger.error({ error }, "createFixedAsset failed");
+          return { error: "Failed to create fixed asset" };
+        }
+      },
+    }),
+
+    updateFixedAsset: tool({
+      description: "Update an existing fixed asset's information. Cannot change financial details after depreciation starts.",
+      inputSchema: z.object({
+        assetId: z.string().describe("The fixed asset ID to update"),
+        name: z.string().optional().describe("New asset name"),
+        description: z.string().optional().describe("New description"),
+        location: z.string().optional().describe("Physical location"),
+        serialNumber: z.string().optional().describe("Serial number"),
+      }),
+      execute: async ({ assetId, ...updates }) => {
+        const toolArgs = { assetId, ...updates };
+
+        try {
+          const asset = await db.query.fixedAssets.findFirst({
+            where: and(eq(fixedAssets.id, assetId), eq(fixedAssets.userId, user.id)),
+          });
+
+          if (!asset) {
+            return { error: "Fixed asset not found" };
+          }
+
+          if (asset.status === "disposed") {
+            return { error: "Cannot update a disposed asset" };
+          }
+
+          const updateData: Record<string, unknown> = { updatedAt: new Date() };
+          if (updates.name) updateData.name = updates.name;
+          if (updates.description !== undefined) updateData.description = updates.description;
+          if (updates.location !== undefined) updateData.location = updates.location;
+          if (updates.serialNumber !== undefined) updateData.serialNumber = updates.serialNumber;
+
+          await db.update(fixedAssets).set(updateData).where(eq(fixedAssets.id, assetId));
+
+          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, { success: true }, true);
+
+          return { status: "success", message: `Fixed asset '${asset.name}' updated` };
+        } catch (error) {
+          logger.error({ error }, "updateFixedAsset failed");
+          return { error: "Failed to update fixed asset" };
+        }
+      },
+    }),
+
+    calculateDepreciation: tool({
+      description: "Calculate and preview depreciation for a fixed asset for a given year. Does not post to ledger.",
+      inputSchema: z.object({
+        assetId: z.string().describe("The fixed asset ID"),
+        year: z.number().describe("The year to calculate depreciation for"),
+      }),
+      execute: async ({ assetId, year }) => {
+        try {
+          const asset = await db.query.fixedAssets.findFirst({
+            where: and(eq(fixedAssets.id, assetId), eq(fixedAssets.userId, user.id)),
+          });
+
+          if (!asset) {
+            return { error: "Fixed asset not found" };
+          }
+
+          if (asset.status !== "active") {
+            return { error: `Cannot calculate depreciation for asset with status '${asset.status}'` };
+          }
+
+          const acquisitionCost = Number(asset.acquisitionCost);
+          const salvageValue = Number(asset.salvageValue);
+          const accumulatedDep = Number(asset.accumulatedDepreciation);
+          const netBookValue = Number(asset.netBookValue);
+          const depreciableBase = acquisitionCost - salvageValue;
+
+          let annualDepreciation = 0;
+
+          if (asset.depreciationMethod === "straight_line") {
+            // Straight-line: (Cost - Salvage) / Life in years
+            const yearsLife = asset.usefulLifeMonths / 12;
+            annualDepreciation = depreciableBase / yearsLife;
+          } else if (asset.depreciationMethod === "declining_balance") {
+            // Declining balance: NBV × (1/Life)
+            const rate = 1 / (asset.usefulLifeMonths / 12);
+            annualDepreciation = netBookValue * rate;
+          } else if (asset.depreciationMethod === "double_declining") {
+            // Double declining: NBV × (2/Life)
+            const rate = 2 / (asset.usefulLifeMonths / 12);
+            annualDepreciation = netBookValue * rate;
+          }
+
+          // Don't depreciate below salvage value
+          const maxDepreciation = netBookValue - salvageValue;
+          annualDepreciation = Math.min(annualDepreciation, maxDepreciation);
+          annualDepreciation = Math.max(annualDepreciation, 0);
+
+          const newAccumulatedDep = accumulatedDep + annualDepreciation;
+          const newNetBookValue = acquisitionCost - newAccumulatedDep;
+
+          return {
+            assetId,
+            assetName: asset.name,
+            year,
+            depreciationMethod: asset.depreciationMethod,
+            annualDepreciation: formatCurrency(annualDepreciation, "MYR"),
+            currentAccumulatedDepreciation: formatCurrency(accumulatedDep, "MYR"),
+            newAccumulatedDepreciation: formatCurrency(newAccumulatedDep, "MYR"),
+            currentNetBookValue: formatCurrency(netBookValue, "MYR"),
+            newNetBookValue: formatCurrency(newNetBookValue, "MYR"),
+            isFullyDepreciated: newNetBookValue <= salvageValue,
+          };
+        } catch (error) {
+          logger.error({ error }, "calculateDepreciation failed");
+          return { error: "Failed to calculate depreciation" };
+        }
+      },
+    }),
+
+    disposeFixedAsset: tool({
+      description: "Record the disposal of a fixed asset (sale, scrap, donation, or trade-in).",
+      inputSchema: z.object({
+        assetId: z.string().describe("The fixed asset ID to dispose"),
+        disposalDate: z.string().describe("Date of disposal (YYYY-MM-DD)"),
+        disposalMethod: z.enum(["sale", "scrapped", "donation", "trade_in"]).describe("How the asset was disposed"),
+        proceeds: z.number().default(0).describe("Sale proceeds (0 for scrap/donation)"),
+        notes: z.string().optional().describe("Additional notes about disposal"),
+      }),
+      execute: async ({ assetId, disposalDate, disposalMethod, proceeds, notes }) => {
+        const toolArgs = { assetId, disposalDate, disposalMethod, proceeds };
+
+        try {
+          const asset = await db.query.fixedAssets.findFirst({
+            where: and(eq(fixedAssets.id, assetId), eq(fixedAssets.userId, user.id)),
+          });
+
+          if (!asset) {
+            return { error: "Fixed asset not found" };
+          }
+
+          if (asset.status === "disposed") {
+            return { error: "Asset has already been disposed" };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Disposing fixed asset requires approval" };
+          }
+
+          const netBookValueAtDisposal = Number(asset.netBookValue);
+          const gainLoss = proceeds - netBookValueAtDisposal;
+
+          // Import fixedAssetDisposals table
+          const { fixedAssetDisposals } = await import("@open-bookkeeping/db");
+
+          // Create disposal record
+          const [disposal] = await db
+            .insert(fixedAssetDisposals)
+            .values({
+              fixedAssetId: assetId,
+              disposalDate,
+              disposalMethod,
+              proceeds: String(proceeds),
+              netBookValueAtDisposal: String(netBookValueAtDisposal),
+              gainLoss: String(gainLoss),
+              notes,
+            })
+            .returning();
+
+          // Update asset status
+          await db
+            .update(fixedAssets)
+            .set({
+              status: "disposed",
+              updatedAt: new Date(),
+            })
+            .where(eq(fixedAssets.id, assetId));
+
+          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, { disposalId: disposal!.id }, true);
+
+          return {
+            status: "success",
+            disposalId: disposal!.id,
+            message: `Fixed asset '${asset.name}' disposed via ${disposalMethod}`,
+            netBookValueAtDisposal: formatCurrency(netBookValueAtDisposal, "MYR"),
+            proceeds: formatCurrency(proceeds, "MYR"),
+            gainLoss: formatCurrency(gainLoss, "MYR"),
+            isGain: gainLoss > 0,
+          };
+        } catch (error) {
+          logger.error({ error }, "disposeFixedAsset failed");
+          return { error: "Failed to dispose fixed asset" };
+        }
+      },
+    }),
+
+    // ============================================
+    // PAYROLL OPERATIONS (READ)
+    // ============================================
+
+    listEmployees: tool({
+      description: "List all employees with their basic information and employment status.",
+      inputSchema: z.object({
+        status: z.enum(["active", "probation", "terminated", "resigned", "retired"]).optional().describe("Filter by employment status"),
+        limit: z.number().max(100).optional().describe("Number of employees to return (default 50)"),
+      }),
+      execute: async ({ status, limit = 50 }) => {
+        return withToolTimeout("listEmployees", async () => {
+          try {
+            const conditions = [eq(employees.userId, user.id)];
+            if (status) {
+              conditions.push(eq(employees.status, status));
+            }
+
+            const employeeList = await db.query.employees.findMany({
+              where: and(...conditions),
+              limit,
+              orderBy: (e, { asc }) => [asc(e.firstName)],
+            });
+
+            return {
+              employees: employeeList.map((emp) => ({
+                id: emp.id,
+                employeeCode: emp.employeeCode,
+                fullName: [emp.firstName, emp.lastName].filter(Boolean).join(" "),
+                email: emp.email,
+                phone: emp.phone,
+                position: emp.position,
+                department: emp.department,
+                employmentType: emp.employmentType,
+                status: emp.status,
+                joinDate: emp.dateJoined ? new Date(emp.dateJoined).toLocaleDateString() : null,
+              })),
+              total: employeeList.length,
+            };
+          } catch (error) {
+            logger.error({ error }, "listEmployees failed");
+            return { error: "Failed to fetch employees" };
+          }
+        });
+      },
+    }),
+
+    getEmployeeDetails: tool({
+      description: "Get detailed information about a specific employee including statutory info.",
+      inputSchema: z.object({
+        employeeId: z.string().describe("The employee ID to look up"),
+      }),
+      execute: async ({ employeeId }) => {
+        try {
+          const employee = await db.query.employees.findFirst({
+            where: and(eq(employees.id, employeeId), eq(employees.userId, user.id)),
+          });
+
+          if (!employee) {
+            return { error: "Employee not found" };
+          }
+
+          return {
+            id: employee.id,
+            employeeCode: employee.employeeCode,
+            fullName: [employee.firstName, employee.lastName].filter(Boolean).join(" "),
+            email: employee.email,
+            phone: employee.phone,
+            icNumber: employee.icNumber ? `****${employee.icNumber.slice(-4)}` : null,
+            position: employee.position,
+            department: employee.department,
+            employmentType: employee.employmentType,
+            status: employee.status,
+            joinDate: employee.dateJoined ? new Date(employee.dateJoined).toLocaleDateString() : null,
+            resignationDate: employee.dateResigned ? new Date(employee.dateResigned).toLocaleDateString() : null,
+            bankName: employee.bankName,
+            bankAccountNumber: employee.bankAccountNumber ? `****${employee.bankAccountNumber.slice(-4)}` : null,
+            epfNumber: employee.epfNumber,
+            socsoNumber: employee.socsoNumber,
+            eisNumber: employee.eisNumber,
+            taxNumber: employee.taxNumber,
+            epfEmployeeRate: employee.epfEmployeeRate,
+            epfEmployerRate: employee.epfEmployerRate,
+            maritalStatus: employee.maritalStatus,
+            address: employee.address,
+            createdAt: new Date(employee.createdAt).toLocaleDateString(),
+          };
+        } catch (error) {
+          logger.error({ error }, "getEmployeeDetails failed");
+          return { error: "Failed to fetch employee details" };
+        }
+      },
+    }),
+
+    listPayrollRuns: tool({
+      description: "List payroll runs with their status and totals.",
+      inputSchema: z.object({
+        status: z.enum(["draft", "approved", "calculating", "pending_review", "finalized", "paid", "cancelled"]).optional().describe("Filter by payroll status"),
+        limit: z.number().max(24).optional().describe("Number of payroll runs to return (default 12)"),
+      }),
+      execute: async ({ status, limit = 12 }) => {
+        return withToolTimeout("listPayrollRuns", async () => {
+          try {
+            const conditions = [eq(payrollRuns.userId, user.id)];
+            if (status) {
+              conditions.push(eq(payrollRuns.status, status));
+            }
+
+            const runs = await db.query.payrollRuns.findMany({
+              where: and(...conditions),
+              limit,
+              orderBy: (pr, { desc }) => [desc(pr.periodEndDate)],
+            });
+
+            return {
+              payrollRuns: runs.map((run) => ({
+                id: run.id,
+                name: run.name,
+                periodStart: run.periodStartDate ? new Date(run.periodStartDate).toLocaleDateString() : null,
+                periodEnd: run.periodEndDate ? new Date(run.periodEndDate).toLocaleDateString() : null,
+                status: run.status,
+                totalGrossSalary: formatCurrency(Number(run.totalGrossSalary ?? 0)),
+                totalNetSalary: formatCurrency(Number(run.totalNetSalary ?? 0)),
+                totalEpfEmployee: formatCurrency(Number(run.totalEpfEmployee ?? 0)),
+                totalEpfEmployer: formatCurrency(Number(run.totalEpfEmployer ?? 0)),
+                totalPcb: formatCurrency(Number(run.totalPcb ?? 0)),
+                createdAt: new Date(run.createdAt).toLocaleDateString(),
+              })),
+              total: runs.length,
+            };
+          } catch (error) {
+            logger.error({ error }, "listPayrollRuns failed");
+            return { error: "Failed to fetch payroll runs" };
+          }
+        });
+      },
+    }),
+
+    getPaySlipDetails: tool({
+      description: "Get detailed pay slip information for a specific pay slip.",
+      inputSchema: z.object({
+        paySlipId: z.string().describe("The pay slip ID to look up"),
+      }),
+      execute: async ({ paySlipId }) => {
+        try {
+          const paySlip = await db.query.paySlips.findFirst({
+            where: eq(paySlips.id, paySlipId),
+            with: { employee: true, payrollRun: true },
+          });
+
+          if (!paySlip) {
+            return { error: "Pay slip not found" };
+          }
+
+          // Verify ownership through payroll run
+          if (paySlip.payrollRun?.userId !== user.id) {
+            return { error: "Pay slip not found" };
+          }
+
+          return {
+            id: paySlip.id,
+            employeeName: paySlip.employeeName ?? "Unknown",
+            employeeCode: paySlip.employeeCode ?? "",
+            periodStart: paySlip.payrollRun?.periodStartDate ? new Date(paySlip.payrollRun.periodStartDate).toLocaleDateString() : null,
+            periodEnd: paySlip.payrollRun?.periodEndDate ? new Date(paySlip.payrollRun.periodEndDate).toLocaleDateString() : null,
+            basicSalary: formatCurrency(Number(paySlip.baseSalary ?? 0)),
+            grossSalary: formatCurrency(Number(paySlip.grossSalary ?? 0)),
+            netSalary: formatCurrency(Number(paySlip.netSalary ?? 0)),
+            deductions: {
+              epfEmployee: formatCurrency(Number(paySlip.epfEmployee ?? 0)),
+              socsoEmployee: formatCurrency(Number(paySlip.socsoEmployee ?? 0)),
+              eisEmployee: formatCurrency(Number(paySlip.eisEmployee ?? 0)),
+              pcb: formatCurrency(Number(paySlip.pcb ?? 0)),
+              totalDeductions: formatCurrency(Number(paySlip.totalDeductions ?? 0)),
+            },
+            employerContributions: {
+              epfEmployer: formatCurrency(Number(paySlip.epfEmployer ?? 0)),
+              socsoEmployer: formatCurrency(Number(paySlip.socsoEmployer ?? 0)),
+              eisEmployer: formatCurrency(Number(paySlip.eisEmployer ?? 0)),
+            },
+            status: paySlip.status,
+          };
+        } catch (error) {
+          logger.error({ error }, "getPaySlipDetails failed");
+          return { error: "Failed to fetch pay slip details" };
+        }
+      },
+    }),
+
+    // ============================================
+    // PAYROLL OPERATIONS (WRITE)
+    // ============================================
+
+    createEmployee: tool({
+      description: "Create a new employee record for payroll. Required fields: first name, date joined.",
+      inputSchema: z.object({
+        firstName: z.string().describe("Employee first name"),
+        lastName: z.string().optional().describe("Employee last name"),
+        email: z.string().optional().describe("Email address"),
+        phone: z.string().optional().describe("Phone number"),
+        icNumber: z.string().optional().describe("Malaysian IC number"),
+        dateJoined: z.string().describe("Date joined (YYYY-MM-DD)"),
+        department: z.string().optional().describe("Department"),
+        position: z.string().optional().describe("Job position"),
+        employmentType: z.enum(["full_time", "part_time", "contract", "intern"]).default("full_time"),
+        bankName: z.string().optional().describe("Bank name for salary"),
+        bankAccountNumber: z.string().optional().describe("Bank account number"),
+      }),
+      execute: async ({
+        firstName,
+        lastName,
+        email,
+        phone,
+        icNumber,
+        dateJoined,
+        department,
+        position,
+        employmentType,
+        bankName,
+        bankAccountNumber,
+      }) => {
+        const toolArgs = { firstName, lastName, dateJoined };
+
+        try {
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "create_customer", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Creating employee requires approval" };
+          }
+
+          // Generate employee code
+          const existingCount = await db.query.employees.findMany({
+            where: eq(employees.userId, user.id),
+          });
+          const year = new Date().getFullYear();
+          const employeeCode = `EMP-${year}-${String(existingCount.length + 1).padStart(4, "0")}`;
+
+          const [employee] = await db
+            .insert(employees)
+            .values({
+              userId: user.id,
+              employeeCode,
+              firstName,
+              lastName,
+              email,
+              phone,
+              icNumber,
+              dateJoined,
+              department,
+              position,
+              employmentType,
+              bankName,
+              bankAccountNumber,
+              status: "active",
+            })
+            .returning();
+
+          await logToolAudit(user.id, session?.id, "create_customer", toolArgs, { employeeId: employee!.id }, true);
+
+          return {
+            status: "success",
+            employeeId: employee!.id,
+            employeeCode: employee!.employeeCode,
+            message: `Employee ${firstName} ${lastName ?? ""} created with code ${employeeCode}`,
+          };
+        } catch (error) {
+          logger.error({ error }, "createEmployee failed");
+          return { error: "Failed to create employee" };
+        }
+      },
+    }),
+
+    updateEmployee: tool({
+      description: "Update an existing employee's information.",
+      inputSchema: z.object({
+        employeeId: z.string().describe("The employee ID to update"),
+        firstName: z.string().optional().describe("New first name"),
+        lastName: z.string().optional().describe("New last name"),
+        email: z.string().optional().describe("New email"),
+        phone: z.string().optional().describe("New phone number"),
+        department: z.string().optional().describe("New department"),
+        position: z.string().optional().describe("New position"),
+        status: z.enum(["active", "probation", "terminated", "resigned", "retired"]).optional().describe("Employment status"),
+        dateResigned: z.string().optional().describe("Resignation date if status is resigned/terminated"),
+      }),
+      execute: async ({ employeeId, ...updates }) => {
+        const toolArgs = { employeeId, ...updates };
+
+        try {
+          const employee = await db.query.employees.findFirst({
+            where: and(eq(employees.id, employeeId), eq(employees.userId, user.id)),
+          });
+
+          if (!employee) {
+            return { error: "Employee not found" };
+          }
+
+          const updateData: Record<string, unknown> = { updatedAt: new Date() };
+          if (updates.firstName) updateData.firstName = updates.firstName;
+          if (updates.lastName !== undefined) updateData.lastName = updates.lastName;
+          if (updates.email !== undefined) updateData.email = updates.email;
+          if (updates.phone !== undefined) updateData.phone = updates.phone;
+          if (updates.department !== undefined) updateData.department = updates.department;
+          if (updates.position !== undefined) updateData.position = updates.position;
+          if (updates.status) updateData.status = updates.status;
+          if (updates.dateResigned) updateData.dateResigned = updates.dateResigned;
+
+          await db.update(employees).set(updateData).where(eq(employees.id, employeeId));
+
+          await logToolAudit(user.id, session?.id, "update_customer", toolArgs, { success: true }, true);
+
+          return { status: "success", message: `Employee ${employee.firstName} updated successfully` };
+        } catch (error) {
+          logger.error({ error }, "updateEmployee failed");
+          return { error: "Failed to update employee" };
+        }
+      },
+    }),
+
+    listSalaryComponents: tool({
+      description: "List all salary components (earnings and deductions) configured for payroll.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        try {
+          const { salaryComponents } = await import("@open-bookkeeping/db");
+
+          const components = await db.query.salaryComponents.findMany({
+            where: eq(salaryComponents.userId, user.id),
+            orderBy: (sc, { asc }) => [asc(sc.sortOrder), asc(sc.name)],
+          });
+
+          return {
+            components: components.map((c) => ({
+              id: c.id,
+              code: c.code,
+              name: c.name,
+              type: c.componentType,
+              calculationMethod: c.calculationMethod,
+              defaultAmount: c.defaultAmount ? formatCurrency(Number(c.defaultAmount)) : null,
+              defaultPercentage: c.defaultPercentage ? `${c.defaultPercentage}%` : null,
+              isEpfApplicable: c.isEpfApplicable,
+              isSocsoApplicable: c.isSocsoApplicable,
+              isEisApplicable: c.isEisApplicable,
+              isPcbApplicable: c.isPcbApplicable,
+              isActive: c.isActive,
+            })),
+            earnings: components.filter((c) => c.componentType === "earnings").length,
+            deductions: components.filter((c) => c.componentType === "deductions").length,
+          };
+        } catch (error) {
+          logger.error({ error }, "listSalaryComponents failed");
+          return { error: "Failed to fetch salary components" };
+        }
+      },
+    }),
+
+    createPayrollRun: tool({
+      description: "Create a new payroll run for a specific month. This initializes the payroll batch.",
+      inputSchema: z.object({
+        year: z.number().describe("Payroll year (e.g., 2024)"),
+        month: z.number().min(1).max(12).describe("Payroll month (1-12)"),
+        payDate: z.string().describe("Payment date (YYYY-MM-DD)"),
+        name: z.string().optional().describe("Optional name for the payroll run"),
+      }),
+      execute: async ({ year, month, payDate, name }) => {
+        const toolArgs = { year, month, payDate };
+
+        try {
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "create_journal_entry", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Creating payroll run requires approval" };
+          }
+
+          // Check if payroll run already exists for this period
+          const existing = await db.query.payrollRuns.findFirst({
+            where: and(
+              eq(payrollRuns.userId, user.id),
+              eq(payrollRuns.periodYear, year),
+              eq(payrollRuns.periodMonth, month)
+            ),
+          });
+
+          if (existing) {
+            return { error: `Payroll run already exists for ${month}/${year}` };
+          }
+
+          // Generate run number
+          const runNumber = `PR-${year}-${String(month).padStart(2, "0")}`;
+
+          // Calculate period dates
+          const periodStartDate = `${year}-${String(month).padStart(2, "0")}-01`;
+          const lastDay = new Date(year, month, 0).getDate();
+          const periodEndDate = `${year}-${String(month).padStart(2, "0")}-${lastDay}`;
+
+          const [payrollRun] = await db
+            .insert(payrollRuns)
+            .values({
+              userId: user.id,
+              runNumber,
+              name: name ?? `${getMonthName(month)} ${year} Payroll`,
+              periodYear: year,
+              periodMonth: month,
+              payDate,
+              periodStartDate,
+              periodEndDate,
+              status: "draft",
+            })
+            .returning();
+
+          await logToolAudit(user.id, session?.id, "create_journal_entry", toolArgs, { payrollRunId: payrollRun!.id }, true);
+
+          return {
+            status: "success",
+            payrollRunId: payrollRun!.id,
+            runNumber: payrollRun!.runNumber,
+            message: `Payroll run created for ${getMonthName(month)} ${year}`,
+          };
+        } catch (error) {
+          logger.error({ error }, "createPayrollRun failed");
+          return { error: "Failed to create payroll run" };
+        }
+      },
+    }),
+
+    calculateStatutoryDeductions: tool({
+      description: "Calculate EPF, SOCSO, EIS, and PCB deductions for a given salary. Useful for estimating employee take-home pay.",
+      inputSchema: z.object({
+        grossSalary: z.number().describe("Monthly gross salary in MYR"),
+        age: z.number().optional().describe("Employee age (affects EPF rates)"),
+        nationality: z.enum(["malaysian", "permanent_resident", "foreign"]).default("malaysian"),
+      }),
+      execute: async ({ grossSalary, age = 30, nationality }) => {
+        try {
+          // EPF rates (simplified - actual rates are table-based)
+          // Below 60: 11% employee, 12%/13% employer
+          // 60 and above: Different rates
+          const epfEmployeeRate = age >= 60 ? 0.055 : 0.11;
+          const epfEmployerRate = age >= 60 ? 0.065 : (grossSalary > 5000 ? 0.12 : 0.13);
+
+          // SOCSO rates (simplified)
+          // First Category: Employment Injury & Invalidity
+          const socsoEmployeeRate = 0.005; // 0.5%
+          const socsoEmployerRate = 0.0175; // 1.75%
+
+          // EIS rates
+          const eisEmployeeRate = 0.002; // 0.2%
+          const eisEmployerRate = 0.002; // 0.2%
+
+          // Calculate contributions
+          const epfEmployee = Math.round(grossSalary * epfEmployeeRate * 100) / 100;
+          const epfEmployer = Math.round(grossSalary * epfEmployerRate * 100) / 100;
+
+          // SOCSO is capped at RM5,000 wage
+          const socsoWage = Math.min(grossSalary, 5000);
+          const socsoEmployee = Math.round(socsoWage * socsoEmployeeRate * 100) / 100;
+          const socsoEmployer = Math.round(socsoWage * socsoEmployerRate * 100) / 100;
+
+          // EIS is capped at RM5,000 wage
+          const eisWage = Math.min(grossSalary, 5000);
+          const eisEmployee = Math.round(eisWage * eisEmployeeRate * 100) / 100;
+          const eisEmployer = Math.round(eisWage * eisEmployerRate * 100) / 100;
+
+          // PCB estimate (very simplified - actual calculation is complex)
+          // This is just a rough estimate based on annual income
+          const annualIncome = grossSalary * 12;
+          const annualEpf = epfEmployee * 12;
+          const taxableIncome = annualIncome - annualEpf - 9000; // Basic relief
+          let annualTax = 0;
+
+          if (taxableIncome > 0) {
+            // Simplified Malaysian tax brackets (2024)
+            if (taxableIncome <= 5000) annualTax = 0;
+            else if (taxableIncome <= 20000) annualTax = (taxableIncome - 5000) * 0.01;
+            else if (taxableIncome <= 35000) annualTax = 150 + (taxableIncome - 20000) * 0.03;
+            else if (taxableIncome <= 50000) annualTax = 600 + (taxableIncome - 35000) * 0.06;
+            else if (taxableIncome <= 70000) annualTax = 1500 + (taxableIncome - 50000) * 0.11;
+            else if (taxableIncome <= 100000) annualTax = 3700 + (taxableIncome - 70000) * 0.19;
+            else annualTax = 9400 + (taxableIncome - 100000) * 0.25;
+          }
+
+          const pcb = Math.round((annualTax / 12) * 100) / 100;
+
+          const totalEmployeeDeductions = epfEmployee + socsoEmployee + eisEmployee + pcb;
+          const totalEmployerContributions = epfEmployer + socsoEmployer + eisEmployer;
+          const netSalary = grossSalary - totalEmployeeDeductions;
+
+          return {
+            grossSalary: formatCurrency(grossSalary),
+            deductions: {
+              epf: { employee: formatCurrency(epfEmployee), employer: formatCurrency(epfEmployer), rate: `${epfEmployeeRate * 100}%` },
+              socso: { employee: formatCurrency(socsoEmployee), employer: formatCurrency(socsoEmployer) },
+              eis: { employee: formatCurrency(eisEmployee), employer: formatCurrency(eisEmployer) },
+              pcb: formatCurrency(pcb),
+              totalEmployeeDeductions: formatCurrency(totalEmployeeDeductions),
+              totalEmployerContributions: formatCurrency(totalEmployerContributions),
+            },
+            netSalary: formatCurrency(netSalary),
+            note: "PCB is an estimate. Actual PCB depends on tax relief claims and other factors.",
+          };
+        } catch (error) {
+          logger.error({ error }, "calculateStatutoryDeductions failed");
+          return { error: "Failed to calculate statutory deductions" };
+        }
+      },
+    }),
+
+    // ============================================
+    // VENDOR DETAILS
+    // ============================================
+
+    getVendorDetails: tool({
+      description: "Get detailed information about a specific vendor.",
+      inputSchema: z.object({
+        vendorId: z.string().describe("The vendor ID to look up"),
+      }),
+      execute: async ({ vendorId }) => {
+        try {
+          const vendor = await vendorRepository.findById(vendorId, user.id);
+          if (!vendor) {
+            return { error: "Vendor not found" };
+          }
+
+          return {
+            id: vendor.id,
+            name: vendor.name,
+            email: vendor.email,
+            phone: vendor.phone,
+            address: vendor.address,
+            registrationNumber: vendor.registrationNumber,
+            taxId: vendor.taxId,
+            bankName: vendor.bankName,
+            bankAccountNumber: vendor.bankAccountNumber ? `****${vendor.bankAccountNumber.slice(-4)}` : null,
+            paymentTermsDays: vendor.paymentTermsDays,
+            createdAt: new Date(vendor.createdAt).toLocaleDateString(),
+          };
+        } catch (error) {
+          logger.error({ error }, "getVendorDetails failed");
+          return { error: "Failed to fetch vendor details" };
+        }
+      },
+    }),
+
+    getVendorBills: tool({
+      description: "Get all bills for a specific vendor.",
+      inputSchema: z.object({
+        vendorId: z.string().describe("The vendor ID"),
+        unpaidOnly: z.boolean().optional().describe("Return only unpaid bills (defaults to false)"),
+      }),
+      execute: async ({ vendorId, unpaidOnly = false }) => {
+        try {
+          const vendor = await vendorRepository.findById(vendorId, user.id);
+          if (!vendor) {
+            return { error: "Vendor not found" };
+          }
+
+          const bills = await billRepository.findMany(user.id, {
+            vendorId,
+            status: unpaidOnly ? "pending" : undefined,
+          });
+
+          return {
+            vendor: {
+              id: vendor.id,
+              name: vendor.name,
+              email: vendor.email,
+            },
+            bills: bills.map((bill) => ({
+              id: bill.id,
+              billNumber: bill.billNumber,
+              amount: formatCurrency(Number(bill.total ?? 0), bill.currency),
+              status: bill.status,
+              dueDate: bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : "No due date",
+            })),
+            totalBills: bills.length,
+            totalUnpaid: bills.filter((b) => b.status !== "paid").length,
+          };
+        } catch (error) {
+          logger.error({ error }, "getVendorBills failed");
+          return { error: "Failed to fetch vendor bills" };
+        }
+      },
+    }),
+
+    // ============================================
+    // CUSTOMER DETAILS
+    // ============================================
+
+    getCustomerDetails: tool({
+      description: "Get detailed information about a specific customer.",
+      inputSchema: z.object({
+        customerId: z.string().describe("The customer ID to look up"),
+      }),
+      execute: async ({ customerId }) => {
+        try {
+          const customer = await customerRepository.findById(customerId, user.id);
+          if (!customer) {
+            return { error: "Customer not found" };
+          }
+
+          // Get customer invoice count
+          const invoices = await invoiceRepository.findByCustomer(customerId, user.id);
+          const unpaidCount = invoices.filter((i) => i.status === "pending").length;
+
+          return {
+            id: customer.id,
+            name: customer.name,
+            email: customer.email,
+            phone: customer.phone,
+            address: customer.address,
+            metadata: customer.metadata,
+            stats: {
+              totalInvoices: invoices.length,
+              unpaidInvoices: unpaidCount,
+            },
+            createdAt: new Date(customer.createdAt).toLocaleDateString(),
+          };
+        } catch (error) {
+          logger.error({ error }, "getCustomerDetails failed");
+          return { error: "Failed to fetch customer details" };
+        }
+      },
+    }),
+
+    // ============================================
+    // PHASE 2: CRUD OPERATIONS
+    // ============================================
+
+    // Credit Note Operations
+    createCreditNoteFromInvoice: tool({
+      description: "Create a credit note from an existing invoice. Use this when a customer returns goods or needs a refund/adjustment.",
+      inputSchema: z.object({
+        invoiceId: z.string().describe("The invoice ID to create credit note from"),
+        reason: z.enum(["return", "discount", "pricing_error", "damaged_goods", "other"]).describe("Reason for the credit note"),
+        reasonDescription: z.string().optional().describe("Additional description for the reason"),
+      }),
+      execute: async ({ invoiceId, reason, reasonDescription }) => {
+        const toolArgs = { invoiceId, reason, reasonDescription };
+
+        try {
+          const invoice = await invoiceRepository.findById(invoiceId, user.id);
+          if (!invoice) {
+            return { error: "Invoice not found" };
+          }
+
+          // Use "create_invoice" action type for now (compatible with existing enum)
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "createInvoice", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return {
+              status: "approval_required",
+              message: `Creating credit note for invoice #${invoice.invoiceNumber} requires approval`,
+            };
+          }
+
+          const [creditNote] = await db
+            .insert(creditNotes)
+            .values({
+              userId: user.id,
+              invoiceId,
+              customerId: invoice.customerId,
+              type: "server",
+              status: "draft",
+              reason,
+              reasonDescription,
+            })
+            .returning();
+
+          await logToolAudit(user.id, session?.id, "createInvoice", toolArgs, { creditNoteId: creditNote!.id }, true);
+
+          return {
+            status: "success",
+            creditNoteId: creditNote!.id,
+            message: `Credit note created from invoice #${invoice.invoiceNumber}. Status: draft.`,
+          };
+        } catch (error) {
+          logger.error({ error }, "createCreditNoteFromInvoice failed");
+          return { error: "Failed to create credit note" };
+        }
+      },
+    }),
+
+    updateCreditNoteStatus: tool({
+      description: "Update the status of a credit note. Valid statuses: draft, issued, applied, cancelled.",
+      inputSchema: z.object({
+        creditNoteId: z.string().describe("The credit note ID"),
+        status: z.enum(["draft", "issued", "applied", "cancelled"]).describe("New status for the credit note"),
+      }),
+      execute: async ({ creditNoteId, status }) => {
+        const toolArgs = { creditNoteId, status };
+
+        try {
+          const creditNote = await db.query.creditNotes.findFirst({
+            where: and(eq(creditNotes.id, creditNoteId), eq(creditNotes.userId, user.id)),
+          });
+
+          if (!creditNote) {
+            return { error: "Credit note not found" };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateInvoice", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Updating credit note status requires approval" };
+          }
+
+          await db
+            .update(creditNotes)
+            .set({
+              status,
+              issuedAt: status === "issued" ? new Date() : creditNote.issuedAt,
+              updatedAt: new Date(),
+            })
+            .where(eq(creditNotes.id, creditNoteId));
+
+          await logToolAudit(user.id, session?.id, "updateInvoice", toolArgs, { success: true }, true);
+
+          return { status: "success", message: `Credit note status updated to '${status}'` };
+        } catch (error) {
+          logger.error({ error }, "updateCreditNoteStatus failed");
+          return { error: "Failed to update credit note status" };
+        }
+      },
+    }),
+
+    voidCreditNote: tool({
+      description: "Cancel/void a credit note. Only draft credit notes can be voided.",
+      inputSchema: z.object({
+        creditNoteId: z.string().describe("The credit note ID to void"),
+      }),
+      execute: async ({ creditNoteId }) => {
+        const toolArgs = { creditNoteId };
+
+        try {
+          const creditNote = await db.query.creditNotes.findFirst({
+            where: and(eq(creditNotes.id, creditNoteId), eq(creditNotes.userId, user.id)),
+          });
+
+          if (!creditNote) {
+            return { error: "Credit note not found" };
+          }
+
+          if (creditNote.status !== "draft") {
+            return { error: "Only draft credit notes can be voided. Use updateCreditNoteStatus to cancel issued notes." };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "voidInvoice", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Voiding credit note requires approval" };
+          }
+
+          await db.delete(creditNotes).where(eq(creditNotes.id, creditNoteId));
+
+          await logToolAudit(user.id, session?.id, "voidInvoice", toolArgs, { success: true }, true);
+
+          return { status: "success", message: "Credit note has been deleted" };
+        } catch (error) {
+          logger.error({ error }, "voidCreditNote failed");
+          return { error: "Failed to void credit note" };
+        }
+      },
+    }),
+
+    // Debit Note Operations
+    createDebitNoteFromInvoice: tool({
+      description: "Create a debit note to increase the amount owed by a customer (e.g., for pricing adjustments).",
+      inputSchema: z.object({
+        invoiceId: z.string().describe("The invoice ID to create debit note from"),
+        reason: z.enum(["return", "discount", "pricing_error", "damaged_goods", "other"]).describe("Reason for the debit note"),
+        reasonDescription: z.string().optional().describe("Additional description for the reason"),
+      }),
+      execute: async ({ invoiceId, reason, reasonDescription }) => {
+        const toolArgs = { invoiceId, reason, reasonDescription };
+
+        try {
+          const invoice = await invoiceRepository.findById(invoiceId, user.id);
+          if (!invoice) {
+            return { error: "Invoice not found" };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "createInvoice", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return {
+              status: "approval_required",
+              message: `Creating debit note for invoice #${invoice.invoiceNumber} requires approval`,
+            };
+          }
+
+          const [debitNote] = await db
+            .insert(debitNotes)
+            .values({
+              userId: user.id,
+              invoiceId,
+              customerId: invoice.customerId,
+              type: "server",
+              status: "draft",
+              reason,
+              reasonDescription,
+            })
+            .returning();
+
+          await logToolAudit(user.id, session?.id, "createInvoice", toolArgs, { debitNoteId: debitNote!.id }, true);
+
+          return {
+            status: "success",
+            debitNoteId: debitNote!.id,
+            message: `Debit note created from invoice #${invoice.invoiceNumber}. Status: draft.`,
+          };
+        } catch (error) {
+          logger.error({ error }, "createDebitNoteFromInvoice failed");
+          return { error: "Failed to create debit note" };
+        }
+      },
+    }),
+
+    updateDebitNoteStatus: tool({
+      description: "Update the status of a debit note. Valid statuses: draft, issued, applied, cancelled.",
+      inputSchema: z.object({
+        debitNoteId: z.string().describe("The debit note ID"),
+        status: z.enum(["draft", "issued", "applied", "cancelled"]).describe("New status for the debit note"),
+      }),
+      execute: async ({ debitNoteId, status }) => {
+        const toolArgs = { debitNoteId, status };
+
+        try {
+          const debitNote = await db.query.debitNotes.findFirst({
+            where: and(eq(debitNotes.id, debitNoteId), eq(debitNotes.userId, user.id)),
+          });
+
+          if (!debitNote) {
+            return { error: "Debit note not found" };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateInvoice", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Updating debit note status requires approval" };
+          }
+
+          await db
+            .update(debitNotes)
+            .set({
+              status,
+              issuedAt: status === "issued" ? new Date() : debitNote.issuedAt,
+              updatedAt: new Date(),
+            })
+            .where(eq(debitNotes.id, debitNoteId));
+
+          await logToolAudit(user.id, session?.id, "updateInvoice", toolArgs, { success: true }, true);
+
+          return { status: "success", message: `Debit note status updated to '${status}'` };
+        } catch (error) {
+          logger.error({ error }, "updateDebitNoteStatus failed");
+          return { error: "Failed to update debit note status" };
+        }
+      },
+    }),
+
+    voidDebitNote: tool({
+      description: "Delete a draft debit note.",
+      inputSchema: z.object({
+        debitNoteId: z.string().describe("The debit note ID to void"),
+      }),
+      execute: async ({ debitNoteId }) => {
+        const toolArgs = { debitNoteId };
+
+        try {
+          const debitNote = await db.query.debitNotes.findFirst({
+            where: and(eq(debitNotes.id, debitNoteId), eq(debitNotes.userId, user.id)),
+          });
+
+          if (!debitNote) {
+            return { error: "Debit note not found" };
+          }
+
+          if (debitNote.status !== "draft") {
+            return { error: "Only draft debit notes can be voided" };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "voidInvoice", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Voiding debit note requires approval" };
+          }
+
+          await db.delete(debitNotes).where(eq(debitNotes.id, debitNoteId));
+
+          await logToolAudit(user.id, session?.id, "voidInvoice", toolArgs, { success: true }, true);
+
+          return { status: "success", message: "Debit note has been deleted" };
+        } catch (error) {
+          logger.error({ error }, "voidDebitNote failed");
+          return { error: "Failed to void debit note" };
+        }
+      },
+    }),
+
+    // Customer Update
+    updateCustomer: tool({
+      description: "Update customer information.",
+      inputSchema: z.object({
+        customerId: z.string().describe("The customer ID to update"),
+        name: z.string().optional().describe("New customer name"),
+        email: z.string().email().optional().describe("New email address"),
+        phone: z.string().optional().describe("New phone number"),
+        address: z.string().optional().describe("New address"),
+      }),
+      execute: async ({ customerId, ...updates }) => {
+        const toolArgs = { customerId, ...updates };
+
+        try {
+          const customer = await customerRepository.findById(customerId, user.id);
+          if (!customer) {
+            return { error: "Customer not found" };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateCustomer", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Updating customer requires approval" };
+          }
+
+          const { customers } = await import("@open-bookkeeping/db");
+          const updateData: Record<string, unknown> = { updatedAt: new Date() };
+          if (updates.name) updateData.name = updates.name;
+          if (updates.email) updateData.email = updates.email;
+          if (updates.phone) updateData.phone = updates.phone;
+          if (updates.address) updateData.address = updates.address;
+
+          await db.update(customers).set(updateData).where(eq(customers.id, customerId));
+
+          await logToolAudit(user.id, session?.id, "updateCustomer", toolArgs, { success: true }, true);
+
+          return { status: "success", message: `Customer '${customer.name}' has been updated` };
+        } catch (error) {
+          logger.error({ error }, "updateCustomer failed");
+          return { error: "Failed to update customer" };
+        }
+      },
+    }),
+
+    // Vendor Update
+    updateVendor: tool({
+      description: "Update vendor information.",
+      inputSchema: z.object({
+        vendorId: z.string().describe("The vendor ID to update"),
+        name: z.string().optional().describe("New vendor name"),
+        email: z.string().email().optional().describe("New email address"),
+        phone: z.string().optional().describe("New phone number"),
+        address: z.string().optional().describe("New address"),
+        paymentTermsDays: z.number().optional().describe("Payment terms in days"),
+      }),
+      execute: async ({ vendorId, ...updates }) => {
+        const toolArgs = { vendorId, ...updates };
+
+        try {
+          const vendor = await vendorRepository.findById(vendorId, user.id);
+          if (!vendor) {
+            return { error: "Vendor not found" };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateVendor", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Updating vendor requires approval" };
+          }
+
+          const { vendors } = await import("@open-bookkeeping/db");
+          const updateData: Record<string, unknown> = { updatedAt: new Date() };
+          if (updates.name) updateData.name = updates.name;
+          if (updates.email) updateData.email = updates.email;
+          if (updates.phone) updateData.phone = updates.phone;
+          if (updates.address) updateData.address = updates.address;
+          if (updates.paymentTermsDays !== undefined) updateData.paymentTermsDays = updates.paymentTermsDays;
+
+          await db.update(vendors).set(updateData).where(eq(vendors.id, vendorId));
+
+          await logToolAudit(user.id, session?.id, "updateVendor", toolArgs, { success: true }, true);
+
+          return { status: "success", message: `Vendor '${vendor.name}' has been updated` };
+        } catch (error) {
+          logger.error({ error }, "updateVendor failed");
+          return { error: "Failed to update vendor" };
+        }
+      },
+    }),
+
+    // Chart of Accounts Operations
+    createAccount: tool({
+      description: "Create a new account in the chart of accounts.",
+      inputSchema: z.object({
+        code: z.string().describe("Account code (e.g., '1100', '4000')"),
+        name: z.string().describe("Account name (e.g., 'Cash in Bank', 'Sales Revenue')"),
+        accountType: z.enum(["asset", "liability", "equity", "revenue", "expense"]).describe("Type of account"),
+        description: z.string().optional().describe("Account description"),
+        isActive: z.boolean().default(true).describe("Whether the account is active"),
+      }),
+      execute: async ({ code, name, accountType, description, isActive }) => {
+        const toolArgs = { code, name, accountType, description, isActive };
+
+        try {
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Creating account requires approval" };
+          }
+
+          const { accounts } = await import("@open-bookkeeping/db");
+
+          // Check if account code already exists
+          const existing = await db.query.accounts.findFirst({
+            where: and(eq(accounts.userId, user.id), eq(accounts.code, code)),
+          });
+
+          if (existing) {
+            return { error: `Account with code '${code}' already exists` };
+          }
+
+          // Derive normal balance from account type
+          // Assets & Expenses: normally debit
+          // Liabilities, Equity & Revenue: normally credit
+          const normalBalance = (accountType === "asset" || accountType === "expense") ? "debit" : "credit";
+
+          const [account] = await db
+            .insert(accounts)
+            .values({
+              userId: user.id,
+              code,
+              name,
+              accountType,
+              normalBalance,
+              description,
+              isActive,
+            })
+            .returning();
+
+          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, { accountId: account!.id }, true);
+
+          return {
+            status: "success",
+            accountId: account!.id,
+            message: `Account '${name}' (${code}) created successfully`,
+          };
+        } catch (error) {
+          logger.error({ error }, "createAccount failed");
+          return { error: "Failed to create account" };
+        }
+      },
+    }),
+
+    updateAccount: tool({
+      description: "Update an existing account in the chart of accounts.",
+      inputSchema: z.object({
+        accountId: z.string().describe("The account ID to update"),
+        name: z.string().optional().describe("New account name"),
+        description: z.string().optional().describe("New description"),
+        isActive: z.boolean().optional().describe("Active status"),
+      }),
+      execute: async ({ accountId, ...updates }) => {
+        const toolArgs = { accountId, ...updates };
+
+        try {
+          const { accounts } = await import("@open-bookkeeping/db");
+
+          const account = await db.query.accounts.findFirst({
+            where: and(eq(accounts.id, accountId), eq(accounts.userId, user.id)),
+          });
+
+          if (!account) {
+            return { error: "Account not found" };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Updating account requires approval" };
+          }
+
+          const updateData: Record<string, unknown> = { updatedAt: new Date() };
+          if (updates.name) updateData.name = updates.name;
+          if (updates.description !== undefined) updateData.description = updates.description;
+          if (updates.isActive !== undefined) updateData.isActive = updates.isActive;
+
+          await db.update(accounts).set(updateData).where(eq(accounts.id, accountId));
+
+          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, { success: true }, true);
+
+          return { status: "success", message: `Account '${account.name}' has been updated` };
+        } catch (error) {
+          logger.error({ error }, "updateAccount failed");
+          return { error: "Failed to update account" };
+        }
+      },
+    }),
+
+    deleteAccount: tool({
+      description: "Delete an account from the chart of accounts. Only accounts with no transactions can be deleted.",
+      inputSchema: z.object({
+        accountId: z.string().describe("The account ID to delete"),
+      }),
+      execute: async ({ accountId }) => {
+        const toolArgs = { accountId };
+
+        try {
+          const { accounts, journalEntryLines } = await import("@open-bookkeeping/db");
+
+          const account = await db.query.accounts.findFirst({
+            where: and(eq(accounts.id, accountId), eq(accounts.userId, user.id)),
+          });
+
+          if (!account) {
+            return { error: "Account not found" };
+          }
+
+          // Check if account has any transactions
+          const hasTransactions = await db.query.journalEntryLines.findFirst({
+            where: eq(journalEntryLines.accountId, accountId),
+          });
+
+          if (hasTransactions) {
+            return { error: "Cannot delete account with existing transactions. Deactivate it instead using updateAccount." };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "reverseJournalEntry", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Deleting account requires approval" };
+          }
+
+          await db.delete(accounts).where(eq(accounts.id, accountId));
+
+          await logToolAudit(user.id, session?.id, "reverseJournalEntry", toolArgs, { success: true }, true);
+
+          return { status: "success", message: `Account '${account.name}' has been deleted` };
+        } catch (error) {
+          logger.error({ error }, "deleteAccount failed");
+          return { error: "Failed to delete account" };
+        }
+      },
+    }),
+
+    // Update Bill
+    updateBill: tool({
+      description: "Update bill information (notes, due date, payment terms).",
+      inputSchema: z.object({
+        billId: z.string().describe("The bill ID to update"),
+        notes: z.string().optional().describe("New notes for the bill"),
+        dueDate: z.string().optional().describe("New due date (ISO date string)"),
+        paymentTerms: z.string().optional().describe("Payment terms"),
+      }),
+      execute: async ({ billId, notes, dueDate, paymentTerms }) => {
+        const toolArgs = { billId, notes, dueDate, paymentTerms };
+
+        try {
+          const { bills } = await import("@open-bookkeeping/db");
+
+          const bill = await db.query.bills.findFirst({
+            where: and(eq(bills.id, billId), eq(bills.userId, user.id)),
+          });
+
+          if (!bill) {
+            return { error: "Bill not found" };
+          }
+
+          if (bill.status === "paid") {
+            return { error: "Cannot update a paid bill" };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateBill", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Updating bill requires approval" };
+          }
+
+          const updateData: Record<string, unknown> = { updatedAt: new Date() };
+          if (notes !== undefined) updateData.notes = notes;
+          if (dueDate) updateData.dueDate = new Date(dueDate);
+          if (paymentTerms !== undefined) updateData.paymentTerms = paymentTerms;
+
+          await db.update(bills).set(updateData).where(eq(bills.id, billId));
+
+          await logToolAudit(user.id, session?.id, "updateBill", toolArgs, { success: true }, true);
+
+          return { status: "success", message: `Bill #${bill.billNumber} has been updated` };
+        } catch (error) {
+          logger.error({ error }, "updateBill failed");
+          return { error: "Failed to update bill" };
+        }
+      },
+    }),
+
+    // ============================================
+    // ADDITIONAL PAYROLL OPERATIONS
+    // ============================================
+
+    getPayrollRunDetails: tool({
+      description: "Get detailed information about a specific payroll run including all pay slips.",
+      inputSchema: z.object({
+        payrollRunId: z.string().describe("The payroll run ID"),
+      }),
+      execute: async ({ payrollRunId }) => {
+        try {
+          const payrollRun = await db.query.payrollRuns.findFirst({
+            where: and(eq(payrollRuns.id, payrollRunId), eq(payrollRuns.userId, user.id)),
+            with: {
+              paySlips: {
+                with: {
+                  employee: true,
+                  items: true,
+                },
+              },
+            },
+          });
+
+          if (!payrollRun) {
+            return { error: "Payroll run not found" };
+          }
+
+          const summary = {
+            totalEmployees: payrollRun.paySlips?.length || 0,
+            totalGrossSalary: payrollRun.totalGrossSalary,
+            totalDeductions: payrollRun.totalDeductions,
+            totalNetSalary: payrollRun.totalNetSalary,
+            totalEmployerContributions: (
+              Number(payrollRun.totalEpfEmployer || 0) +
+              Number(payrollRun.totalSocsoEmployer || 0) +
+              Number(payrollRun.totalEisEmployer || 0)
+            ).toFixed(2),
+          };
+
+          return {
+            id: payrollRun.id,
+            name: payrollRun.name,
+            periodYear: payrollRun.periodYear,
+            periodMonth: payrollRun.periodMonth,
+            status: payrollRun.status,
+            payDate: payrollRun.payDate,
+            summary,
+            paySlips: payrollRun.paySlips?.map((slip) => ({
+              id: slip.id,
+              employeeName: `${slip.employee?.firstName || ""} ${slip.employee?.lastName || ""}`.trim(),
+              employeeCode: slip.employee?.employeeCode,
+              grossSalary: slip.grossSalary,
+              totalDeductions: slip.totalDeductions,
+              netSalary: slip.netSalary,
+              status: slip.status,
+            })),
+          };
+        } catch (error) {
+          logger.error({ error }, "getPayrollRunDetails failed");
+          return { error: "Failed to get payroll run details" };
+        }
+      },
+    }),
+
+    calculatePayrollRun: tool({
+      description: "Calculate all pay slips for a payroll run. This must be done before approving.",
+      inputSchema: z.object({
+        payrollRunId: z.string().describe("The payroll run ID to calculate"),
+      }),
+      execute: async ({ payrollRunId }) => {
+        const toolArgs = { payrollRunId };
+
+        try {
+          const payrollRun = await db.query.payrollRuns.findFirst({
+            where: and(eq(payrollRuns.id, payrollRunId), eq(payrollRuns.userId, user.id)),
+          });
+
+          if (!payrollRun) {
+            return { error: "Payroll run not found" };
+          }
+
+          if (payrollRun.status !== "draft") {
+            return { error: `Cannot calculate payroll in ${payrollRun.status} status` };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Calculating payroll requires approval" };
+          }
+
+          // Import and call the calculation service
+          const { calculatePayroll } = await import("../services/payroll/payroll-calculation.service");
+          const result = await calculatePayroll({
+            userId: user.id,
+            payrollRunId,
+            periodYear: payrollRun.periodYear,
+            periodMonth: payrollRun.periodMonth,
+            runNumber: payrollRun.runNumber,
+          });
+
+          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, result, true);
+
+          return {
+            status: "success",
+            message: `Payroll calculated for ${result.totalEmployees || 0} employees`,
+            summary: {
+              totalGrossSalary: formatCurrency(Number(result.totalGrossSalary || 0)),
+              totalDeductions: formatCurrency(Number(result.totalDeductions || 0)),
+              totalNetSalary: formatCurrency(Number(result.totalNetSalary || 0)),
+            },
+          };
+        } catch (error) {
+          logger.error({ error }, "calculatePayrollRun failed");
+          return { error: "Failed to calculate payroll" };
+        }
+      },
+    }),
+
+    approvePayrollRun: tool({
+      description: "Approve a calculated payroll run for finalization.",
+      inputSchema: z.object({
+        payrollRunId: z.string().describe("The payroll run ID to approve"),
+      }),
+      execute: async ({ payrollRunId }) => {
+        const toolArgs = { payrollRunId };
+
+        try {
+          const payrollRun = await db.query.payrollRuns.findFirst({
+            where: and(eq(payrollRuns.id, payrollRunId), eq(payrollRuns.userId, user.id)),
+          });
+
+          if (!payrollRun) {
+            return { error: "Payroll run not found" };
+          }
+
+          if (payrollRun.status !== "pending_review") {
+            return { error: `Payroll must be in 'pending_review' status to approve. Current: ${payrollRun.status}` };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Approving payroll requires approval" };
+          }
+
+          await db.update(payrollRuns).set({
+            status: "approved",
+            approvedAt: new Date(),
+            approvedBy: user.id,
+            updatedAt: new Date(),
+          }).where(eq(payrollRuns.id, payrollRunId));
+
+          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, { approved: true }, true);
+
+          return { status: "success", message: `Payroll run for ${getMonthName(payrollRun.periodMonth)} ${payrollRun.periodYear} has been approved` };
+        } catch (error) {
+          logger.error({ error }, "approvePayrollRun failed");
+          return { error: "Failed to approve payroll run" };
+        }
+      },
+    }),
+
+    finalizePayrollRun: tool({
+      description: "Finalize an approved payroll run. This creates the accounting entries.",
+      inputSchema: z.object({
+        payrollRunId: z.string().describe("The payroll run ID to finalize"),
+      }),
+      execute: async ({ payrollRunId }) => {
+        const toolArgs = { payrollRunId };
+
+        try {
+          const payrollRun = await db.query.payrollRuns.findFirst({
+            where: and(eq(payrollRuns.id, payrollRunId), eq(payrollRuns.userId, user.id)),
+          });
+
+          if (!payrollRun) {
+            return { error: "Payroll run not found" };
+          }
+
+          if (payrollRun.status !== "approved") {
+            return { error: `Payroll must be approved before finalizing. Current: ${payrollRun.status}` };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Finalizing payroll requires approval" };
+          }
+
+          // Create accrual journal entry
+          const { createPayrollAccrualEntry } = await import("../services/payroll/payroll-journal.service");
+          await createPayrollAccrualEntry(user.id, payrollRun);
+
+          await db.update(payrollRuns).set({
+            status: "finalized",
+            finalizedAt: new Date(),
+            updatedAt: new Date(),
+          }).where(eq(payrollRuns.id, payrollRunId));
+
+          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, { finalized: true }, true);
+
+          return { status: "success", message: `Payroll run finalized with journal entries created` };
+        } catch (error) {
+          logger.error({ error }, "finalizePayrollRun failed");
+          return { error: "Failed to finalize payroll run" };
+        }
+      },
+    }),
+
+    markPayrollPaid: tool({
+      description: "Mark a finalized payroll run as paid.",
+      inputSchema: z.object({
+        payrollRunId: z.string().describe("The payroll run ID to mark as paid"),
+        paymentDate: z.string().optional().describe("Payment date (YYYY-MM-DD), defaults to today"),
+      }),
+      execute: async ({ payrollRunId, paymentDate }) => {
+        const toolArgs = { payrollRunId, paymentDate };
+
+        try {
+          const payrollRun = await db.query.payrollRuns.findFirst({
+            where: and(eq(payrollRuns.id, payrollRunId), eq(payrollRuns.userId, user.id)),
+          });
+
+          if (!payrollRun) {
+            return { error: "Payroll run not found" };
+          }
+
+          if (payrollRun.status !== "finalized") {
+            return { error: `Payroll must be finalized before marking as paid. Current: ${payrollRun.status}` };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Marking payroll paid requires approval" };
+          }
+
+          // Create payment journal entry
+          const actualPaymentDate = paymentDate || new Date().toISOString().split("T")[0];
+          const { createPayrollPaymentEntry } = await import("../services/payroll/payroll-journal.service");
+          await createPayrollPaymentEntry(user.id, payrollRun, actualPaymentDate);
+
+          // Update payroll run and all pay slips to paid
+          await db.update(payrollRuns).set({
+            status: "paid",
+            paidAt: new Date(actualPaymentDate),
+            updatedAt: new Date(),
+          }).where(eq(payrollRuns.id, payrollRunId));
+
+          await db.update(paySlips).set({
+            status: "paid",
+            updatedAt: new Date(),
+          }).where(eq(paySlips.payrollRunId, payrollRunId));
+
+          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, { paid: true }, true);
+
+          return { status: "success", message: `Payroll marked as paid. Total: ${formatCurrency(Number(payrollRun.totalNetSalary || 0))}` };
+        } catch (error) {
+          logger.error({ error }, "markPayrollPaid failed");
+          return { error: "Failed to mark payroll as paid" };
+        }
+      },
+    }),
+
+    terminateEmployee: tool({
+      description: "Terminate an employee (set status to terminated with resignation date).",
+      inputSchema: z.object({
+        employeeId: z.string().describe("The employee ID"),
+        terminationDate: z.string().describe("Termination date (YYYY-MM-DD)"),
+        reason: z.string().optional().describe("Reason for termination"),
+      }),
+      execute: async ({ employeeId, terminationDate, reason }) => {
+        const toolArgs = { employeeId, terminationDate, reason };
+
+        try {
+          const employee = await db.query.employees.findFirst({
+            where: and(eq(employees.id, employeeId), eq(employees.userId, user.id)),
+          });
+
+          if (!employee) {
+            return { error: "Employee not found" };
+          }
+
+          if (employee.status === "terminated" || employee.status === "resigned") {
+            return { error: "Employee is already terminated or resigned" };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateVendor", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Terminating employee requires approval" };
+          }
+
+          await db.update(employees).set({
+            status: "terminated",
+            dateResigned: terminationDate,
+            updatedAt: new Date(),
+          }).where(eq(employees.id, employeeId));
+
+          await logToolAudit(user.id, session?.id, "updateVendor", toolArgs, { terminated: true }, true);
+
+          return { status: "success", message: `Employee ${employee.firstName} ${employee.lastName || ""} has been terminated effective ${terminationDate}` };
+        } catch (error) {
+          logger.error({ error }, "terminateEmployee failed");
+          return { error: "Failed to terminate employee" };
+        }
+      },
+    }),
+
+    updateEmployeeSalary: tool({
+      description: "Update an employee's base salary.",
+      inputSchema: z.object({
+        employeeId: z.string().describe("The employee ID"),
+        newSalary: z.number().describe("New monthly base salary"),
+        effectiveDate: z.string().describe("Effective date (YYYY-MM-DD)"),
+      }),
+      execute: async ({ employeeId, newSalary, effectiveDate }) => {
+        const toolArgs = { employeeId, newSalary, effectiveDate };
+
+        try {
+          const employee = await db.query.employees.findFirst({
+            where: and(eq(employees.id, employeeId), eq(employees.userId, user.id)),
+          });
+
+          if (!employee) {
+            return { error: "Employee not found" };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateVendor", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Updating salary requires approval" };
+          }
+
+          // End the current salary record (set effectiveTo to day before new effective date)
+          const effectiveFromDate = new Date(effectiveDate);
+          const effectiveToDate = new Date(effectiveFromDate);
+          effectiveToDate.setDate(effectiveToDate.getDate() - 1);
+
+          // End current salary if exists
+          await db.update(employeeSalaries).set({
+            effectiveTo: effectiveToDate.toISOString().split("T")[0],
+            updatedAt: new Date(),
+          }).where(
+            and(
+              eq(employeeSalaries.employeeId, employeeId),
+              isNull(employeeSalaries.effectiveTo)
+            )
+          );
+
+          // Create new salary record
+          await db.insert(employeeSalaries).values({
+            employeeId,
+            effectiveFrom: effectiveDate,
+            effectiveTo: null,
+            baseSalary: String(newSalary),
+            currency: "MYR",
+            payFrequency: "monthly",
+          });
+
+          await logToolAudit(user.id, session?.id, "updateVendor", toolArgs, { updated: true }, true);
+
+          return {
+            status: "success",
+            message: `Salary updated to ${formatCurrency(newSalary)} effective ${effectiveDate}`,
+            employee: `${employee.firstName} ${employee.lastName || ""}`.trim(),
+          };
+        } catch (error) {
+          logger.error({ error }, "updateEmployeeSalary failed");
+          return { error: "Failed to update salary" };
+        }
+      },
+    }),
+
+    getPaySlipsForRun: tool({
+      description: "Get all pay slips for a specific payroll run.",
+      inputSchema: z.object({
+        payrollRunId: z.string().describe("The payroll run ID"),
+      }),
+      execute: async ({ payrollRunId }) => {
+        try {
+          const payrollRun = await db.query.payrollRuns.findFirst({
+            where: and(eq(payrollRuns.id, payrollRunId), eq(payrollRuns.userId, user.id)),
+          });
+
+          if (!payrollRun) {
+            return { error: "Payroll run not found" };
+          }
+
+          const slips = await db.query.paySlips.findMany({
+            where: eq(paySlips.payrollRunId, payrollRunId),
+            with: {
+              employee: true,
+              items: true,
+            },
+            orderBy: (s, { asc }) => [asc(s.createdAt)],
+          });
+
+          return {
+            payrollRun: {
+              id: payrollRun.id,
+              period: `${getMonthName(payrollRun.periodMonth)} ${payrollRun.periodYear}`,
+              status: payrollRun.status,
+            },
+            paySlips: slips.map((slip) => ({
+              id: slip.id,
+              employee: `${slip.employee?.firstName || ""} ${slip.employee?.lastName || ""}`.trim(),
+              employeeCode: slip.employee?.employeeCode,
+              grossSalary: formatCurrency(Number(slip.grossSalary || 0)),
+              totalDeductions: formatCurrency(Number(slip.totalDeductions || 0)),
+              netSalary: formatCurrency(Number(slip.netSalary || 0)),
+              status: slip.status,
+              items: slip.items?.map((item) => ({
+                name: item.componentName,
+                type: item.componentType,
+                amount: formatCurrency(Number(item.amount || 0)),
+              })),
+            })),
+            totalCount: slips.length,
+          };
+        } catch (error) {
+          logger.error({ error }, "getPaySlipsForRun failed");
+          return { error: "Failed to get pay slips" };
+        }
+      },
+    }),
+
+    // ============================================
+    // ADDITIONAL FIXED ASSET OPERATIONS
+    // ============================================
+
+    runAssetDepreciation: tool({
+      description: "Run depreciation for a fixed asset. Creates depreciation journal entry.",
+      inputSchema: z.object({
+        assetId: z.string().describe("The fixed asset ID"),
+        depreciationDate: z.string().optional().describe("Depreciation date (YYYY-MM-DD), defaults to today"),
+      }),
+      execute: async ({ assetId, depreciationDate }) => {
+        const toolArgs = { assetId, depreciationDate };
+
+        try {
+          const asset = await db.query.fixedAssets.findFirst({
+            where: and(eq(fixedAssets.id, assetId), eq(fixedAssets.userId, user.id)),
+          });
+
+          if (!asset) {
+            return { error: "Fixed asset not found" };
+          }
+
+          if (asset.status !== "active") {
+            return { error: `Cannot depreciate asset in ${asset.status} status` };
+          }
+
+          if (Number(asset.netBookValue || 0) <= Number(asset.salvageValue || 0)) {
+            return { error: "Asset is fully depreciated" };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Running depreciation requires approval" };
+          }
+
+          // Calculate depreciation (straight-line method)
+          const acquisitionCost = Number(asset.acquisitionCost || 0);
+          const salvageValue = Number(asset.salvageValue || 0);
+          const usefulLifeMonths = asset.usefulLifeMonths || 60;
+          const depreciableAmount = acquisitionCost - salvageValue;
+          const monthlyDepreciation = depreciableAmount / usefulLifeMonths;
+
+          const currentAccumulated = Number(asset.accumulatedDepreciation || 0);
+          const currentNBV = Number(asset.netBookValue || 0);
+
+          // Ensure we don't depreciate below salvage value
+          const maxDepreciation = currentNBV - salvageValue;
+          const actualDepreciation = Math.min(monthlyDepreciation, maxDepreciation);
+
+          if (actualDepreciation <= 0) {
+            return { error: "Asset is fully depreciated" };
+          }
+
+          const newAccumulated = currentAccumulated + actualDepreciation;
+          const newNetBookValue = acquisitionCost - newAccumulated;
+          const depDate = depreciationDate || new Date().toISOString().split("T")[0];
+          const depYear = new Date(depDate).getFullYear();
+
+          // Insert depreciation record
+          await db.insert(fixedAssetDepreciations).values({
+            fixedAssetId: assetId,
+            year: depYear,
+            periodStart: depDate,
+            periodEnd: depDate,
+            depreciationAmount: actualDepreciation.toFixed(2),
+            accumulatedDepreciation: newAccumulated.toFixed(2),
+            netBookValue: newNetBookValue.toFixed(2),
+            status: "posted",
+            postedAt: new Date(),
+          });
+
+          // Update the asset
+          await db.update(fixedAssets).set({
+            accumulatedDepreciation: newAccumulated.toFixed(2),
+            netBookValue: newNetBookValue.toFixed(2),
+            lastDepreciationDate: depDate,
+            updatedAt: new Date(),
+          }).where(eq(fixedAssets.id, assetId));
+
+          const result = {
+            depreciationAmount: actualDepreciation.toFixed(2),
+            newNetBookValue: newNetBookValue.toFixed(2),
+          };
+
+          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, result, true);
+
+          return {
+            status: "success",
+            message: `Depreciation recorded for ${asset.name}`,
+            depreciationAmount: formatCurrency(actualDepreciation),
+            newNetBookValue: formatCurrency(newNetBookValue),
+          };
+        } catch (error) {
+          logger.error({ error }, "runAssetDepreciation failed");
+          return { error: "Failed to run depreciation" };
+        }
+      },
+    }),
+
+    getPendingAssetDepreciations: tool({
+      description: "Get list of assets that have pending depreciation entries to process.",
+      inputSchema: z.object({
+        asOfDate: z.string().optional().describe("Check pending as of date (YYYY-MM-DD), defaults to today"),
+      }),
+      execute: async ({ asOfDate }) => {
+        try {
+          const checkDate = asOfDate ? new Date(asOfDate) : new Date();
+
+          const activeAssets = await db.query.fixedAssets.findMany({
+            where: and(
+              eq(fixedAssets.userId, user.id),
+              eq(fixedAssets.status, "active"),
+              isNull(fixedAssets.deletedAt)
+            ),
+          });
+
+          const pendingDepreciations = [];
+
+          for (const asset of activeAssets) {
+            const netBookValue = Number(asset.netBookValue || 0);
+            const salvageValue = Number(asset.salvageValue || 0);
+
+            if (netBookValue > salvageValue) {
+              // Calculate if depreciation is due
+              const lastDepDate = asset.lastDepreciationDate ? new Date(asset.lastDepreciationDate) : new Date(asset.depreciationStartDate || asset.acquisitionDate);
+              const monthsSinceLast = Math.floor((checkDate.getTime() - lastDepDate.getTime()) / (30 * 24 * 60 * 60 * 1000));
+
+              if (monthsSinceLast >= 1) {
+                // Calculate monthly depreciation
+                const acquisitionCost = Number(asset.acquisitionCost || 0);
+                const usefulLifeMonths = asset.usefulLifeMonths || 60;
+                const monthlyDepreciation = (acquisitionCost - salvageValue) / usefulLifeMonths;
+
+                pendingDepreciations.push({
+                  assetId: asset.id,
+                  assetCode: asset.assetCode,
+                  assetName: asset.name,
+                  currentNetBookValue: formatCurrency(netBookValue),
+                  estimatedDepreciation: formatCurrency(monthlyDepreciation),
+                  monthsPending: monthsSinceLast,
+                  lastDepreciationDate: lastDepDate.toISOString().split("T")[0],
+                });
+              }
+            }
+          }
+
+          return {
+            asOfDate: checkDate.toISOString().split("T")[0],
+            pendingCount: pendingDepreciations.length,
+            assets: pendingDepreciations,
+          };
+        } catch (error) {
+          logger.error({ error }, "getPendingAssetDepreciations failed");
+          return { error: "Failed to get pending depreciations" };
+        }
+      },
+    }),
+
+    // ============================================
+    // ADDITIONAL BILL/QUOTATION OPERATIONS
+    // ============================================
+
+    deleteQuotation: tool({
+      description: "Delete a quotation (soft delete). Only draft quotations can be deleted.",
+      inputSchema: z.object({
+        quotationId: z.string().describe("The quotation ID to delete"),
+      }),
+      execute: async ({ quotationId }) => {
+        const toolArgs = { quotationId };
+
+        try {
+          const { quotations } = await import("@open-bookkeeping/db");
+
+          const quotation = await db.query.quotations.findFirst({
+            where: and(eq(quotations.id, quotationId), eq(quotations.userId, user.id)),
+            with: {
+              quotationFields: {
+                with: {
+                  quotationDetails: true,
+                },
+              },
+            },
+          });
+
+          if (!quotation) {
+            return { error: "Quotation not found" };
+          }
+
+          if (quotation.status !== "draft") {
+            return { error: `Cannot delete quotation in ${quotation.status} status. Only draft quotations can be deleted.` };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateQuotation", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Deleting quotation requires approval" };
+          }
+
+          await db.update(quotations).set({
+            deletedAt: new Date(),
+            updatedAt: new Date(),
+          }).where(eq(quotations.id, quotationId));
+
+          await logToolAudit(user.id, session?.id, "updateQuotation", toolArgs, { deleted: true }, true);
+
+          const quotationNumber = `${quotation.quotationFields?.quotationDetails?.prefix ?? ""}${quotation.quotationFields?.quotationDetails?.serialNumber ?? ""}`;
+          return { status: "success", message: `Quotation #${quotationNumber || quotationId} has been deleted` };
+        } catch (error) {
+          logger.error({ error }, "deleteQuotation failed");
+          return { error: "Failed to delete quotation" };
+        }
+      },
+    }),
+
+    deleteBill: tool({
+      description: "Delete a bill (soft delete). Only draft or pending bills can be deleted.",
+      inputSchema: z.object({
+        billId: z.string().describe("The bill ID to delete"),
+      }),
+      execute: async ({ billId }) => {
+        const toolArgs = { billId };
+
+        try {
+          const bill = await db.query.bills.findFirst({
+            where: and(eq(bills.id, billId), eq(bills.userId, user.id)),
+          });
+
+          if (!bill) {
+            return { error: "Bill not found" };
+          }
+
+          if (bill.status === "paid") {
+            return { error: "Cannot delete a paid bill" };
+          }
+
+          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateBill", toolArgs);
+          if (approvalCheck && approvalCheck.requiresApproval) {
+            return { status: "approval_required", message: "Deleting bill requires approval" };
+          }
+
+          await db.update(bills).set({
+            deletedAt: new Date(),
+            updatedAt: new Date(),
+          }).where(eq(bills.id, billId));
+
+          await logToolAudit(user.id, session?.id, "updateBill", toolArgs, { deleted: true }, true);
+
+          return { status: "success", message: `Bill #${bill.billNumber} has been deleted` };
+        } catch (error) {
+          logger.error({ error }, "deleteBill failed");
+          return { error: "Failed to delete bill" };
+        }
+      },
+    }),
+
+    getBillAgingReport: tool({
+      description: "Get accounts payable aging report showing outstanding bills by age.",
+      inputSchema: z.object({
+        asOfDate: z.string().optional().describe("Report as of date (YYYY-MM-DD), defaults to today"),
+      }),
+      execute: async ({ asOfDate }) => {
+        try {
+          const reportDate = asOfDate ? new Date(asOfDate) : new Date();
+
+          const unpaidBills = await db.query.bills.findMany({
+            where: and(
+              eq(bills.userId, user.id),
+              or(eq(bills.status, "pending"), eq(bills.status, "overdue")),
+              isNull(bills.deletedAt)
+            ),
+            with: {
+              vendor: true,
+            },
+          });
+
+          const aging = {
+            current: { count: 0, total: 0, bills: [] as { billNumber: string; vendor: string; amount: number; dueDate: string }[] },
+            days1to30: { count: 0, total: 0, bills: [] as { billNumber: string; vendor: string; amount: number; dueDate: string }[] },
+            days31to60: { count: 0, total: 0, bills: [] as { billNumber: string; vendor: string; amount: number; dueDate: string }[] },
+            days61to90: { count: 0, total: 0, bills: [] as { billNumber: string; vendor: string; amount: number; dueDate: string }[] },
+            over90: { count: 0, total: 0, bills: [] as { billNumber: string; vendor: string; amount: number; dueDate: string }[] },
+          };
+
+          for (const bill of unpaidBills) {
+            const dueDate = bill.dueDate ? new Date(bill.dueDate) : new Date(bill.billDate);
+            const daysOverdue = Math.floor((reportDate.getTime() - dueDate.getTime()) / (24 * 60 * 60 * 1000));
+            const amount = Number(bill.total || 0);
+
+            const billInfo = {
+              billNumber: bill.billNumber,
+              vendor: bill.vendor?.name || "Unknown",
+              amount,
+              dueDate: dueDate.toISOString().split("T")[0],
+            };
+
+            if (daysOverdue <= 0) {
+              aging.current.count++;
+              aging.current.total += amount;
+              aging.current.bills.push(billInfo);
+            } else if (daysOverdue <= 30) {
+              aging.days1to30.count++;
+              aging.days1to30.total += amount;
+              aging.days1to30.bills.push(billInfo);
+            } else if (daysOverdue <= 60) {
+              aging.days31to60.count++;
+              aging.days31to60.total += amount;
+              aging.days31to60.bills.push(billInfo);
+            } else if (daysOverdue <= 90) {
+              aging.days61to90.count++;
+              aging.days61to90.total += amount;
+              aging.days61to90.bills.push(billInfo);
+            } else {
+              aging.over90.count++;
+              aging.over90.total += amount;
+              aging.over90.bills.push(billInfo);
+            }
+          }
+
+          const grandTotal = aging.current.total + aging.days1to30.total + aging.days31to60.total + aging.days61to90.total + aging.over90.total;
+
+          return {
+            asOfDate: reportDate.toISOString().split("T")[0],
+            summary: {
+              current: { count: aging.current.count, total: formatCurrency(aging.current.total) },
+              "1-30 days": { count: aging.days1to30.count, total: formatCurrency(aging.days1to30.total) },
+              "31-60 days": { count: aging.days31to60.count, total: formatCurrency(aging.days31to60.total) },
+              "61-90 days": { count: aging.days61to90.count, total: formatCurrency(aging.days61to90.total) },
+              "Over 90 days": { count: aging.over90.count, total: formatCurrency(aging.over90.total) },
+              grandTotal: formatCurrency(grandTotal),
+            },
+            totalBills: unpaidBills.length,
+          };
+        } catch (error) {
+          logger.error({ error }, "getBillAgingReport failed");
+          return { error: "Failed to generate bill aging report" };
+        }
+      },
+    }),
   };
 
   // Build the enhanced system prompt - OPTIMIZED for token efficiency
@@ -2662,6 +6794,19 @@ Be concise. Use proper accounting format. Verify data before acting.`;
         hasText: !!text,
         usage,
       }, "=== AI STEP FINISHED ===");
+
+      // Track token usage after each step
+      if (usage) {
+        const totalTokens = (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
+        if (totalTokens > 0) {
+          agentSafetyService.recordUsage(user.id, {
+            action: "analyze_data", // Generic action for chat
+            tokens: totalTokens,
+            promptTokens: usage.inputTokens ?? 0,
+            completionTokens: usage.outputTokens ?? 0,
+          }).catch((err) => logger.error({ err }, "Failed to record token usage"));
+        }
+      }
     },
   });
 

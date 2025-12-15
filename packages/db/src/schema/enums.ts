@@ -356,3 +356,45 @@ export const maritalStatusEnum = pgEnum("marital_status", [
   "divorced", // Divorced
   "widowed", // Widowed
 ]);
+
+// User action audit enums
+export const userActionTypeEnum = pgEnum("user_action_type", [
+  // Authentication actions
+  "login", // User logged in
+  "logout", // User logged out
+  "password_change", // User changed password
+  "password_reset", // User reset password
+  "session_refresh", // Session was refreshed
+  "mfa_enabled", // MFA was enabled
+  "mfa_disabled", // MFA was disabled
+  // Settings actions
+  "settings_view", // User viewed settings
+  "settings_update", // User updated settings
+  "profile_update", // User updated profile
+  "company_update", // User updated company info
+  "notification_update", // User updated notification preferences
+  "agent_settings_update", // User updated AI agent settings
+  // Data export actions
+  "export_invoices", // User exported invoices
+  "export_customers", // User exported customers
+  "export_vendors", // User exported vendors
+  "export_bills", // User exported bills
+  "export_reports", // User exported reports
+  "export_audit_logs", // User exported audit logs
+  // API key actions
+  "api_key_created", // User created API key
+  "api_key_revoked", // User revoked API key
+  "api_key_viewed", // User viewed API key
+  // Webhook actions
+  "webhook_created", // User created webhook
+  "webhook_updated", // User updated webhook
+  "webhook_deleted", // User deleted webhook
+  // Dangerous/admin actions
+  "bulk_delete", // User performed bulk delete
+  "data_import", // User imported data
+  "account_deletion_request", // User requested account deletion
+  // Security events
+  "suspicious_activity", // Suspicious activity detected
+  "rate_limit_exceeded", // User exceeded rate limit
+  "invalid_access_attempt", // Invalid access attempt
+]);

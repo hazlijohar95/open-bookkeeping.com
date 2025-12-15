@@ -250,7 +250,7 @@ export function useGetOrCreateSession() {
   const utils = trpc.useUtils();
   return trpc.migration.getOrCreateSession.useMutation({
     onSuccess: () => {
-      utils.migration.listSessions.invalidate();
+      void utils.migration.listSessions.invalidate();
     },
   });
 }
@@ -270,8 +270,8 @@ export function useUpdateSession() {
   const utils = trpc.useUtils();
   return trpc.migration.updateSession.useMutation({
     onSuccess: (_, variables) => {
-      utils.migration.getSession.invalidate({ id: variables.id });
-      utils.migration.listSessions.invalidate();
+      void utils.migration.getSession.invalidate({ id: variables.id });
+      void utils.migration.listSessions.invalidate();
     },
   });
 }
@@ -281,7 +281,7 @@ export function useUpdateProgress() {
   return trpc.migration.updateProgress.useMutation({
     onSuccess: (data) => {
       if (data?.id) {
-        utils.migration.getSession.invalidate({ id: data.id });
+        void utils.migration.getSession.invalidate({ id: data.id });
       }
     },
   });
@@ -291,8 +291,8 @@ export function useCompleteSession() {
   const utils = trpc.useUtils();
   return trpc.migration.completeSession.useMutation({
     onSuccess: (_, variables) => {
-      utils.migration.getSession.invalidate({ id: variables.id });
-      utils.migration.listSessions.invalidate();
+      void utils.migration.getSession.invalidate({ id: variables.id });
+      void utils.migration.listSessions.invalidate();
     },
   });
 }
@@ -301,7 +301,7 @@ export function useDeleteSession() {
   const utils = trpc.useUtils();
   return trpc.migration.deleteSession.useMutation({
     onSuccess: () => {
-      utils.migration.listSessions.invalidate();
+      void utils.migration.listSessions.invalidate();
     },
   });
 }
@@ -321,8 +321,8 @@ export function useAddOpeningBalance() {
   const utils = trpc.useUtils();
   return trpc.migration.addOpeningBalance.useMutation({
     onSuccess: (_, variables) => {
-      utils.migration.getOpeningBalances.invalidate({ sessionId: variables.sessionId });
-      utils.migration.getTrialBalanceSummary.invalidate({ sessionId: variables.sessionId });
+      void utils.migration.getOpeningBalances.invalidate({ sessionId: variables.sessionId });
+      void utils.migration.getTrialBalanceSummary.invalidate({ sessionId: variables.sessionId });
     },
   });
 }
@@ -331,8 +331,8 @@ export function useBulkAddOpeningBalances() {
   const utils = trpc.useUtils();
   return trpc.migration.bulkAddOpeningBalances.useMutation({
     onSuccess: (_, variables) => {
-      utils.migration.getOpeningBalances.invalidate({ sessionId: variables.sessionId });
-      utils.migration.getTrialBalanceSummary.invalidate({ sessionId: variables.sessionId });
+      void utils.migration.getOpeningBalances.invalidate({ sessionId: variables.sessionId });
+      void utils.migration.getTrialBalanceSummary.invalidate({ sessionId: variables.sessionId });
     },
   });
 }
@@ -341,8 +341,8 @@ export function useUpdateOpeningBalance() {
   const utils = trpc.useUtils();
   return trpc.migration.updateOpeningBalance.useMutation({
     onSuccess: () => {
-      utils.migration.getOpeningBalances.invalidate();
-      utils.migration.getTrialBalanceSummary.invalidate();
+      void utils.migration.getOpeningBalances.invalidate();
+      void utils.migration.getTrialBalanceSummary.invalidate();
     },
   });
 }
@@ -351,8 +351,8 @@ export function useDeleteOpeningBalance() {
   const utils = trpc.useUtils();
   return trpc.migration.deleteOpeningBalance.useMutation({
     onSuccess: () => {
-      utils.migration.getOpeningBalances.invalidate();
-      utils.migration.getTrialBalanceSummary.invalidate();
+      void utils.migration.getOpeningBalances.invalidate();
+      void utils.migration.getTrialBalanceSummary.invalidate();
     },
   });
 }
@@ -379,7 +379,7 @@ export function useAddSubledgerItems() {
   const utils = trpc.useUtils();
   return trpc.migration.addSubledgerItems.useMutation({
     onSuccess: (_, variables) => {
-      utils.migration.getSubledgerItems.invalidate({ entryId: variables.entryId });
+      void utils.migration.getSubledgerItems.invalidate({ entryId: variables.entryId });
     },
   });
 }
@@ -398,7 +398,7 @@ export function useCreateTemplate() {
   const utils = trpc.useUtils();
   return trpc.migration.createTemplate.useMutation({
     onSuccess: () => {
-      utils.migration.listTemplates.invalidate();
+      void utils.migration.listTemplates.invalidate();
     },
   });
 }
@@ -407,7 +407,7 @@ export function useUpdateTemplate() {
   const utils = trpc.useUtils();
   return trpc.migration.updateTemplate.useMutation({
     onSuccess: () => {
-      utils.migration.listTemplates.invalidate();
+      void utils.migration.listTemplates.invalidate();
     },
   });
 }
@@ -416,7 +416,7 @@ export function useDeleteTemplate() {
   const utils = trpc.useUtils();
   return trpc.migration.deleteTemplate.useMutation({
     onSuccess: () => {
-      utils.migration.listTemplates.invalidate();
+      void utils.migration.listTemplates.invalidate();
     },
   });
 }
@@ -443,8 +443,8 @@ export function useUpdateMappingStatus() {
   const utils = trpc.useUtils();
   return trpc.migration.updateMappingStatus.useMutation({
     onSuccess: () => {
-      utils.migration.getMappingSuggestions.invalidate();
-      utils.migration.getPendingMappings.invalidate();
+      void utils.migration.getMappingSuggestions.invalidate();
+      void utils.migration.getPendingMappings.invalidate();
     },
   });
 }
@@ -453,8 +453,8 @@ export function useAutoAcceptMappings() {
   const utils = trpc.useUtils();
   return trpc.migration.autoAcceptMappings.useMutation({
     onSuccess: () => {
-      utils.migration.getMappingSuggestions.invalidate();
-      utils.migration.getPendingMappings.invalidate();
+      void utils.migration.getMappingSuggestions.invalidate();
+      void utils.migration.getPendingMappings.invalidate();
     },
   });
 }
@@ -463,8 +463,8 @@ export function useGenerateMappingSuggestions() {
   const utils = trpc.useUtils();
   return trpc.migration.generateMappingSuggestions.useMutation({
     onSuccess: (_, variables) => {
-      utils.migration.getMappingSuggestions.invalidate({ sessionId: variables.sessionId });
-      utils.migration.getPendingMappings.invalidate({ sessionId: variables.sessionId });
+      void utils.migration.getMappingSuggestions.invalidate({ sessionId: variables.sessionId });
+      void utils.migration.getPendingMappings.invalidate({ sessionId: variables.sessionId });
     },
   });
 }
@@ -484,7 +484,7 @@ export function useAddPayrollYtd() {
   const utils = trpc.useUtils();
   return trpc.migration.addPayrollYtd.useMutation({
     onSuccess: (_, variables) => {
-      utils.migration.getPayrollYtd.invalidate({ sessionId: variables.sessionId });
+      void utils.migration.getPayrollYtd.invalidate({ sessionId: variables.sessionId });
     },
   });
 }
@@ -493,7 +493,7 @@ export function useBulkAddPayrollYtd() {
   const utils = trpc.useUtils();
   return trpc.migration.bulkAddPayrollYtd.useMutation({
     onSuccess: (_, variables) => {
-      utils.migration.getPayrollYtd.invalidate({ sessionId: variables.sessionId });
+      void utils.migration.getPayrollYtd.invalidate({ sessionId: variables.sessionId });
     },
   });
 }
@@ -502,7 +502,7 @@ export function useUpdatePayrollYtd() {
   const utils = trpc.useUtils();
   return trpc.migration.updatePayrollYtd.useMutation({
     onSuccess: () => {
-      utils.migration.getPayrollYtd.invalidate();
+      void utils.migration.getPayrollYtd.invalidate();
     },
   });
 }
@@ -511,7 +511,7 @@ export function useDeletePayrollYtd() {
   const utils = trpc.useUtils();
   return trpc.migration.deletePayrollYtd.useMutation({
     onSuccess: () => {
-      utils.migration.getPayrollYtd.invalidate();
+      void utils.migration.getPayrollYtd.invalidate();
     },
   });
 }
@@ -524,7 +524,7 @@ export function useRequestDemoData() {
   const utils = trpc.useUtils();
   return trpc.migration.requestDemoData.useMutation({
     onSuccess: () => {
-      utils.migration.getDemoDataStatus.invalidate();
+      void utils.migration.getDemoDataStatus.invalidate();
     },
   });
 }
@@ -541,7 +541,7 @@ export function useValidateSession() {
   const utils = trpc.useUtils();
   return trpc.migration.validateSession.useMutation({
     onSuccess: (_, variables) => {
-      utils.migration.getSession.invalidate({ id: variables.sessionId });
+      void utils.migration.getSession.invalidate({ id: variables.sessionId });
     },
   });
 }
@@ -550,11 +550,11 @@ export function useApplyOpeningBalances() {
   const utils = trpc.useUtils();
   return trpc.migration.applyOpeningBalances.useMutation({
     onSuccess: (_, variables) => {
-      utils.migration.getSession.invalidate({ id: variables.sessionId });
-      utils.migration.listSessions.invalidate();
+      void utils.migration.getSession.invalidate({ id: variables.sessionId });
+      void utils.migration.listSessions.invalidate();
       // Invalidate accounting data as opening balances affect them
-      utils.ledger.invalidate();
-      utils.chartOfAccounts.invalidate();
+      void utils.ledger.invalidate();
+      void utils.chartOfAccounts.invalidate();
     },
   });
 }

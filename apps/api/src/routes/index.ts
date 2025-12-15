@@ -20,3 +20,4 @@ export { sstRoutes } from "./sst";
 export { chartOfAccountsRoutes } from "./chart-of-accounts";
 export { ledgerRoutes } from "./ledger";
 export { bankFeedRoutes } from "./bank-feed";
+export { statementRoutes } from "./statements";

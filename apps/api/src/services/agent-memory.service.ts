@@ -7,6 +7,11 @@ import {
 } from "@open-bookkeeping/db";
 import { eq, and, desc, sql, isNull, or, ilike } from "drizzle-orm";
 import { createLogger } from "@open-bookkeeping/shared";
+import {
+  generateEmbedding,
+  createMemorySearchText,
+  formatEmbeddingForPg,
+} from "./embedding.service";
 
 const logger = createLogger("agent-memory-service");
 
@@ -59,15 +64,16 @@ export async function getOrCreateSession(
         .where(and(eq(agentSessions.id, sessionId), eq(agentSessions.userId, userId)))
         .limit(1);
 
-      if (existing.length > 0) {
+      const existingSession = existing[0];
+      if (existingSession) {
         const messages = await getSessionMessages(sessionId);
         return {
-          id: existing[0].id,
-          title: existing[0].title ?? undefined,
-          status: existing[0].status as Session["status"],
+          id: existingSession.id,
+          title: existingSession.title ?? undefined,
+          status: existingSession.status as Session["status"],
           messages,
-          summary: existing[0].summary ?? undefined,
-          systemContext: existing[0].systemContext as Session["systemContext"],
+          summary: existingSession.summary ?? undefined,
+          systemContext: existingSession.systemContext as Session["systemContext"],
         };
       }
     }
@@ -96,6 +102,10 @@ export async function getOrCreateSession(
       })
       .returning();
 
+    if (!newSession) {
+      throw new Error("Failed to create new session");
+    }
+
     return {
       id: newSession.id,
       status: "active",
@@ -110,6 +120,7 @@ export async function getOrCreateSession(
 
 /**
  * Get messages for a session
+ * @throws Error if database query fails (callers should handle this)
  */
 export async function getSessionMessages(
   sessionId: string
@@ -128,13 +139,15 @@ export async function getSessionMessages(
       toolResults: m.toolResults as SessionMessage["toolResults"],
     }));
   } catch (error) {
-    logger.error({ error, sessionId }, "Failed to get session messages");
-    return [];
+    logger.error({ error, sessionId }, "Failed to get session messages - throwing to caller");
+    // Re-throw to let caller decide how to handle (don't silently return empty)
+    throw new Error(`Failed to retrieve session messages: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
 /**
  * Save a message to the session
+ * @throws Error if save fails (data loss prevention)
  */
 export async function saveMessage(
   sessionId: string,
@@ -164,7 +177,8 @@ export async function saveMessage(
         .where(eq(agentSessions.id, sessionId));
     }
   } catch (error) {
-    logger.error({ error, sessionId }, "Failed to save message");
+    logger.error({ error, sessionId, messageRole: message.role }, "Failed to save message - throwing to prevent data loss");
+    throw new Error(`Failed to save message: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
@@ -212,6 +226,7 @@ export async function completeSession(
 
 /**
  * Get recent sessions for a user
+ * @throws Error if database query fails
  */
 export async function getRecentSessions(
   userId: string,
@@ -231,8 +246,8 @@ export async function getRecentSessions(
 
     return sessions;
   } catch (error) {
-    logger.error({ error, userId }, "Failed to get recent sessions");
-    return [];
+    logger.error({ error, userId }, "Failed to get recent sessions - throwing to caller");
+    throw new Error(`Failed to get recent sessions: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
@@ -250,7 +265,7 @@ export interface Memory {
 }
 
 /**
- * Store a new memory
+ * Store a new memory with semantic embedding
  */
 export async function storeMemory(
   userId: string,
@@ -266,7 +281,57 @@ export async function storeMemory(
   }
 ): Promise<Memory | null> {
   try {
-    // Check for existing memory with same key
+    // Generate embedding for semantic search
+    const searchText = createMemorySearchText(memory.key, memory.value);
+    const embedding = await generateEmbedding(searchText);
+
+    // Check for similar existing memories using semantic search (deduplication)
+    if (embedding) {
+      const similar = await findSimilarMemories(userId, embedding, 0.95);
+      if (similar.length > 0) {
+        // Update the most similar memory instead of creating duplicate
+        const mostSimilar = similar[0];
+        if (mostSimilar) {
+          logger.info(
+            { userId, existingKey: mostSimilar.key, newKey: memory.key, similarity: mostSimilar.similarity },
+            "Found similar memory, updating instead of creating duplicate"
+          );
+
+          const embeddingPg = formatEmbeddingForPg(embedding);
+          const [updated] = await db
+            .update(agentMemories)
+            .set({
+              key: memory.key,
+              value: memory.value,
+              confidence: memory.confidence?.toString() ?? "1.00",
+              tags: memory.tags,
+              sourceType: memory.sourceType,
+              sourceSessionId: memory.sourceSessionId,
+              updatedAt: new Date(),
+            })
+            .where(eq(agentMemories.id, mostSimilar.id))
+            .returning();
+
+          // Update embedding separately due to type issues
+          await db.execute(
+            sql`UPDATE agent_memories SET embedding_vector = ${embeddingPg}::vector WHERE id = ${mostSimilar.id}`
+          );
+
+          if (updated) {
+            return {
+              id: updated.id,
+              category: updated.category,
+              key: updated.key,
+              value: updated.value,
+              confidence: parseFloat(updated.confidence?.toString() ?? "1"),
+              sourceType: updated.sourceType,
+            };
+          }
+        }
+      }
+    }
+
+    // Check for existing memory with exact same key (fallback)
     const existing = await db
       .select()
       .from(agentMemories)
@@ -279,7 +344,8 @@ export async function storeMemory(
       )
       .limit(1);
 
-    if (existing.length > 0) {
+    const existingMemory = existing[0];
+    if (existingMemory) {
       // Update existing memory
       const [updated] = await db
         .update(agentMemories)
@@ -291,8 +357,20 @@ export async function storeMemory(
           sourceSessionId: memory.sourceSessionId,
           updatedAt: new Date(),
         })
-        .where(eq(agentMemories.id, existing[0].id))
+        .where(eq(agentMemories.id, existingMemory.id))
         .returning();
+
+      // Update embedding if available
+      if (embedding) {
+        const embeddingPg = formatEmbeddingForPg(embedding);
+        await db.execute(
+          sql`UPDATE agent_memories SET embedding_vector = ${embeddingPg}::vector WHERE id = ${existingMemory.id}`
+        );
+      }
+
+      if (!updated) {
+        throw new Error("Failed to update memory");
+      }
 
       return {
         id: updated.id,
@@ -319,6 +397,18 @@ export async function storeMemory(
         expiresAt: memory.expiresAt,
       })
       .returning();
+
+    if (!newMemory) {
+      throw new Error("Failed to create memory");
+    }
+
+    // Add embedding to the new memory
+    if (embedding) {
+      const embeddingPg = formatEmbeddingForPg(embedding);
+      await db.execute(
+        sql`UPDATE agent_memories SET embedding_vector = ${embeddingPg}::vector WHERE id = ${newMemory.id}`
+      );
+    }
 
     return {
       id: newMemory.id,
@@ -373,7 +463,7 @@ export async function getMemoriesByCategory(
 }
 
 /**
- * Search memories by key or value
+ * Search memories by key or value (keyword-based)
  */
 export async function searchMemories(
   userId: string,
@@ -411,25 +501,139 @@ export async function searchMemories(
   }
 }
 
+export interface SemanticMemory extends Memory {
+  similarity: number;
+}
+
+/**
+ * Search memories using semantic similarity (vector search)
+ * Falls back to keyword search if embedding generation fails
+ */
+export async function searchMemoriesSemantic(
+  userId: string,
+  query: string,
+  options?: {
+    threshold?: number;
+    limit?: number;
+  }
+): Promise<SemanticMemory[]> {
+  const threshold = options?.threshold ?? 0.7;
+  const limit = options?.limit ?? 10;
+
+  try {
+    // Generate embedding for the query
+    const embedding = await generateEmbedding(query);
+
+    if (!embedding) {
+      // Fallback to keyword search
+      logger.warn({ userId, query }, "Failed to generate embedding, falling back to keyword search");
+      const keywordResults = await searchMemories(userId, query, limit);
+      return keywordResults.map((m) => ({ ...m, similarity: 0.5 }));
+    }
+
+    // Use the database function for semantic search
+    const embeddingPg = formatEmbeddingForPg(embedding);
+    const results = await db.execute(
+      sql`SELECT * FROM search_memories_semantic(
+        ${userId}::uuid,
+        ${embeddingPg}::vector,
+        ${threshold}::float,
+        ${limit}::int
+      )`
+    ) as unknown as Array<{
+      id: string;
+      category: string;
+      key: string;
+      value: string;
+      confidence: string;
+      source_type: string;
+      similarity: number;
+    }>;
+
+    return results.map((row) => ({
+      id: row.id,
+      category: row.category,
+      key: row.key,
+      value: row.value,
+      confidence: parseFloat(row.confidence ?? "1"),
+      sourceType: row.source_type,
+      similarity: row.similarity,
+    }));
+  } catch (error) {
+    logger.error({ error, userId, query }, "Failed to search memories semantically");
+    // Fallback to keyword search
+    const keywordResults = await searchMemories(userId, query, limit);
+    return keywordResults.map((m) => ({ ...m, similarity: 0.5 }));
+  }
+}
+
+/**
+ * Find memories similar to a given embedding (for deduplication)
+ */
+export async function findSimilarMemories(
+  userId: string,
+  embedding: number[],
+  threshold: number = 0.95
+): Promise<Array<{ id: string; key: string; similarity: number }>> {
+  try {
+    const embeddingPg = formatEmbeddingForPg(embedding);
+    const results = await db.execute(
+      sql`SELECT * FROM find_similar_memories(
+        ${userId}::uuid,
+        ${embeddingPg}::vector,
+        ${threshold}::float
+      )`
+    ) as unknown as Array<{
+      id: string;
+      key: string;
+      similarity: number;
+    }>;
+
+    return results.map((row) => ({
+      id: row.id,
+      key: row.key,
+      similarity: row.similarity,
+    }));
+  } catch (error) {
+    logger.error({ error, userId }, "Failed to find similar memories");
+    return [];
+  }
+}
+
 /**
  * Get all relevant memories for context building
+ * Uses Promise.allSettled for graceful degradation - partial failures won't break the entire context
  */
 export async function getRelevantMemories(
   userId: string
 ): Promise<{ preferences: Memory[]; facts: Memory[]; patterns: Memory[]; instructions: Memory[] }> {
-  try {
-    const [preferences, facts, patterns, instructions] = await Promise.all([
-      getMemoriesByCategory(userId, "preference"),
-      getMemoriesByCategory(userId, "fact"),
-      getMemoriesByCategory(userId, "pattern"),
-      getMemoriesByCategory(userId, "instruction"),
-    ]);
+  const results = await Promise.allSettled([
+    getMemoriesByCategory(userId, "preference"),
+    getMemoriesByCategory(userId, "fact"),
+    getMemoriesByCategory(userId, "pattern"),
+    getMemoriesByCategory(userId, "instruction"),
+  ]);
 
-    return { preferences, facts, patterns, instructions };
-  } catch (error) {
-    logger.error({ error, userId }, "Failed to get relevant memories");
-    return { preferences: [], facts: [], patterns: [], instructions: [] };
+  // Log any failures for debugging
+  const failedCategories: string[] = [];
+  if (results[0].status === "rejected") failedCategories.push("preference");
+  if (results[1].status === "rejected") failedCategories.push("fact");
+  if (results[2].status === "rejected") failedCategories.push("pattern");
+  if (results[3].status === "rejected") failedCategories.push("instruction");
+
+  if (failedCategories.length > 0) {
+    logger.warn(
+      { userId, failedCategories },
+      "Some memory categories failed to load - using partial context"
+    );
   }
+
+  return {
+    preferences: results[0].status === "fulfilled" ? results[0].value : [],
+    facts: results[1].status === "fulfilled" ? results[1].value : [],
+    patterns: results[2].status === "fulfilled" ? results[2].value : [],
+    instructions: results[3].status === "fulfilled" ? results[3].value : [],
+  };
 }
 
 /**
@@ -546,70 +750,96 @@ export async function upsertUserContext(
 
 /**
  * Build full context string for the AI agent
+ * Uses Promise.allSettled for graceful degradation
  */
 export async function buildAgentContext(userId: string): Promise<string> {
-  try {
-    const [userContext, memories] = await Promise.all([
-      getUserContext(userId),
-      getRelevantMemories(userId),
-    ]);
+  const results = await Promise.allSettled([
+    getUserContext(userId),
+    getRelevantMemories(userId),
+  ]);
 
-    const contextParts: string[] = [];
+  // Extract results with fallbacks
+  const userContext = results[0].status === "fulfilled" ? results[0].value : null;
+  const memories = results[1].status === "fulfilled"
+    ? results[1].value
+    : { preferences: [], facts: [], patterns: [], instructions: [] };
 
-    // User context
-    if (userContext) {
-      const businessContext: string[] = [];
-      if (userContext.companyName) businessContext.push(`Company: ${userContext.companyName}`);
-      if (userContext.defaultCurrency) businessContext.push(`Default Currency: ${userContext.defaultCurrency}`);
-      if (userContext.fiscalYearEnd) businessContext.push(`Fiscal Year End: ${userContext.fiscalYearEnd}`);
-      if (userContext.industry) businessContext.push(`Industry: ${userContext.industry}`);
-      if (userContext.invoicePrefix) businessContext.push(`Invoice Prefix: ${userContext.invoicePrefix}`);
-      if (userContext.quotationPrefix) businessContext.push(`Quotation Prefix: ${userContext.quotationPrefix}`);
-
-      if (businessContext.length > 0) {
-        contextParts.push(`BUSINESS CONTEXT:\n${businessContext.join("\n")}`);
-      }
-
-      // Preferences
-      const prefs: string[] = [];
-      if (userContext.verbosityLevel && userContext.verbosityLevel !== "normal") {
-        prefs.push(`Response style: ${userContext.verbosityLevel}`);
-      }
-      if (userContext.dateFormat && userContext.dateFormat !== "YYYY-MM-DD") {
-        prefs.push(`Date format: ${userContext.dateFormat}`);
-      }
-
-      if (prefs.length > 0) {
-        contextParts.push(`PREFERENCES:\n${prefs.join("\n")}`);
-      }
-    }
-
-    // Long-term memories
-    if (memories.preferences.length > 0) {
-      const prefMemories = memories.preferences.map((m) => `- ${m.key}: ${m.value}`);
-      contextParts.push(`LEARNED PREFERENCES:\n${prefMemories.join("\n")}`);
-    }
-
-    if (memories.facts.length > 0) {
-      const factMemories = memories.facts.map((m) => `- ${m.key}: ${m.value}`);
-      contextParts.push(`KNOWN FACTS:\n${factMemories.join("\n")}`);
-    }
-
-    if (memories.instructions.length > 0) {
-      const instructionMemories = memories.instructions.map((m) => `- ${m.value}`);
-      contextParts.push(`USER INSTRUCTIONS:\n${instructionMemories.join("\n")}`);
-    }
-
-    if (memories.patterns.length > 0) {
-      const patternMemories = memories.patterns.map((m) => `- ${m.key}: ${m.value}`);
-      contextParts.push(`OBSERVED PATTERNS:\n${patternMemories.join("\n")}`);
-    }
-
-    return contextParts.join("\n\n");
-  } catch (error) {
-    logger.error({ error, userId }, "Failed to build agent context");
-    return "";
+  // Log any failures
+  if (results[0].status === "rejected") {
+    logger.warn({ userId, error: results[0].reason }, "User context failed to load for agent context");
   }
+  if (results[1].status === "rejected") {
+    logger.warn({ userId, error: results[1].reason }, "Memories failed to load for agent context");
+  }
+
+  const contextParts: string[] = [];
+
+  // User context
+  if (userContext) {
+    const businessContext: string[] = [];
+    if (userContext.companyName) businessContext.push(`Company: ${userContext.companyName}`);
+    if (userContext.defaultCurrency) businessContext.push(`Default Currency: ${userContext.defaultCurrency}`);
+    if (userContext.fiscalYearEnd) businessContext.push(`Fiscal Year End: ${userContext.fiscalYearEnd}`);
+    if (userContext.industry) businessContext.push(`Industry: ${userContext.industry}`);
+    if (userContext.invoicePrefix) businessContext.push(`Invoice Prefix: ${userContext.invoicePrefix}`);
+    if (userContext.quotationPrefix) businessContext.push(`Quotation Prefix: ${userContext.quotationPrefix}`);
+
+    if (businessContext.length > 0) {
+      contextParts.push(`BUSINESS CONTEXT:\n${businessContext.join("\n")}`);
+    }
+
+    // Preferences
+    const prefs: string[] = [];
+    if (userContext.verbosityLevel && userContext.verbosityLevel !== "normal") {
+      prefs.push(`Response style: ${userContext.verbosityLevel}`);
+    }
+    if (userContext.dateFormat && userContext.dateFormat !== "YYYY-MM-DD") {
+      prefs.push(`Date format: ${userContext.dateFormat}`);
+    }
+
+    if (prefs.length > 0) {
+      contextParts.push(`PREFERENCES:\n${prefs.join("\n")}`);
+    }
+  }
+
+  // Long-term memories
+  if (memories.preferences.length > 0) {
+    const prefMemories = memories.preferences.map((m) => `- ${m.key}: ${m.value}`);
+    contextParts.push(`LEARNED PREFERENCES:\n${prefMemories.join("\n")}`);
+  }
+
+  if (memories.facts.length > 0) {
+    const factMemories = memories.facts.map((m) => `- ${m.key}: ${m.value}`);
+    contextParts.push(`KNOWN FACTS:\n${factMemories.join("\n")}`);
+  }
+
+  if (memories.instructions.length > 0) {
+    const instructionMemories = memories.instructions.map((m) => `- ${m.value}`);
+    contextParts.push(`USER INSTRUCTIONS:\n${instructionMemories.join("\n")}`);
+  }
+
+  if (memories.patterns.length > 0) {
+    const patternMemories = memories.patterns.map((m) => `- ${m.key}: ${m.value}`);
+    contextParts.push(`OBSERVED PATTERNS:\n${patternMemories.join("\n")}`);
+  }
+
+  // Track memory usage for all memories included in context (fire-and-forget)
+  const allMemories = [
+    ...memories.preferences,
+    ...memories.facts,
+    ...memories.instructions,
+    ...memories.patterns,
+  ];
+  if (allMemories.length > 0) {
+    // Don't await - tracking is best-effort and shouldn't slow down context building
+    Promise.allSettled(
+      allMemories.map((m) => incrementMemoryUsage(m.id))
+    ).catch((err) => {
+      logger.warn({ error: err }, "Failed to track memory usage");
+    });
+  }
+
+  return contextParts.join("\n\n");
 }
 
 export const agentMemoryService = {
@@ -625,6 +855,8 @@ export const agentMemoryService = {
   storeMemory,
   getMemoriesByCategory,
   searchMemories,
+  searchMemoriesSemantic,
+  findSimilarMemories,
   getRelevantMemories,
   incrementMemoryUsage,
 

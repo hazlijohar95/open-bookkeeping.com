@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 
 // ============================================================================
@@ -75,6 +75,9 @@ export function usePWA(): PWAStatus {
   // Check if mobile device - PWA only enabled on mobile
   const [isMobile] = useState(() => isMobileDevice());
 
+  // Ref to store update interval for proper cleanup
+  const updateIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Online/Offline status
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== "undefined" ? navigator.onLine : true
@@ -123,8 +126,13 @@ export function usePWA(): PWAStatus {
       }
 
       // Check for updates every hour (mobile only)
+      // Store interval ID in ref for proper cleanup
       if (registration) {
-        setInterval(() => {
+        // Clear any existing interval before creating new one
+        if (updateIntervalRef.current) {
+          clearInterval(updateIntervalRef.current);
+        }
+        updateIntervalRef.current = setInterval(() => {
           void registration.update();
         }, 60 * 60 * 1000);
       }
@@ -133,6 +141,16 @@ export function usePWA(): PWAStatus {
       console.error("[PWA] Service worker registration error:", error);
     },
   });
+
+  // Cleanup interval on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (updateIntervalRef.current) {
+        clearInterval(updateIntervalRef.current);
+        updateIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   // Handle online/offline events
   useEffect(() => {

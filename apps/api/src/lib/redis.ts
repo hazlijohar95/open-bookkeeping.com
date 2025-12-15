@@ -153,8 +153,49 @@ export async function isRedisAvailable(): Promise<boolean> {
 
 /**
  * Cache helper with automatic fallback to in-memory when Redis is unavailable
+ * Uses proper LRU eviction by tracking access timestamps
  */
-const memoryCache = new Map<string, { value: unknown; expiresAt: number }>();
+interface MemoryCacheEntry {
+  value: unknown;
+  expiresAt: number;
+  lastAccessedAt: number; // Track last access for LRU eviction
+}
+
+const memoryCache = new Map<string, MemoryCacheEntry>();
+const MAX_CACHE_SIZE = 1000;
+const LRU_EVICTION_COUNT = 100; // Number of entries to evict when cache is full
+
+/**
+ * Evict entries from memory cache using LRU policy
+ * First removes expired entries, then least recently accessed
+ */
+function evictMemoryCacheEntries(): void {
+  const now = Date.now();
+
+  // Phase 1: Remove all expired entries
+  for (const [key, entry] of memoryCache.entries()) {
+    if (entry.expiresAt < now) {
+      memoryCache.delete(key);
+    }
+  }
+
+  // Phase 2: If still over limit, evict least recently accessed entries
+  if (memoryCache.size > MAX_CACHE_SIZE) {
+    // Sort by lastAccessedAt and remove oldest
+    const entries = Array.from(memoryCache.entries())
+      .sort((a, b) => a[1].lastAccessedAt - b[1].lastAccessedAt);
+
+    const toEvict = entries.slice(0, LRU_EVICTION_COUNT);
+    for (const [key] of toEvict) {
+      memoryCache.delete(key);
+    }
+
+    logger.debug(
+      { evicted: toEvict.length, remaining: memoryCache.size },
+      "LRU eviction completed"
+    );
+  }
+}
 
 export async function cacheGet<T>(key: string): Promise<T | null> {
   // Check circuit breaker before attempting Redis operation
@@ -171,10 +212,14 @@ export async function cacheGet<T>(key: string): Promise<T | null> {
 
   // Fallback to memory cache
   const cached = memoryCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.value as T;
-  }
   if (cached) {
+    const now = Date.now();
+    if (cached.expiresAt > now) {
+      // Update last accessed time for LRU tracking
+      cached.lastAccessedAt = now;
+      return cached.value as T;
+    }
+    // Entry expired, remove it
     memoryCache.delete(key);
   }
   return null;
@@ -185,27 +230,18 @@ export async function cacheSet(
   value: unknown,
   ttlSeconds: number
 ): Promise<void> {
+  const now = Date.now();
+
   // Always set in memory cache for immediate availability
   memoryCache.set(key, {
     value,
-    expiresAt: Date.now() + ttlSeconds * 1000,
+    expiresAt: now + ttlSeconds * 1000,
+    lastAccessedAt: now,
   });
 
-  // Clean up if too many entries (LRU-like behavior)
-  if (memoryCache.size > 1000) {
-    const now = Date.now();
-    for (const [k, v] of memoryCache.entries()) {
-      if (v.expiresAt < now) {
-        memoryCache.delete(k);
-      }
-    }
-    // If still too many, remove oldest 100
-    if (memoryCache.size > 1000) {
-      const keysToDelete = Array.from(memoryCache.keys()).slice(0, 100);
-      for (const k of keysToDelete) {
-        memoryCache.delete(k);
-      }
-    }
+  // Clean up if too many entries using proper LRU eviction
+  if (memoryCache.size > MAX_CACHE_SIZE) {
+    evictMemoryCacheEntries();
   }
 
   // Try to persist to Redis (non-blocking)
@@ -313,24 +349,30 @@ export async function checkRateLimit(
   // In-memory fallback (per-instance, not distributed)
   // This is acceptable as a degraded mode - slightly more permissive than distributed
   const cacheKey = `ratelimit:memory:${identifier}`;
+  const nowMs = Date.now();
   const cached = memoryCache.get(cacheKey) as
-    | { value: { count: number; windowStart: number }; expiresAt: number }
+    | MemoryCacheEntry & { value: { count: number; windowStart: number } }
     | undefined;
 
-  if (!cached || cached.value.windowStart < windowStart) {
+  if (!cached || (cached.value as { count: number; windowStart: number }).windowStart < windowStart) {
     memoryCache.set(cacheKey, {
       value: { count: 1, windowStart: now },
-      expiresAt: Date.now() + windowSeconds * 1000,
+      expiresAt: nowMs + windowSeconds * 1000,
+      lastAccessedAt: nowMs,
     });
     return { allowed: true, remaining: limit - 1, resetAt: now + windowSeconds };
   }
 
-  const newCount = cached.value.count + 1;
-  cached.value.count = newCount;
+  // Update last accessed time
+  cached.lastAccessedAt = nowMs;
+
+  const rateData = cached.value as { count: number; windowStart: number };
+  const newCount = rateData.count + 1;
+  rateData.count = newCount;
 
   return {
     allowed: newCount <= limit,
     remaining: Math.max(0, limit - newCount),
-    resetAt: cached.value.windowStart + windowSeconds,
+    resetAt: rateData.windowStart + windowSeconds,
   };
 }

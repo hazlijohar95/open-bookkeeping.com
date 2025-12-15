@@ -4,12 +4,12 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const cardVariants = cva(
-  "bg-white dark:bg-slate-900 text-card-foreground flex flex-col rounded-none border border-border/40 shadow-none transition-all duration-200",
+  "bg-card text-card-foreground flex flex-col rounded-none border border-border/40 shadow-none transition-all duration-200",
   {
     variants: {
       variant: {
         default: "",
-        interactive: "hover:bg-slate-50/50 dark:hover:bg-slate-800/50 cursor-pointer active:scale-[0.99]",
+        interactive: "hover:bg-accent/50 cursor-pointer active:scale-[0.99]",
         elevated: "",
         ghost: "border-transparent bg-transparent",
       },

@@ -21,27 +21,27 @@ interface InvoiceStatusChartProps {
 const STATUS_CONFIG = {
   paid: {
     label: "Paid",
-    color: "oklch(0.72 0.19 142)", // --success
+    color: "oklch(0.72 0.19 142)", // --success (green)
     bgClass: "bg-success",
   },
   pending: {
     label: "Pending",
-    color: "oklch(0.75 0.18 55)", // --warning
+    color: "oklch(0.75 0.18 55)", // --warning (amber)
     bgClass: "bg-warning",
   },
   overdue: {
     label: "Overdue",
-    color: "oklch(0.577 0.245 27.325)", // --destructive
+    color: "oklch(0.577 0.245 27.325)", // --destructive (red)
     bgClass: "bg-destructive",
   },
   expired: {
     label: "Expired",
-    color: "oklch(0.552 0.016 285.938)", // --muted-foreground
+    color: "oklch(0.552 0.016 285.938)", // --muted-foreground (gray)
     bgClass: "bg-muted-foreground",
   },
   refunded: {
     label: "Refunded",
-    color: "oklch(0.62 0.21 262)", // --primary
+    color: "oklch(0.62 0.22 38)", // --primary (Monk orange)
     bgClass: "bg-primary",
   },
 };

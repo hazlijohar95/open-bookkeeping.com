@@ -277,12 +277,12 @@ const Hero = () => {
               "radial-gradient(circle, hsl(var(--primary) / 0.4) 0%, transparent 70%)",
           }}
         />
-        {/* Secondary accent */}
+        {/* Secondary accent - Warm amber glow */}
         <div
           className="absolute top-1/2 -left-1/4 w-[60vw] h-[60vw] rounded-full opacity-20 dark:opacity-10 blur-3xl"
           style={{
             background:
-              "radial-gradient(circle, hsl(280 70% 60% / 0.3) 0%, transparent 70%)",
+              "radial-gradient(circle, hsl(35 90% 55% / 0.3) 0%, transparent 70%)",
           }}
         />
         {/* Noise texture overlay */}

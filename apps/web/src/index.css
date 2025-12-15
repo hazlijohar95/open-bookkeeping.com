@@ -70,102 +70,107 @@
 
 :root {
   --radius: 0.6rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
-  --card: oklch(0.98 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.62 0.21 262);
-  --light-primary: oklch(0.75 0.14 262);
-  --dark-primary: oklch(0.48 0.22 262);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
+  /* Monk-inspired warm palette - Light Mode */
+  --background: oklch(0.985 0.005 75);          /* #FBFBF9 off-white with warm tint */
+  --foreground: oklch(0.18 0.01 60);            /* #272725 charcoal */
+  --card: oklch(0.97 0.008 70);                 /* #F5F3EF warm beige */
+  --card-foreground: oklch(0.18 0.01 60);       /* Charcoal text */
+  --popover: oklch(0.99 0.003 70);              /* Slightly warmer white for popovers */
+  --popover-foreground: oklch(0.18 0.01 60);
+  /* Primary - Monk Orange #EE5F00 */
+  --primary: oklch(0.62 0.22 38);               /* Vibrant orange */
+  --light-primary: oklch(0.72 0.18 42);         /* Lighter orange */
+  --dark-primary: oklch(0.52 0.24 35);          /* Darker orange */
+  --primary-foreground: oklch(0.99 0 0);        /* White text on orange */
+  /* Secondary - Warm neutral */
+  --secondary: oklch(0.96 0.008 70);            /* Warm light gray */
+  --secondary-foreground: oklch(0.25 0.01 60);  /* Dark charcoal */
+  --muted: oklch(0.94 0.01 70);                 /* Warm muted */
+  --muted-foreground: oklch(0.50 0.02 60);      /* Warm gray text */
+  --accent: oklch(0.96 0.01 70);                /* Warm accent bg */
+  --accent-foreground: oklch(0.25 0.01 60);
+  /* Semantic colors */
+  --destructive: oklch(0.577 0.245 27);         /* Red (keep) */
   --destructive-foreground: oklch(0.98 0 0);
-  --success: oklch(0.72 0.19 142);
+  --success: oklch(0.72 0.19 142);              /* Green (keep) */
   --success-foreground: oklch(0.98 0 0);
-  --warning: oklch(0.75 0.18 55);
-  --warning-foreground: oklch(0.1 0 0);
-  --info: oklch(0.62 0.19 250);
+  --warning: oklch(0.78 0.16 60);               /* Warm amber */
+  --warning-foreground: oklch(0.15 0.01 60);
+  --info: oklch(0.65 0.18 40);                  /* Orange-tinted info (was blue) */
   --info-foreground: oklch(0.98 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.62 0.21 262);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.98 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.62 0.21 262);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.62 0.21 262);
+  /* Borders & inputs - Warm gray */
+  --border: oklch(0.90 0.01 70);                /* Warm border */
+  --input: oklch(0.92 0.008 70);                /* Warm input bg */
+  --ring: oklch(0.62 0.22 38);                  /* Orange ring */
+  /* Charts - Warm palette */
+  --chart-1: oklch(0.62 0.22 38);               /* Orange primary */
+  --chart-2: oklch(0.75 0.16 55);               /* Amber */
+  --chart-3: oklch(0.70 0.18 142);              /* Green */
+  --chart-4: oklch(0.65 0.12 30);               /* Terracotta */
+  --chart-5: oklch(0.80 0.14 70);               /* Gold */
+  /* Sidebar - Warm tones with orange accent */
+  --sidebar: oklch(0.98 0.005 70);              /* Warm white */
+  --sidebar-foreground: oklch(0.18 0.01 60);
+  --sidebar-primary: oklch(0.62 0.22 38);       /* Orange */
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.96 0.01 70);        /* Warm accent */
+  --sidebar-accent-foreground: oklch(0.25 0.01 60);
+  --sidebar-border: oklch(0.90 0.01 70);        /* Warm border */
+  --sidebar-ring: oklch(0.62 0.22 38);          /* Orange ring */
 }
 
 .dark {
-  /* Softer dark gray background - not pure black */
-  --background: oklch(0.16 0.004 285);
-  /* Off-white foreground - easier on the eyes */
-  --foreground: oklch(0.93 0.003 286);
+  /* Monk-inspired warm palette - Dark Mode (Charcoal #272725) */
+  --background: oklch(0.18 0.01 60);            /* Warm charcoal */
+  --foreground: oklch(0.96 0.008 70);           /* Warm off-white */
   /* Card slightly elevated from background */
-  --card: oklch(0.19 0.005 285);
-  --card-foreground: oklch(0.93 0.003 286);
+  --card: oklch(0.22 0.01 60);                  /* Elevated charcoal */
+  --card-foreground: oklch(0.96 0.008 70);
   /* Popover matches card */
-  --popover: oklch(0.19 0.005 285);
-  --popover-foreground: oklch(0.93 0.003 286);
-  /* Primary - slightly softer blue for dark mode */
-  --primary: oklch(0.65 0.18 262);
-  --light-primary: oklch(0.72 0.14 262);
-  --dark-primary: oklch(0.52 0.19 262);
-  --primary-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.22 0.01 60);
+  --popover-foreground: oklch(0.96 0.008 70);
+  /* Primary - softer orange for dark mode */
+  --primary: oklch(0.68 0.20 40);               /* Brighter orange for dark bg */
+  --light-primary: oklch(0.75 0.16 45);
+  --dark-primary: oklch(0.58 0.22 38);
+  --primary-foreground: oklch(0.99 0 0);
   /* Secondary - subtle elevation */
-  --secondary: oklch(0.22 0.005 285);
-  --secondary-foreground: oklch(0.90 0.003 286);
+  --secondary: oklch(0.25 0.01 60);
+  --secondary-foreground: oklch(0.92 0.005 70);
   /* Muted - for backgrounds and subtle elements */
-  --muted: oklch(0.22 0.005 285);
-  /* Muted foreground - readable gray, not too dim */
-  --muted-foreground: oklch(0.65 0.01 286);
+  --muted: oklch(0.25 0.01 60);
+  --muted-foreground: oklch(0.60 0.02 60);      /* Warm gray text */
   /* Accent */
-  --accent: oklch(0.24 0.006 285);
-  --accent-foreground: oklch(0.93 0.003 286);
+  --accent: oklch(0.28 0.01 60);
+  --accent-foreground: oklch(0.96 0.008 70);
   /* Status colors - slightly softer for dark mode */
   --destructive: oklch(0.62 0.22 25);
   --destructive-foreground: oklch(0.98 0 0);
   --success: oklch(0.68 0.16 145);
   --success-foreground: oklch(0.98 0 0);
-  --warning: oklch(0.78 0.15 58);
-  --warning-foreground: oklch(0.15 0 0);
-  --info: oklch(0.68 0.15 250);
+  --warning: oklch(0.80 0.14 60);               /* Warm amber */
+  --warning-foreground: oklch(0.15 0.01 60);
+  --info: oklch(0.70 0.16 42);                  /* Orange-tinted info */
   --info-foreground: oklch(0.98 0 0);
-  /* Border - subtle but visible */
+  /* Border - warm subtle border */
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 10%);
-  --ring: oklch(0.65 0.18 262);
-  /* Charts - balanced for dark mode */
-  --chart-1: oklch(0.65 0.18 262);
-  --chart-2: oklch(0.68 0.15 165);
-  --chart-3: oklch(0.75 0.16 75);
-  --chart-4: oklch(0.62 0.20 305);
-  --chart-5: oklch(0.65 0.20 20);
-  /* Sidebar */
-  --sidebar: oklch(0.14 0.004 285);
-  --sidebar-foreground: oklch(0.93 0.003 286);
-  --sidebar-primary: oklch(0.65 0.18 262);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.22 0.005 285);
-  --sidebar-accent-foreground: oklch(0.93 0.003 286);
+  --ring: oklch(0.68 0.20 40);                  /* Orange ring */
+  /* Charts - warm balanced for dark mode */
+  --chart-1: oklch(0.68 0.20 40);               /* Orange */
+  --chart-2: oklch(0.75 0.14 60);               /* Amber */
+  --chart-3: oklch(0.70 0.16 145);              /* Green */
+  --chart-4: oklch(0.68 0.12 32);               /* Terracotta */
+  --chart-5: oklch(0.82 0.12 75);               /* Gold */
+  /* Sidebar - Dark with orange accents */
+  --sidebar: oklch(0.15 0.01 60);               /* Darker charcoal */
+  --sidebar-foreground: oklch(0.96 0.008 70);
+  --sidebar-primary: oklch(0.68 0.20 40);       /* Orange */
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.25 0.01 60);
+  --sidebar-accent-foreground: oklch(0.96 0.008 70);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.65 0.18 262);
+  --sidebar-ring: oklch(0.68 0.20 40);          /* Orange ring */
 }
 
 @layer base {
@@ -353,14 +358,14 @@ li::marker {
 
 /* Mobile-specific states */
 :root {
-  /* Swipe action colors */
-  --swipe-edit: oklch(0.62 0.19 250);
-  --swipe-delete: oklch(0.577 0.245 27);
-  --swipe-success: oklch(0.72 0.19 142);
-  --swipe-warning: oklch(0.75 0.18 55);
+  /* Swipe action colors - Monk warm palette */
+  --swipe-edit: oklch(0.62 0.22 38);            /* Orange (was blue) */
+  --swipe-delete: oklch(0.577 0.245 27);        /* Red (keep) */
+  --swipe-success: oklch(0.72 0.19 142);        /* Green (keep) */
+  --swipe-warning: oklch(0.78 0.16 60);         /* Warm amber */
 
   /* Active touch state */
-  --touch-highlight: oklch(0 0 0 / 0.05);
+  --touch-highlight: oklch(0.62 0.22 38 / 0.08); /* Orange tint */
 
   /* Pull to refresh */
   --refresh-indicator: var(--primary);

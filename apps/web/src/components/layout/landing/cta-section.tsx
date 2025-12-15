@@ -14,7 +14,7 @@ const CTASection = () => {
 
         {/* Decorative orbs */}
         <div className="absolute top-0 left-1/4 w-[400px] h-[400px] rounded-full bg-primary/[0.03] blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-[300px] h-[300px] rounded-full bg-violet-500/[0.02] blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-[300px] h-[300px] rounded-full bg-amber-500/[0.02] blur-3xl" />
 
         {/* Grid pattern */}
         <div

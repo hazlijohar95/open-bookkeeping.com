@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/rules-of-hooks */
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import type { Column, ColumnDataType, DataTableFilterActions, FilterStrategy, FiltersState } from "../core/types";
 import { isValidElement, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -30,6 +29,10 @@ function __FilterSelector<TData>({ filters, columns, actions, strategy, locale =
   const [property, setProperty] = useState<string | undefined>(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Refs for timeout cleanup to prevent memory leaks
+  const valueTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const propertyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const column = property ? getColumn(columns, property) : undefined;
   const filter = property ? filters.find((f) => f.columnId === property) : undefined;
 
@@ -42,9 +45,25 @@ function __FilterSelector<TData>({ filters, columns, actions, strategy, locale =
     }
   }, [property]);
 
+  // Clear value after popover closes with proper cleanup
   useEffect(() => {
-    if (!open) setTimeout(() => setValue(""), 150);
+    if (!open) {
+      valueTimeoutRef.current = setTimeout(() => setValue(""), 150);
+    }
+    return () => {
+      if (valueTimeoutRef.current) {
+        clearTimeout(valueTimeoutRef.current);
+      }
+    };
   }, [open]);
+
+  // Cleanup all timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (valueTimeoutRef.current) clearTimeout(valueTimeoutRef.current);
+      if (propertyTimeoutRef.current) clearTimeout(propertyTimeoutRef.current);
+    };
+  }, []);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: need filters to be updated
   const content = useMemo(
@@ -88,14 +107,23 @@ function __FilterSelector<TData>({ filters, columns, actions, strategy, locale =
     [property, column, filter, filters, columns, actions, value],
   );
 
+  // Handle popover open/close with proper timeout cleanup
+  const handleOpenChange = useCallback((isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) {
+      // Clear any existing property timeout
+      if (propertyTimeoutRef.current) {
+        clearTimeout(propertyTimeoutRef.current);
+      }
+      propertyTimeoutRef.current = setTimeout(() => setProperty(undefined), 100);
+    }
+  }, []);
+
   return (
     <Popover
       modal={true}
       open={open}
-      onOpenChange={async (value) => {
-        setOpen(value);
-        if (!value) setTimeout(() => setProperty(undefined), 100);
-      }}
+      onOpenChange={handleOpenChange}
     >
       <PopoverTrigger asChild>
         <Button variant="secondary" className={cn("h-7", hasFilters && "w-fit !px-2")}>
@@ -187,12 +215,14 @@ interface QuickSearchFiltersProps<TData> {
 export const QuickSearchFilters = memo(__QuickSearchFilters) as typeof __QuickSearchFilters;
 
 function __QuickSearchFilters<TData>({ search, filters, columns, actions }: QuickSearchFiltersProps<TData>) {
-  if (!search || search.trim().length < 2) return null;
-
+  // Hooks must be called unconditionally (before any early returns)
   const cols = useMemo(
     () => columns.filter((c) => isAnyOf<ColumnDataType>(c.type, ["option", "multiOption"])),
     [columns],
   );
+
+  // Early return after hooks
+  if (!search || search.trim().length < 2) return null;
 
   return (
     <>

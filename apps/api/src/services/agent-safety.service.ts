@@ -1,6 +1,6 @@
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, gte } from "drizzle-orm";
 import { db } from "@open-bookkeeping/db";
-import { agentQuotas, agentUsage } from "@open-bookkeeping/db";
+import { agentQuotas, agentUsage, agentAuditLogs } from "@open-bookkeeping/db";
 import { createLogger } from "@open-bookkeeping/shared";
 import type { AgentActionType } from "./approval.service";
 
@@ -65,16 +65,112 @@ export const agentSafetyService = {
   },
 
   /**
-   * Update quota settings
+   * Check per-minute rate limit for AI agent actions
+   * Counts recent actions from audit logs to enforce maxActionsPerMinute
+   */
+  checkRateLimit: async (userId: string): Promise<QuotaCheckResult> => {
+    const quotas = await agentSafetyService.getQuotas(userId);
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+
+    // Count actions in the last minute using audit logs
+    const recentActions = await db.query.agentAuditLogs.findMany({
+      where: and(
+        eq(agentAuditLogs.userId, userId),
+        gte(agentAuditLogs.createdAt, oneMinuteAgo)
+      ),
+      columns: { id: true },
+    });
+
+    const actionCount = recentActions.length;
+    const limit = quotas.maxActionsPerMinute;
+
+    if (actionCount >= limit) {
+      logger.warn(
+        { userId, actionCount, limit },
+        "Rate limit exceeded for AI agent"
+      );
+      return {
+        allowed: false,
+        reason: `Rate limit exceeded: ${actionCount}/${limit} actions per minute. Please wait before trying again.`,
+        limit,
+        current: actionCount,
+        remaining: 0,
+      };
+    }
+
+    return {
+      allowed: true,
+      limit,
+      current: actionCount,
+      remaining: limit - actionCount,
+    };
+  },
+
+  /**
+   * Update quota settings with validation
    */
   updateQuotas: async (
     userId: string,
     updates: Partial<typeof DEFAULT_QUOTAS>
   ) => {
+    // Validate and sanitize quota values
+    const sanitizedUpdates: Record<string, unknown> = {};
+
+    // Daily limits must be positive integers (min 1, max 10000)
+    if (updates.dailyInvoiceLimit !== undefined) {
+      sanitizedUpdates.dailyInvoiceLimit = Math.max(1, Math.min(10000, Math.floor(updates.dailyInvoiceLimit)));
+    }
+    if (updates.dailyBillLimit !== undefined) {
+      sanitizedUpdates.dailyBillLimit = Math.max(1, Math.min(10000, Math.floor(updates.dailyBillLimit)));
+    }
+    if (updates.dailyJournalEntryLimit !== undefined) {
+      sanitizedUpdates.dailyJournalEntryLimit = Math.max(1, Math.min(10000, Math.floor(updates.dailyJournalEntryLimit)));
+    }
+    if (updates.dailyQuotationLimit !== undefined) {
+      sanitizedUpdates.dailyQuotationLimit = Math.max(1, Math.min(10000, Math.floor(updates.dailyQuotationLimit)));
+    }
+    if (updates.dailyTokenLimit !== undefined) {
+      sanitizedUpdates.dailyTokenLimit = Math.max(1000, Math.min(100000000, Math.floor(updates.dailyTokenLimit)));
+    }
+
+    // Rate limits must be positive (min 1, max 100 for actions/min)
+    if (updates.maxActionsPerMinute !== undefined) {
+      sanitizedUpdates.maxActionsPerMinute = Math.max(1, Math.min(100, Math.floor(updates.maxActionsPerMinute)));
+    }
+    if (updates.maxConcurrentWorkflows !== undefined) {
+      sanitizedUpdates.maxConcurrentWorkflows = Math.max(1, Math.min(50, Math.floor(updates.maxConcurrentWorkflows)));
+    }
+
+    // Amount limits - validate as positive numbers or null
+    if (updates.maxSingleInvoiceAmount !== undefined) {
+      if (updates.maxSingleInvoiceAmount === null) {
+        sanitizedUpdates.maxSingleInvoiceAmount = null;
+      } else {
+        const amount = parseFloat(updates.maxSingleInvoiceAmount);
+        sanitizedUpdates.maxSingleInvoiceAmount = !isNaN(amount) && amount > 0 ? String(amount) : null;
+      }
+    }
+    if (updates.maxSingleBillAmount !== undefined) {
+      if (updates.maxSingleBillAmount === null) {
+        sanitizedUpdates.maxSingleBillAmount = null;
+      } else {
+        const amount = parseFloat(updates.maxSingleBillAmount);
+        sanitizedUpdates.maxSingleBillAmount = !isNaN(amount) && amount > 0 ? String(amount) : null;
+      }
+    }
+    if (updates.maxDailyTotalAmount !== undefined) {
+      if (updates.maxDailyTotalAmount === null) {
+        sanitizedUpdates.maxDailyTotalAmount = null;
+      } else {
+        const amount = parseFloat(updates.maxDailyTotalAmount);
+        sanitizedUpdates.maxDailyTotalAmount = !isNaN(amount) && amount > 0 ? String(amount) : null;
+      }
+    }
+
     const [updated] = await db
       .update(agentQuotas)
       .set({
-        ...updates,
+        ...sanitizedUpdates,
         updatedAt: new Date(),
       })
       .where(eq(agentQuotas.userId, userId))
@@ -145,6 +241,12 @@ export const agentSafetyService = {
         allowed: false,
         reason: "Emergency stop is enabled. AI agent actions are blocked.",
       };
+    }
+
+    // Check per-minute rate limit
+    const rateLimitResult = await agentSafetyService.checkRateLimit(userId);
+    if (!rateLimitResult.allowed) {
+      return rateLimitResult;
     }
 
     // Check action-specific limits
@@ -339,6 +441,7 @@ export const agentSafetyService = {
       .update(agentQuotas)
       .set({
         emergencyStopEnabled: true,
+        emergencyStopReason: reason ?? null, // Store the reason for the stop
         emergencyStoppedAt: new Date(),
         emergencyStoppedBy: stoppedBy,
         updatedAt: new Date(),
@@ -359,6 +462,7 @@ export const agentSafetyService = {
       .update(agentQuotas)
       .set({
         emergencyStopEnabled: false,
+        emergencyStopReason: null, // Clear the reason
         emergencyStoppedAt: null,
         emergencyStoppedBy: null,
         updatedAt: new Date(),

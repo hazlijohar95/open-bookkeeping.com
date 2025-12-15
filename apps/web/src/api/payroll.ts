@@ -287,8 +287,8 @@ export function useCreateEmployee() {
   const utils = trpc.useUtils();
   return trpc.payroll.createEmployee.useMutation({
     onSuccess: () => {
-      utils.payroll.listEmployees.invalidate();
-      utils.payroll.getEmployeeStats.invalidate();
+      void utils.payroll.listEmployees.invalidate();
+      void utils.payroll.getEmployeeStats.invalidate();
     },
   });
 }
@@ -297,8 +297,8 @@ export function useUpdateEmployee() {
   const utils = trpc.useUtils();
   return trpc.payroll.updateEmployee.useMutation({
     onSuccess: (_, variables) => {
-      utils.payroll.listEmployees.invalidate();
-      utils.payroll.getEmployee.invalidate({ id: variables.id });
+      void utils.payroll.listEmployees.invalidate();
+      void utils.payroll.getEmployee.invalidate({ id: variables.id });
     },
   });
 }
@@ -307,9 +307,9 @@ export function useTerminateEmployee() {
   const utils = trpc.useUtils();
   return trpc.payroll.terminateEmployee.useMutation({
     onSuccess: (_, variables) => {
-      utils.payroll.listEmployees.invalidate();
-      utils.payroll.getEmployee.invalidate({ id: variables.id });
-      utils.payroll.getEmployeeStats.invalidate();
+      void utils.payroll.listEmployees.invalidate();
+      void utils.payroll.getEmployee.invalidate({ id: variables.id });
+      void utils.payroll.getEmployeeStats.invalidate();
     },
   });
 }
@@ -318,8 +318,8 @@ export function useDeleteEmployee() {
   const utils = trpc.useUtils();
   return trpc.payroll.deleteEmployee.useMutation({
     onSuccess: () => {
-      utils.payroll.listEmployees.invalidate();
-      utils.payroll.getEmployeeStats.invalidate();
+      void utils.payroll.listEmployees.invalidate();
+      void utils.payroll.getEmployeeStats.invalidate();
     },
   });
 }
@@ -332,7 +332,7 @@ export function useUpdateSalary() {
   const utils = trpc.useUtils();
   return trpc.payroll.updateSalary.useMutation({
     onSuccess: (_, variables) => {
-      utils.payroll.getSalaryHistory.invalidate({ employeeId: variables.employeeId });
+      void utils.payroll.getSalaryHistory.invalidate({ employeeId: variables.employeeId });
     },
   });
 }
@@ -359,7 +359,7 @@ export function useCreateComponent() {
   const utils = trpc.useUtils();
   return trpc.payroll.createComponent.useMutation({
     onSuccess: () => {
-      utils.payroll.listComponents.invalidate();
+      void utils.payroll.listComponents.invalidate();
     },
   });
 }
@@ -368,7 +368,7 @@ export function useUpdateComponent() {
   const utils = trpc.useUtils();
   return trpc.payroll.updateComponent.useMutation({
     onSuccess: () => {
-      utils.payroll.listComponents.invalidate();
+      void utils.payroll.listComponents.invalidate();
     },
   });
 }
@@ -377,7 +377,7 @@ export function useDeleteComponent() {
   const utils = trpc.useUtils();
   return trpc.payroll.deleteComponent.useMutation({
     onSuccess: () => {
-      utils.payroll.listComponents.invalidate();
+      void utils.payroll.listComponents.invalidate();
     },
   });
 }
@@ -398,7 +398,7 @@ export function useCreatePayrollRun() {
   const utils = trpc.useUtils();
   return trpc.payroll.createPayrollRun.useMutation({
     onSuccess: () => {
-      utils.payroll.listPayrollRuns.invalidate();
+      void utils.payroll.listPayrollRuns.invalidate();
     },
   });
 }
@@ -407,8 +407,8 @@ export function useCalculatePayroll() {
   const utils = trpc.useUtils();
   return trpc.payroll.calculatePayroll.useMutation({
     onSuccess: (_, variables) => {
-      utils.payroll.getPayrollRun.invalidate({ id: variables.payrollRunId });
-      utils.payroll.getPaySlips.invalidate({ payrollRunId: variables.payrollRunId });
+      void utils.payroll.getPayrollRun.invalidate({ id: variables.payrollRunId });
+      void utils.payroll.getPaySlips.invalidate({ payrollRunId: variables.payrollRunId });
     },
   });
 }
@@ -417,8 +417,8 @@ export function useApprovePayrollRun() {
   const utils = trpc.useUtils();
   return trpc.payroll.approvePayrollRun.useMutation({
     onSuccess: (_, variables) => {
-      utils.payroll.listPayrollRuns.invalidate();
-      utils.payroll.getPayrollRun.invalidate({ id: variables.id });
+      void utils.payroll.listPayrollRuns.invalidate();
+      void utils.payroll.getPayrollRun.invalidate({ id: variables.id });
     },
   });
 }
@@ -427,9 +427,9 @@ export function useFinalizePayrollRun() {
   const utils = trpc.useUtils();
   return trpc.payroll.finalizePayrollRun.useMutation({
     onSuccess: (_, variables) => {
-      utils.payroll.listPayrollRuns.invalidate();
-      utils.payroll.getPayrollRun.invalidate({ id: variables.id });
-      utils.payroll.getPaySlips.invalidate({ payrollRunId: variables.id });
+      void utils.payroll.listPayrollRuns.invalidate();
+      void utils.payroll.getPayrollRun.invalidate({ id: variables.id });
+      void utils.payroll.getPaySlips.invalidate({ payrollRunId: variables.id });
     },
   });
 }
@@ -438,9 +438,9 @@ export function useMarkPayrollPaid() {
   const utils = trpc.useUtils();
   return trpc.payroll.markPayrollPaid.useMutation({
     onSuccess: (_, variables) => {
-      utils.payroll.listPayrollRuns.invalidate();
-      utils.payroll.getPayrollRun.invalidate({ id: variables.id });
-      utils.payroll.getPaySlips.invalidate({ payrollRunId: variables.id });
+      void utils.payroll.listPayrollRuns.invalidate();
+      void utils.payroll.getPayrollRun.invalidate({ id: variables.id });
+      void utils.payroll.getPaySlips.invalidate({ payrollRunId: variables.id });
     },
   });
 }
@@ -449,8 +449,8 @@ export function useCancelPayrollRun() {
   const utils = trpc.useUtils();
   return trpc.payroll.cancelPayrollRun.useMutation({
     onSuccess: (_, variables) => {
-      utils.payroll.listPayrollRuns.invalidate();
-      utils.payroll.getPayrollRun.invalidate({ id: variables.id });
+      void utils.payroll.listPayrollRuns.invalidate();
+      void utils.payroll.getPayrollRun.invalidate({ id: variables.id });
     },
   });
 }
@@ -459,7 +459,7 @@ export function useDeletePayrollRun() {
   const utils = trpc.useUtils();
   return trpc.payroll.deletePayrollRun.useMutation({
     onSuccess: () => {
-      utils.payroll.listPayrollRuns.invalidate();
+      void utils.payroll.listPayrollRuns.invalidate();
     },
   });
 }
@@ -487,7 +487,7 @@ export function useAddPaySlipItem() {
   const utils = trpc.useUtils();
   return trpc.payroll.addPaySlipItem.useMutation({
     onSuccess: (_, variables) => {
-      utils.payroll.getPaySlip.invalidate({ id: variables.paySlipId });
+      void utils.payroll.getPaySlip.invalidate({ id: variables.paySlipId });
     },
   });
 }
@@ -497,7 +497,7 @@ export function useRemovePaySlipItem() {
   return trpc.payroll.removePaySlipItem.useMutation({
     onSuccess: () => {
       // We don't have paySlipId in the mutation result, so invalidate all
-      utils.payroll.getPaySlip.invalidate();
+      void utils.payroll.getPaySlip.invalidate();
     },
   });
 }
@@ -506,7 +506,7 @@ export function useRecalculatePaySlip() {
   const utils = trpc.useUtils();
   return trpc.payroll.recalculatePaySlip.useMutation({
     onSuccess: (_, variables) => {
-      utils.payroll.getPaySlip.invalidate({ id: variables.paySlipId });
+      void utils.payroll.getPaySlip.invalidate({ id: variables.paySlipId });
     },
   });
 }

@@ -7,43 +7,44 @@ import * as React from "react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-function CalendarIcon({ className, classNames, showOutsideDays = true, ...props }: React.ComponentProps<typeof DayPicker>) {
+function Calendar({ className, classNames, showOutsideDays = true, ...props }: React.ComponentProps<typeof DayPicker>) {
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
-      className={cn("p-2", className)}
+      className={cn("p-3", className)}
       classNames={{
-        months: "flex flex-col sm:flex-row gap-2",
-        month: "flex flex-col gap-4",
-        caption: "flex justify-center pt-1 relative items-center w-full",
+        // v9 class names
+        months: "relative flex flex-col sm:flex-row gap-4",
+        month: "w-full",
+        month_caption: "flex justify-center pt-1 relative items-center mb-4",
         caption_label: "text-sm font-medium",
         nav: "flex items-center gap-1",
-        nav_button: cn(
+        button_previous: cn(
           buttonVariants({ variant: "outline" }),
-          "size-7 bg-transparent p-0 opacity-50 hover:opacity-100",
+          "absolute left-1 h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
         ),
-        nav_button_previous: "absolute left-1",
-        nav_button_next: "absolute right-1",
-        table: "w-full border-collapse space-x-1",
-        head_row: "flex",
-        head_cell: "text-muted-foreground rounded-none w-8 font-normal text-[0.8rem]",
-        row: "flex w-full mt-2",
-        cell: cn(
-          "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-accent [&:has([aria-selected].day-range-end)]:rounded-none",
-          props.mode === "range"
-            ? "[&:has(>.day-range-end)]:rounded-none [&:has(>.day-range-start)]:rounded-none first:[&:has([aria-selected])]:rounded-none last:[&:has([aria-selected])]:rounded-none"
-            : "[&:has([aria-selected])]:rounded-none",
+        button_next: cn(
+          buttonVariants({ variant: "outline" }),
+          "absolute right-1 h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
         ),
-        day: cn(buttonVariants({ variant: "ghost" }), "size-8 p-0 font-normal aria-selected:opacity-100"),
-        day_range_start: "day-range-start aria-selected:bg-primary aria-selected:text-primary-foreground",
-        day_range_end: "day-range-end aria-selected:bg-primary aria-selected:text-primary-foreground",
-        day_selected:
-          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-        day_today: "bg-accent text-accent-foreground",
-        day_outside: "day-outside text-muted-foreground aria-selected:text-muted-foreground",
-        day_disabled: "text-muted-foreground opacity-50",
-        day_range_middle: "aria-selected:bg-accent aria-selected:text-accent-foreground",
-        day_hidden: "invisible",
+        month_grid: "w-full border-collapse",
+        weekdays: "flex",
+        weekday: "text-muted-foreground w-9 font-normal text-[0.8rem] text-center",
+        week: "flex w-full mt-2",
+        day: "h-9 w-9 p-0 text-center text-sm relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+        day_button: cn(
+          buttonVariants({ variant: "ghost" }),
+          "h-9 w-9 p-0 font-normal aria-selected:opacity-100 hover:bg-accent hover:text-accent-foreground",
+        ),
+        range_start: "day-range-start rounded-l-md",
+        range_end: "day-range-end rounded-r-md",
+        selected:
+          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground rounded-md",
+        today: "bg-accent text-accent-foreground rounded-md",
+        outside: "text-muted-foreground opacity-50",
+        disabled: "text-muted-foreground opacity-50",
+        range_middle: "aria-selected:bg-accent aria-selected:text-accent-foreground",
+        hidden: "invisible",
         ...classNames,
       }}
       components={{
@@ -57,12 +58,13 @@ function CalendarIcon({ className, classNames, showOutsideDays = true, ...props 
           orientation?: "left" | "right" | "up" | "down";
         }) => {
           const Icon = orientation === "left" ? ChevronLeftIcon : ChevronRightIcon;
-          return <Icon className={cn("size-4", className)} />;
+          return <Icon className={cn("h-4 w-4", className)} />;
         },
       }}
       {...props}
     />
   );
 }
+Calendar.displayName = "Calendar";
 
-export { CalendarIcon };
+export { Calendar };

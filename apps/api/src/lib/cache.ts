@@ -26,7 +26,7 @@ const CACHE_TTL = {
   REVENUE_CHART: 300, // 5 minutes - less frequently updated
   DASHBOARD_WIDGETS: 120, // 2 minutes - dashboard widgets
   LIST_DATA: 30, // 30 seconds - list data
-  API_KEY: 30, // 30 seconds - API key validation cache (short for security - revoked keys expire quickly)
+  API_KEY: 5, // 5 seconds - API key validation cache (very short for security - revoked keys expire quickly)
 } as const;
 
 /**
@@ -257,7 +257,8 @@ export async function getCachedApiKey(keyHash: string): Promise<ApiKey | null> {
 
 /**
  * Cache an API key record
- * TTL: 5 minutes to balance performance vs security
+ * TTL: 5 seconds - prioritizes security over performance
+ * Revoked keys will be rejected within 5 seconds max
  */
 export async function setCachedApiKey(keyHash: string, apiKey: ApiKey): Promise<void> {
   await cacheSet(`${CACHE_KEYS.API_KEY}${keyHash}`, apiKey, CACHE_TTL.API_KEY);

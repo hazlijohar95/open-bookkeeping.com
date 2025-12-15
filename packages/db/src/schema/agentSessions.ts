@@ -49,6 +49,8 @@ export const agentSessions = pgTable(
     index("agent_sessions_user_id_idx").on(table.userId),
     index("agent_sessions_status_idx").on(table.status),
     index("agent_sessions_user_created_idx").on(table.userId, table.createdAt),
+    // Composite index for common query: user's active sessions by date
+    index("agent_sessions_user_status_created_idx").on(table.userId, table.status, table.createdAt),
   ]
 );
 

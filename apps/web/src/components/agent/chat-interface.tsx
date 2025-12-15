@@ -8,81 +8,33 @@ import { cn } from "@/lib/utils";
 import { getApiUrl } from "@/lib/api-url";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import {
   Bot,
   SendIcon,
   Loader2Icon,
   Sparkles,
   UserIcon,
-  Wrench,
-  CheckCircle2Icon,
-  AlertTriangleIcon,
   RotateCcw,
+  Plus,
 } from "@/components/ui/icons";
 import { DocumentUpload, ChatDropZone, type PendingFile } from "@/components/agent/document-upload";
 import { DocumentPreview, CompactDocumentPreview } from "@/components/agent/document-preview";
 import { MarkdownRenderer } from "@/components/agent/markdown-renderer";
 import { QuickReply } from "@/components/agent/quick-reply";
+import { ToolResultCard } from "@/components/agent/tool-result-card";
+import { CommandPalette } from "@/components/agent/command-palette";
+import { VirtualizedMessages } from "@/components/agent/virtualized-messages";
 import { useUploadDocument } from "@/api/vault";
 import { toast } from "sonner";
 import {
   useAgentChatStore,
   useAgentMessages,
+  useAgentThreads,
   aiMessageToIDBParts,
 } from "@/hooks/use-agent-chat-store";
 import { useChatBackgroundSync } from "@/hooks/use-chat-background-sync";
 import type { IDBAgentMessage } from "@/types/indexdb";
-
-// Tool name to friendly label mapping
-const TOOL_LABELS: Record<string, string> = {
-  // Data access tools
-  getDashboardStats: "Fetching dashboard statistics",
-  listInvoices: "Loading invoices",
-  getInvoiceDetails: "Getting invoice details",
-  getAgingReport: "Generating aging report",
-  listCustomers: "Loading customers",
-  searchCustomers: "Searching customers",
-  getCustomerInvoices: "Getting customer invoices",
-  listQuotations: "Loading quotations",
-  listBills: "Loading bills",
-  getBillDetails: "Getting bill details",
-  listVendors: "Loading vendors",
-  getAccountBalance: "Getting account balance",
-  getTrialBalance: "Generating trial balance",
-  getProfitLoss: "Generating profit & loss",
-  getProfitAndLoss: "Generating profit & loss",
-  getBalanceSheet: "Generating balance sheet",
-  getAccountingPeriodStatus: "Checking accounting periods",
-  searchLedgerTransactions: "Searching transactions",
-  getUnpaidBills: "Finding unpaid bills",
-  // Action tools
-  createInvoice: "Creating invoice",
-  createBill: "Creating bill",
-  createCustomer: "Creating customer",
-  createVendor: "Creating vendor",
-  createJournalEntry: "Creating journal entry",
-  postJournalEntry: "Posting to ledger",
-  reverseJournalEntry: "Reversing journal entry",
-  markInvoiceAsPaid: "Marking invoice as paid",
-  markBillAsPaid: "Marking bill as paid",
-  updateInvoiceStatus: "Updating invoice status",
-  updateQuotationStatus: "Updating quotation status",
-  convertQuotationToInvoice: "Converting quotation to invoice",
-  listAccounts: "Loading chart of accounts",
-  // Memory & reasoning tools
-  rememberPreference: "Remembering preference",
-  recallMemories: "Recalling memories",
-  updateUserContext: "Updating context",
-  thinkStep: "Planning approach",
-  validateAction: "Validating action",
-  // Document processing tools
-  listVaultDocuments: "Loading vault documents",
-  processDocuments: "Processing documents with AI",
-  getDocumentDetails: "Getting document details",
-  queryDocumentCabinet: "Searching document cabinet",
-  createEntriesFromDocument: "Creating entries from document",
-};
 
 const QUICK_PROMPTS = [
   { label: "Monthly Summary", prompt: "Give me a summary of this month's revenue, expenses, and profit" },
@@ -128,9 +80,25 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
   const [isUploading, setIsUploading] = useState(false);
   const uploadMutation = useUploadDocument();
 
+  // Command palette state
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  // Global Cmd+K shortcut for command palette
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   // T3-style IndexedDB chat store
   const chatStore = useAgentChatStore();
   const { messages: idbMessages, isLoading: idbLoading } = useAgentMessages(chatStore.currentThreadId);
+  const { threads } = useAgentThreads();
   const streamingMessageIdRef = useRef<string | null>(null);
   const lastSyncedMessageCountRef = useRef(0);
 
@@ -169,11 +137,11 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
   // T3-style background sync to PostgreSQL
   const { triggerSync } = useChatBackgroundSync({
     enabled: true,
-    onSyncComplete: (threadId) => {
-      console.log("[ChatSync] Thread synced:", threadId);
+    onSyncComplete: () => {
+      // Sync completed successfully
     },
-    onSyncError: (error) => {
-      console.error("[ChatSync] Sync failed:", error);
+    onSyncError: () => {
+      // Sync error handled silently - will retry automatically
     },
   });
 
@@ -329,6 +297,48 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
     }, 100);
   }, [setMessages, pendingFiles, chatStore]);
 
+  // Thread handlers
+  const handleSelectThread = useCallback(async (threadId: string) => {
+    // Clear current messages
+    setMessages([]);
+    syncedMessageIdsRef.current.clear();
+    lastSyncedMessageCountRef.current = 0;
+    streamingMessageIdRef.current = null;
+
+    // Clear session to start fresh with new thread
+    setAgentSessionId(null);
+    localStorage.removeItem("agent_session_id");
+
+    // Switch to the selected thread
+    chatStore.setCurrentThreadId(threadId);
+    localStorage.setItem("agent_current_thread", threadId);
+  }, [setMessages, chatStore]);
+
+  const handleCreateThread = useCallback(async () => {
+    // Clear current messages
+    setMessages([]);
+    syncedMessageIdsRef.current.clear();
+    lastSyncedMessageCountRef.current = 0;
+    streamingMessageIdRef.current = null;
+
+    // Clear session
+    setAgentSessionId(null);
+    localStorage.removeItem("agent_session_id");
+
+    // Create new thread
+    return chatStore.createThread();
+  }, [setMessages, chatStore]);
+
+  const handleDeleteThread = useCallback(async (threadId: string) => {
+    await chatStore.deleteThread(threadId);
+
+    // If we deleted the current thread, create a new one
+    if (threadId === chatStore.currentThreadId) {
+      const newThreadId = await chatStore.createThread();
+      handleSelectThread(newThreadId);
+    }
+  }, [chatStore, handleSelectThread]);
+
   // Document upload handlers
   const handleFilesAdded = useCallback((newFiles: PendingFile[]) => {
     setPendingFiles((prev) => [...prev, ...newFiles]);
@@ -446,16 +456,6 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
     }
   }, [handleSubmit]);
 
-  // Debug: Log all messages whenever they change - FULL STRUCTURE
-  useEffect(() => {
-    console.log("[AI Agent] === MESSAGES UPDATE ===");
-    console.log("[AI Agent] Total messages:", messages.length);
-    messages.forEach((msg, i) => {
-      console.log(`[AI Agent] Message ${i}:`, JSON.stringify(msg, null, 2));
-    });
-    console.log("[AI Agent] === END MESSAGES ===");
-  }, [messages]);
-
   // Helper to extract text from various message formats
   const extractTextContent = useCallback((message: ChatMessage): string | null => {
     // Try parts first (AI SDK v5 primary format)
@@ -487,15 +487,6 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
   const renderMessageParts = useMemo(() => {
     return (message: ChatMessage) => {
       const elements: React.ReactNode[] = [];
-      const msgAny = message as unknown as Record<string, unknown>;
-
-      // Log full message structure for debugging
-      console.log("[AI Agent] Rendering message:", message.id, {
-        role: message.role,
-        partsCount: message.parts?.length,
-        hasContent: typeof msgAny.content === "string",
-        contentPreview: typeof msgAny.content === "string" ? msgAny.content.substring(0, 100) : null,
-      });
 
       // If no parts array, try alternative fields
       if (!message.parts || message.parts.length === 0) {
@@ -521,15 +512,11 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
 
         const partAny = part as unknown as Record<string, unknown>;
 
-        // Log each part for debugging
-        console.log(`[AI Agent] Part ${index}:`, part.type, partAny);
-
         // Text parts - handle multiple formats
         if (part.type === "text") {
           const textPart = part as { type: string; text: string };
           const textValue = textPart.text || (partAny.value as string) || (partAny.content as string);
           if (textValue && textValue.trim()) {
-            console.log("[AI Agent] Rendering text part:", textValue.substring(0, 100));
             // Use markdown for assistant messages, plain text for user
             if (message.role === "assistant") {
               elements.push(
@@ -550,38 +537,17 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
         if (part.type.startsWith("tool-")) {
           const toolPart = part as unknown as ToolPart;
           const toolName = toolPart.toolName || part.type.replace("tool-", "");
-          const state = toolPart.state;
-
-          // Determine if complete based on state
-          const isComplete = state === "output-available";
-          const isError = state === "output-error";
-          const isStreaming = state === "input-streaming";
-
-          const label = TOOL_LABELS[toolName] || toolName;
 
           elements.push(
-            <div
+            <ToolResultCard
               key={toolPart.toolCallId || `tool-${index}`}
-              className={cn(
-                "flex items-center gap-2 text-xs bg-muted/50 rounded-none px-2 py-1.5 my-1 border-l-2",
-                isError ? "border-destructive/50 text-destructive" : "border-primary/30 text-muted-foreground"
-              )}
-            >
-              {isComplete ? (
-                <CheckCircle2Icon className="h-3 w-3 text-emerald-500" />
-              ) : isError ? (
-                <AlertTriangleIcon className="h-3 w-3 text-destructive" />
-              ) : (
-                <Loader2Icon className="h-3 w-3 animate-spin" />
-              )}
-              <Wrench className="h-3 w-3" />
-              <span className="jetbrains-mono">
-                {isStreaming ? `${label}...` : label}
-              </span>
-              {isError && toolPart.errorText && (
-                <span className="text-destructive">- {toolPart.errorText}</span>
-              )}
-            </div>
+              toolName={toolName}
+              toolCallId={toolPart.toolCallId || `tool-${index}`}
+              state={toolPart.state}
+              input={toolPart.input}
+              output={toolPart.output}
+              errorText={toolPart.errorText}
+            />
           );
           continue;
         }
@@ -590,22 +556,18 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
         if (part.type === "tool-invocation" || part.type === "tool-call") {
           const toolName = ((partAny.toolName as string) || (partAny.name as string)) ?? "tool";
           const state = (partAny.state as string) ?? "output-available";
-          const isComplete = state === "output-available" || state === "result";
-          const label = TOOL_LABELS[toolName] || toolName;
+          const toolCallId = (partAny.toolCallId as string) || `tool-inv-${index}`;
 
           elements.push(
-            <div
-              key={`tool-inv-${index}`}
-              className="flex items-center gap-2 text-xs bg-muted/50 rounded-none px-2 py-1.5 my-1 border-l-2 border-primary/30 text-muted-foreground"
-            >
-              {isComplete ? (
-                <CheckCircle2Icon className="h-3 w-3 text-emerald-500" />
-              ) : (
-                <Loader2Icon className="h-3 w-3 animate-spin" />
-              )}
-              <Wrench className="h-3 w-3" />
-              <span className="jetbrains-mono">{label}</span>
-            </div>
+            <ToolResultCard
+              key={toolCallId}
+              toolName={toolName}
+              toolCallId={toolCallId}
+              state={state as "input-streaming" | "input-available" | "output-available" | "output-error"}
+              input={partAny.input as Record<string, unknown> | undefined}
+              output={partAny.output || partAny.result}
+              errorText={partAny.errorText as string | undefined}
+            />
           );
           continue;
         }
@@ -629,7 +591,6 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
         }
 
         // Unknown part type - render as text if it has text content
-        console.log("[AI Agent] Unknown part type:", part.type, part);
         const unknownText = (partAny.text as string) || (partAny.content as string) || (partAny.value as string);
         if (unknownText && typeof unknownText === "string" && unknownText.trim()) {
           elements.push(
@@ -690,28 +651,35 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
     return lastMessage?.role === "assistant";
   }, [messages, isLoading]);
 
+  // Virtualization disabled - causes infinite re-render issues with dynamic message heights
+  // TODO: Re-enable once @tanstack/react-virtual issues are resolved
+  const useVirtualization = false;
+
   return (
-    <Card className="flex flex-col h-full min-h-0 rounded-none border overflow-hidden">
-      {/* Header - Fixed at top */}
-      <CardHeader className="border-b py-2.5 px-4 flex-none">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center border bg-gradient-to-br from-primary/5 to-primary/10">
-              <Bot className="h-3.5 w-3.5 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-sm font-medium tracking-tight">AI Assistant</CardTitle>
-              <p className="text-[11px] text-muted-foreground">Ask questions or automate tasks</p>
-            </div>
-          </div>
+    <Card className="relative flex flex-col h-full min-h-0 rounded-none border overflow-hidden">
+      {/* Compact Header */}
+      <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/30 flex-none">
+        <div className="flex items-center gap-2">
+          <Bot className="h-3.5 w-3.5 text-primary" />
+          <span className="text-xs font-medium">AI Assistant</span>
+        </div>
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCreateThread}
+            className="h-6 w-6 p-0"
+            aria-label="New conversation"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
           {messages.length > 0 && (
-            <Button variant="ghost" size="sm" onClick={handleClearChat} className="h-7 text-xs px-2 gap-1.5" aria-label="Clear chat">
-              <RotateCcw className="h-3 w-3" />
-              Clear
+            <Button variant="ghost" size="sm" onClick={handleClearChat} className="h-6 w-6 p-0" aria-label="Clear chat">
+              <RotateCcw className="h-3.5 w-3.5" />
             </Button>
           )}
         </div>
-      </CardHeader>
+      </div>
 
       {/* Messages - Scrollable area with drop zone */}
       <ChatDropZone onFilesAdded={handleFilesAdded} disabled={isLoading || isUploading}>
@@ -744,7 +712,15 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
                   ))}
                 </div>
               </div>
+            ) : useVirtualization ? (
+              // Virtualized rendering for long conversations (50+ messages)
+              <VirtualizedMessages
+                messages={messages}
+                renderMessageContent={renderMessageParts}
+                isLoading={isLoading}
+              />
             ) : (
+              // Standard rendering for normal conversations
               <div className="space-y-3">
                 {messages.filter((message) => message.role !== "system").map((message) => (
                   <div
@@ -825,27 +801,55 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
         />
       )}
 
-      {/* Input - Fixed at bottom */}
-      <form onSubmit={handleSubmit} className="p-2.5 border-t bg-muted/30 flex-none">
-        <div className="flex gap-2">
+      {/* Command Palette - Positioned relative to Card, above input */}
+      <CommandPalette
+        onNewChat={handleCreateThread}
+        onClearChat={handleClearChat}
+        onQuickPrompt={handleQuickPrompt}
+        hasMessages={messages.length > 0}
+        isLoading={isLoading}
+        isOpen={commandPaletteOpen}
+        onOpenChange={setCommandPaletteOpen}
+        threads={threads}
+        currentThreadId={chatStore.currentThreadId}
+        onSelectThread={handleSelectThread}
+        onDeleteThread={handleDeleteThread}
+      />
+
+      {/* Compact Input */}
+      <form onSubmit={handleSubmit} className="px-2 py-1.5 border-t flex-none">
+        <div className="flex items-end gap-1.5">
+          {/* Attachment button */}
           <DocumentUpload
             onFilesAdded={handleFilesAdded}
             disabled={isLoading || isUploading}
           />
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={pendingFiles.length > 0 ? "Add a message or just send to process documents..." : "Ask a question or describe a task..."}
-            disabled={isLoading || isUploading}
-            className="min-h-[40px] max-h-[80px] resize-none rounded-none text-sm"
-            rows={1}
-          />
+          {/* Input field */}
+          <div className="flex-1 relative">
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={pendingFiles.length > 0 ? "Add a message..." : "Ask anything..."}
+              disabled={isLoading || isUploading}
+              className="min-h-[36px] max-h-[120px] resize-none rounded-none text-sm pr-16"
+              rows={1}
+            />
+            {/* Command palette hint inside input */}
+            <button
+              type="button"
+              onClick={() => setCommandPaletteOpen(true)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+            >
+              <kbd className="inline-flex h-4 items-center gap-0.5 border bg-muted/50 px-1">⌘K</kbd>
+            </button>
+          </div>
+          {/* Send button */}
           <Button
             type="submit"
             size="icon"
             disabled={(isLoading || isUploading) || (!input.trim() && pendingFiles.length === 0)}
-            className="h-[40px] w-[40px] rounded-none shrink-0"
+            className="h-[36px] w-[36px] rounded-none shrink-0"
           >
             {isLoading || isUploading ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <SendIcon className="h-4 w-4" />}
           </Button>

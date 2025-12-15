@@ -36,3 +36,6 @@ export * from "./payments";
 
 // Migration & Opening Balance schemas
 export * from "./migration";
+
+// User Audit schemas
+export * from "./userAuditLogs";

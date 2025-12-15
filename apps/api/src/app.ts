@@ -23,6 +23,7 @@ import {
   chartOfAccountsRoutes,
   ledgerRoutes,
   bankFeedRoutes,
+  statementRoutes,
 } from "./routes";
 import { v1Router } from "./routes/v1";
 import { docsRouter } from "./routes/docs";
@@ -218,6 +219,7 @@ export function createApp() {
   app.route("/chart-of-accounts", chartOfAccountsRoutes);
   app.route("/ledger", ledgerRoutes);
   app.route("/bank-feed", bankFeedRoutes);
+  app.route("/statements", statementRoutes);
 
   // tRPC handler
   app.use(

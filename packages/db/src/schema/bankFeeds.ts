@@ -8,6 +8,7 @@ import {
   index,
   boolean,
   integer,
+  unique,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
@@ -156,6 +157,19 @@ export const bankTransactions = pgTable(
     index("bank_transactions_match_status_idx").on(table.matchStatus),
     // Composite index for filtering unmatched transactions by user
     index("bank_transactions_user_match_idx").on(table.userId, table.matchStatus),
+    // Composite index for reconciliation queries
+    index("bank_transactions_reconcile_idx").on(
+      table.userId,
+      table.transactionDate,
+      table.matchStatus
+    ),
+    // Prevent duplicate transactions (same bank account, date, amount, description)
+    unique("bank_transactions_unique_txn").on(
+      table.bankAccountId,
+      table.transactionDate,
+      table.amount,
+      table.description
+    ),
   ]
 );
 

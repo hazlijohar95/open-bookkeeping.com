@@ -25,14 +25,82 @@ import { MobileList, MobileCardSkeleton } from "@/components/ui/mobile";
 import { Button } from "@/components/ui/button";
 import { FileAlertIcon } from "@/assets/icons";
 import EmptySection from "./icon-placeholder";
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, memo } from "react";
 import { Skeleton } from "./skeleton";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { mobile } from "@/lib/design-tokens";
 
+// Memoized skeleton components to prevent re-creation on each render
+const TABLE_SKELETON_COUNT = 10;
+const CARD_SKELETON_COUNT = 5;
+
 // View mode types
 type ViewMode = "table" | "card";
+
+// Memoized table row component to prevent unnecessary re-renders
+// Using any for row type to maintain compatibility with TanStack Table's Row type
+const MemoizedTableRow = memo(function MemoizedTableRow({
+  row,
+  onRowClick,
+}: {
+  row: any;
+  onRowClick?: (row: any) => void;
+}) {
+  return (
+    <TableRow
+      key={row.id}
+      data-state={row.getIsSelected() && "selected"}
+      className={cn("transition-colors duration-150", onRowClick && "cursor-pointer")}
+      onClick={() => onRowClick?.(row.original)}
+    >
+      {row.getVisibleCells().map((cell: any) => (
+        <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+      ))}
+    </TableRow>
+  );
+});
+
+// Memoized skeleton row for table loading state
+const TableSkeletonRow = memo(function TableSkeletonRow({
+  columnCount,
+  index
+}: {
+  columnCount: number;
+  index: number;
+}) {
+  return (
+    <TableRow key={index} className="h-[53px]">
+      {Array.from({ length: columnCount }).map((_, colIndex) => (
+        <TableCell key={colIndex} className="py-3">
+          <Skeleton className="h-5 w-full max-w-[200px] rounded-none" />
+        </TableCell>
+      ))}
+    </TableRow>
+  );
+});
+
+// Memoized card skeleton list
+const CardSkeletonList = memo(function CardSkeletonList() {
+  return (
+    <div className="border rounded-md overflow-hidden">
+      {Array.from({ length: CARD_SKELETON_COUNT }).map((_, i) => (
+        <MobileCardSkeleton key={i} />
+      ))}
+    </div>
+  );
+});
+
+// Memoized empty state component
+const EmptyState = memo(function EmptyState() {
+  return (
+    <EmptySection
+      icon={FileAlertIcon}
+      title="No Data Found"
+      description="No data found for the selected filters. Please try different filters or clear all filters to see all data."
+    />
+  );
+});
 
 interface DataTableProps<TData, TValue> {
   columns: (DisplayColumnDef<TData, any> | AccessorFnColumnDef<TData, TValue>)[];
@@ -113,17 +181,21 @@ export function DataTable<TData, TValue>({
     onFiltersChange: setFiltersState,
   });
 
+  // Memoize column definitions - include both deps to prevent stale columns
   const tstColumns = useMemo(
     () =>
       createTSTColumns({
-        columns: columns, // own columns
-        configs: TableFilterColumns, // advanced columns by bazza-ui
+        columns: columns,
+        configs: TableFilterColumns,
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [TableFilterColumns],
+    [columns, TableFilterColumns],
   );
 
+  // Memoize filters transformation
   const tstFilters = useMemo(() => createTSTFilters(filters), [filters]);
+
+  // Memoize column count for skeleton rendering
+  const columnCount = useMemo(() => columns.length, [columns]);
 
   const table = useReactTable({
     data,
@@ -143,8 +215,19 @@ export function DataTable<TData, TValue>({
     },
   });
 
-  // Get filtered/sorted rows for card view
-  const filteredRows = table.getRowModel().rows;
+  // Memoize filtered/sorted rows for card view to prevent recalculation
+  // Note: We use data and sorting as deps since table.getRowModel() changes on each render
+  const filteredRows = useMemo(
+    () => table.getRowModel().rows,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, sorting, tstFilters, columnVisibility]
+  );
+
+  // Memoize card items to prevent array recreation
+  const cardItems = useMemo(
+    () => filteredRows.map((row) => row.original),
+    [filteredRows]
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -175,31 +258,17 @@ export function DataTable<TData, TValue>({
       {isCardView ? (
         <div className="flex flex-col">
           {isLoading ? (
-            <div className="border rounded-md overflow-hidden">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <MobileCardSkeleton key={i} />
-              ))}
-            </div>
-          ) : filteredRows.length > 0 ? (
+            <CardSkeletonList />
+          ) : cardItems.length > 0 ? (
             <MobileList
-              items={filteredRows.map((row) => row.original)}
+              items={cardItems}
               renderItem={(item, index) => renderCard(item, index)}
               keyExtractor={keyExtractor || ((_, index) => String(index))}
-              emptyState={
-                <EmptySection
-                  icon={FileAlertIcon}
-                  title="No Data Found"
-                  description="No data found for the selected filters."
-                />
-              }
+              emptyState={<EmptyState />}
             />
           ) : (
             <div className="border rounded-md p-8">
-              <EmptySection
-                icon={FileAlertIcon}
-                title="No Data Found"
-                description="No data found for the selected filters. Please try different filters or clear all filters to see all data."
-              />
+              <EmptyState />
             </div>
           )}
         </div>
@@ -222,36 +291,17 @@ export function DataTable<TData, TValue>({
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                Array.from({ length: 10 }).map((_, index) => (
-                  <TableRow key={index} className="h-[53px]">
-                    {columns.map((column) => (
-                      <TableCell key={column.id} className="py-3">
-                        <Skeleton className="h-5 w-full max-w-[200px] rounded-none" />
-                      </TableCell>
-                    ))}
-                  </TableRow>
+                Array.from({ length: TABLE_SKELETON_COUNT }).map((_, index) => (
+                  <TableSkeletonRow key={index} columnCount={columnCount} index={index} />
                 ))
-              ) : table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() && "selected"}
-                    className={cn("transition-colors duration-150", onRowClick && "cursor-pointer")}
-                    onClick={() => onRowClick?.(row.original)}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                    ))}
-                  </TableRow>
+              ) : filteredRows.length > 0 ? (
+                filteredRows.map((row) => (
+                  <MemoizedTableRow key={row.id} row={row} onRowClick={onRowClick} />
                 ))
               ) : (
                 <TableRow className="hover:bg-background">
-                  <TableCell colSpan={columns.length} className="text-muted-foreground/70 h-[400px] text-center">
-                    <EmptySection
-                      icon={FileAlertIcon}
-                      title="No Data Found"
-                      description="No data found for the selected filters. Please try different filters or clear all filters to see all data."
-                    />
+                  <TableCell colSpan={columnCount} className="text-muted-foreground/70 h-[400px] text-center">
+                    <EmptyState />
                   </TableCell>
                 </TableRow>
               )}
@@ -284,10 +334,10 @@ export function DataTable<TData, TValue>({
   );
 }
 
-export function HeaderColumnButton<TData>({
+export const HeaderColumnButton = memo(function HeaderColumnButton<TData>({
   column,
   children,
-  disableChevron = true,
+  disableChevron: initialDisableChevron = true,
 }: {
   column: Column<TData>;
   children: React.ReactNode;
@@ -296,7 +346,12 @@ export function HeaderColumnButton<TData>({
   const isSorted = column.getIsSorted();
 
   // Disable chevron if sorting is not enabled
-  disableChevron = !column.getCanSort();
+  const disableChevron = !column.getCanSort() || initialDisableChevron;
+
+  // Memoize click handler
+  const handleClick = useCallback(() => {
+    column.toggleSorting(isSorted === "asc");
+  }, [column, isSorted]);
 
   return (
     <button
@@ -304,7 +359,7 @@ export function HeaderColumnButton<TData>({
         disableChevron && "pr-0",
         "text-secondary-foreground -mx-2 my-auto inline-flex h-fit cursor-pointer items-center gap-2 rounded-none px-2 py-1.5 text-xs font-medium whitespace-nowrap select-none",
       )}
-      onClick={() => column.toggleSorting(isSorted === "asc")}
+      onClick={handleClick}
     >
       {children}
       <div className={cn(disableChevron && "!hidden", "text-secondary-foreground/50 hidden sm:inline-block")}>
@@ -314,26 +369,46 @@ export function HeaderColumnButton<TData>({
       </div>
     </button>
   );
-}
+}) as <TData>(props: { column: Column<TData>; children: React.ReactNode; disableChevron?: boolean }) => React.ReactElement;
 
-export const FormatTableDate = ({ date }: { date: number }) => {
+// Memoized date formatting components to prevent unnecessary re-renders
+export const FormatTableDate = memo(function FormatTableDate({ date }: { date: number }) {
+  const formattedDate = useMemo(
+    () => format(new Date(date * 1000), "dd/MM/yyyy - hh:mm a"),
+    [date]
+  );
+
   return (
     <div className="text-muted-foreground text-xs whitespace-nowrap">
-      {format(new Date(date * 1000), "dd/MM/yyyy - hh:mm a")}
+      {formattedDate}
     </div>
   );
-};
+});
 
-export const FormatTableDateString = ({ date }: { date: string }) => {
+export const FormatTableDateString = memo(function FormatTableDateString({ date }: { date: string }) {
+  const formattedDate = useMemo(
+    () => format(new Date(date), "dd/MM/yyyy - hh:mm a"),
+    [date]
+  );
+
   return (
     <div className="text-muted-foreground text-xs whitespace-nowrap">
-      {format(new Date(date), "dd/MM/yyyy - hh:mm a")}
+      {formattedDate}
     </div>
   );
-};
+});
 
-export const FormatTableDateObject = ({ date }: { date: Date | null }) => {
-  if (!date) return null;
+export const FormatTableDateObject = memo(function FormatTableDateObject({ date }: { date: Date | null }) {
+  const formattedDate = useMemo(
+    () => (date ? format(date, "dd/MM/yyyy - hh:mm a") : null),
+    [date]
+  );
 
-  return <div className="text-muted-foreground text-xs whitespace-nowrap">{format(date, "dd/MM/yyyy - hh:mm a")}</div>;
-};
+  if (!formattedDate) return null;
+
+  return (
+    <div className="text-muted-foreground text-xs whitespace-nowrap">
+      {formattedDate}
+    </div>
+  );
+});

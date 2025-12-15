@@ -5,6 +5,7 @@ import {
   agentPendingApprovals,
 } from "@open-bookkeeping/db";
 import { createLogger } from "@open-bookkeeping/shared";
+import { agentMemoryService } from "./agent-memory.service";
 
 const logger = createLogger("approval-service");
 
@@ -75,6 +76,71 @@ const READ_ONLY_ACTIONS: AgentActionType[] = [
 
 // Default approval timeout in hours
 const DEFAULT_APPROVAL_TIMEOUT_HOURS = 24;
+
+// Friendly action names for feedback messages
+const ACTION_DISPLAY_NAMES: Record<AgentActionType, string> = {
+  create_invoice: "create an invoice",
+  update_invoice: "update an invoice",
+  send_invoice: "send an invoice",
+  mark_invoice_paid: "mark an invoice as paid",
+  void_invoice: "void an invoice",
+  create_bill: "create a bill",
+  update_bill: "update a bill",
+  mark_bill_paid: "mark a bill as paid",
+  schedule_bill_payment: "schedule a bill payment",
+  create_journal_entry: "create a journal entry",
+  reverse_journal_entry: "reverse a journal entry",
+  create_quotation: "create a quotation",
+  update_quotation: "update a quotation",
+  send_quotation: "send a quotation",
+  convert_quotation: "convert a quotation to invoice",
+  create_customer: "create a customer",
+  update_customer: "update a customer",
+  create_vendor: "create a vendor",
+  update_vendor: "update a vendor",
+  match_transaction: "match a transaction",
+  create_matching_entry: "create a matching entry",
+  read_data: "read data",
+  analyze_data: "analyze data",
+};
+
+/**
+ * Send approval feedback to the chat session
+ */
+async function sendApprovalFeedback(
+  sessionId: string | null,
+  actionType: AgentActionType,
+  status: "approved" | "rejected",
+  notes?: string | null
+) {
+  if (!sessionId) {
+    logger.debug("No session ID, skipping approval feedback");
+    return;
+  }
+
+  const actionName = ACTION_DISPLAY_NAMES[actionType] || actionType.replace(/_/g, " ");
+
+  let content: string;
+  if (status === "approved") {
+    content = notes
+      ? `✅ Your request to ${actionName} was approved. Note: ${notes}`
+      : `✅ Your request to ${actionName} was approved and will be executed.`;
+  } else {
+    content = notes
+      ? `❌ Your request to ${actionName} was rejected. Reason: ${notes}`
+      : `❌ Your request to ${actionName} was rejected.`;
+  }
+
+  try {
+    await agentMemoryService.saveMessage(sessionId, {
+      role: "assistant",
+      content,
+    });
+    logger.debug({ sessionId, actionType, status }, "Approval feedback sent to chat");
+  } catch (error) {
+    logger.error({ error, sessionId }, "Failed to send approval feedback to chat");
+  }
+}
 
 export const approvalService = {
   /**
@@ -207,7 +273,16 @@ export const approvalService = {
    */
   createApprovalRequest: async (input: PendingApprovalInput) => {
     const settings = await approvalService.getSettings(input.userId);
-    const timeoutHours = parseFloat(settings.approvalTimeoutHours || String(DEFAULT_APPROVAL_TIMEOUT_HOURS));
+
+    // Safely parse timeout hours with validation
+    let timeoutHours = parseFloat(settings.approvalTimeoutHours || String(DEFAULT_APPROVAL_TIMEOUT_HOURS));
+    // Validate: must be positive number between 1 and 720 hours (30 days max)
+    if (isNaN(timeoutHours) || timeoutHours <= 0) {
+      timeoutHours = DEFAULT_APPROVAL_TIMEOUT_HOURS;
+    } else if (timeoutHours > 720) {
+      timeoutHours = 720; // Cap at 30 days
+    }
+
     const expiresAt = new Date(Date.now() + timeoutHours * 60 * 60 * 1000);
 
     const [approval] = await db
@@ -226,12 +301,16 @@ export const approvalService = {
       })
       .returning();
 
+    if (!approval) {
+      throw new Error("Failed to create approval request");
+    }
+
     logger.info(
-      { approvalId: approval!.id, actionType: input.actionType },
+      { approvalId: approval.id, actionType: input.actionType },
       "Approval request created"
     );
 
-    return approval!;
+    return approval;
   },
 
   /**
@@ -295,6 +374,14 @@ export const approvalService = {
 
     logger.info({ approvalId }, "Action approved");
 
+    // Send feedback to the chat session
+    await sendApprovalFeedback(
+      approval.sessionId,
+      approval.actionType as AgentActionType,
+      "approved",
+      notes
+    );
+
     return updated!;
   },
 
@@ -333,6 +420,14 @@ export const approvalService = {
       .returning();
 
     logger.info({ approvalId }, "Action rejected");
+
+    // Send feedback to the chat session
+    await sendApprovalFeedback(
+      approval.sessionId,
+      approval.actionType as AgentActionType,
+      "rejected",
+      notes
+    );
 
     return updated!;
   },

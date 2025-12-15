@@ -81,8 +81,9 @@ const defaultKeyGenerator = (c: Context): string => {
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.split(" ")[1];
     if (token) {
-      // Hash token properly to create a consistent, secure key
-      const hashedToken = crypto.createHash("sha256").update(token).digest("hex").slice(0, 16);
+      // Hash token with full 64-char hex (256 bits) to prevent collisions
+      // Previous 16-char truncation only provided 64 bits of collision resistance
+      const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
       return `user:${hashedToken}`;
     }
   }
@@ -173,14 +174,15 @@ const apiKeyKeyGenerator = (c: Context): string => {
   const authHeader = c.req.header("authorization");
   if (authHeader?.startsWith("Bearer ob_")) {
     const key = authHeader.slice(7).trim();
-    // Hash the API key for privacy in logs/cache keys
-    const hashedKey = crypto.createHash("sha256").update(key).digest("hex").slice(0, 16);
+    // Hash with full 64-char hex (256 bits) to prevent collisions
+    const hashedKey = crypto.createHash("sha256").update(key).digest("hex");
     return `apikey:${hashedKey}`;
   }
 
   const apiKeyHeader = c.req.header("x-api-key");
   if (apiKeyHeader?.startsWith("ob_")) {
-    const hashedKey = crypto.createHash("sha256").update(apiKeyHeader).digest("hex").slice(0, 16);
+    // Hash with full 64-char hex (256 bits) to prevent collisions
+    const hashedKey = crypto.createHash("sha256").update(apiKeyHeader).digest("hex");
     return `apikey:${hashedKey}`;
   }
 

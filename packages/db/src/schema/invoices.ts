@@ -9,6 +9,7 @@ import {
   varchar,
   index,
   boolean,
+  unique,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
@@ -41,6 +42,9 @@ export const invoices = pgTable(
     }),
     type: invoiceTypeEnum("type").default("server").notNull(),
     status: invoiceStatusEnum("status").default("pending").notNull(),
+    // Invoice number (denormalized from invoiceDetails for unique constraint)
+    // Format: PREFIX-SERIAL (e.g., INV-2024-00001)
+    invoiceNumber: varchar("invoice_number", { length: 50 }),
     // E-Invoice status for Malaysia MyInvois
     // Values: null (not submitted), pending, submitted, valid, invalid, cancelled
     einvoiceStatus: varchar("einvoice_status", { length: 20 }),
@@ -61,6 +65,8 @@ export const invoices = pgTable(
     // Additional composite indexes for performance
     index("invoices_user_customer_created_idx").on(table.userId, table.customerId, table.createdAt),
     index("invoices_user_paid_idx").on(table.userId, table.paidAt),
+    // CRITICAL: Prevent duplicate invoice numbers per user
+    unique("invoices_user_invoice_number_unique").on(table.userId, table.invoiceNumber),
   ]
 );
 

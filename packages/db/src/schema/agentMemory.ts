@@ -63,6 +63,10 @@ export const agentMemories = pgTable(
     index("agent_memories_category_idx").on(table.userId, table.category),
     index("agent_memories_key_idx").on(table.userId, table.key),
     index("agent_memories_active_idx").on(table.userId, table.isActive),
+    // Composite index for common query: active, non-expired memories
+    index("agent_memories_active_expires_idx").on(table.userId, table.isActive, table.expiresAt),
+    // Index for memory usage tracking queries
+    index("agent_memories_last_used_idx").on(table.userId, table.lastUsedAt),
   ]
 );
 

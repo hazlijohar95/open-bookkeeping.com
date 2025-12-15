@@ -12,7 +12,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { ControllerRenderProps, FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
 import { InfoIcon, TriangleAlertIcon } from "@/components/ui/icons";
-import { CalendarIcon as CalendarComponent } from "@/components/ui/calendar";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { CalendarPenIcon } from "@/assets/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "../button";

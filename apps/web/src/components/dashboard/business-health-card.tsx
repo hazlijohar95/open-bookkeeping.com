@@ -88,8 +88,8 @@ const statusConfig: Record<HealthStatus, {
   },
   good: {
     icon: CheckCircleIcon,
-    color: "text-blue-600 dark:text-blue-400",
-    bgColor: "bg-blue-100 dark:bg-blue-900/30",
+    color: "text-primary",
+    bgColor: "bg-primary/10",
     label: "Good",
   },
   attention: {

@@ -110,56 +110,56 @@ const features = [
     title: "Beautiful Invoices",
     description:
       "Create professional invoices in seconds. Multiple templates, custom branding, instant PDF.",
-    accentColor: "#3b82f6",
+    accentColor: "#EE5F00", // Monk orange
   },
   {
     icon: <FileFeatherIcon className="size-5 sm:size-[18px]" />,
     title: "Quotations",
     description:
       "Send quotes, track acceptance, convert to invoices with one click.",
-    accentColor: "#8b5cf6",
+    accentColor: "#D95400", // Darker orange
   },
   {
     icon: <TruckIcon className="size-5 sm:size-[18px]" />,
     title: "Bills & Expenses",
     description:
       "Track what you owe. Manage vendor bills, never miss a payment.",
-    accentColor: "#f97316",
+    accentColor: "#F97316", // Warm orange
   },
   {
     icon: <UsersIcon className="size-5 sm:size-[18px]" />,
     title: "Contacts",
     description:
       "Customers and vendors in one place. Full transaction history.",
-    accentColor: "#06b6d4",
+    accentColor: "#EA580C", // Orange-red
   },
   {
     icon: <BookOpenIcon className="size-5 sm:size-[18px]" />,
     title: "Chart of Accounts",
     description:
       "Customizable accounts structure. Assets, liabilities, equity, revenue.",
-    accentColor: "#10b981",
+    accentColor: "#C2410C", // Deep orange
   },
   {
     icon: <OpenLedgerIcon className="size-5 sm:size-[18px]" />,
     title: "General Ledger",
     description:
       "Double-entry bookkeeping. Every transaction properly recorded.",
-    accentColor: "#6366f1",
+    accentColor: "#EE5F00", // Monk orange
   },
   {
     icon: <GaugeIcon className="size-5 sm:size-[18px]" />,
     title: "Financial Reports",
     description:
       "Trial balance, P&L, balance sheet. Real-time, always accurate.",
-    accentColor: "#ec4899",
+    accentColor: "#FB923C", // Light orange
   },
   {
     icon: <SquareWandSparkleIcon className="size-5 sm:size-[18px]" />,
     title: "AI Assistant",
     description:
       "Natural language commands. Create invoices, query data, get insights.",
-    accentColor: "#a855f7",
+    accentColor: "#F59E0B", // Amber (AI warmth)
   },
 ];
 

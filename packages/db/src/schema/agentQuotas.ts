@@ -7,6 +7,7 @@ import {
   date,
   boolean,
   index,
+  text,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
@@ -56,7 +57,7 @@ export const agentQuotas = pgTable("agent_quotas", {
   emergencyStopEnabled: boolean("emergency_stop_enabled")
     .default(false)
     .notNull(),
-  emergencyStopReason: timestamp("emergency_stop_reason"),
+  emergencyStopReason: text("emergency_stop_reason"), // Reason for stopping (was incorrectly timestamp)
   emergencyStoppedAt: timestamp("emergency_stopped_at"),
   emergencyStoppedBy: uuid("emergency_stopped_by").references(() => users.id),
 

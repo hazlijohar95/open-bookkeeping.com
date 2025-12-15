@@ -22,8 +22,8 @@ export default defineConfig({
         short_name: "Bookkeeping",
         description:
           "Free open-source bookkeeping and invoicing platform. Create unlimited invoices, quotations, and financial documents with professional PDF generation.",
-        theme_color: "#6366f1", // Primary color (indigo)
-        background_color: "#ffffff",
+        theme_color: "#EE5F00", // Primary color (Monk orange)
+        background_color: "#FBFBF9", // Warm off-white
         display: "standalone",
         orientation: "portrait-primary",
         scope: "/",

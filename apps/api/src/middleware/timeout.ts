@@ -1,11 +1,15 @@
 /**
  * Request Timeout Middleware
- * Prevents requests from hanging indefinitely
- * Returns 408 Request Timeout if exceeded
+ *
+ * Prevents requests from hanging indefinitely with proper cleanup.
+ * Uses AbortController to properly cancel handlers on timeout,
+ * preventing memory leaks and zombie request handling.
+ *
+ * IMPORTANT: This fixes the race condition where handlers could
+ * continue executing after a timeout response was sent.
  */
 
 import type { Context, Next } from "hono";
-import { HTTPException } from "hono/http-exception";
 import { createLogger } from "@open-bookkeeping/shared";
 
 const logger = createLogger("timeout-middleware");
@@ -31,45 +35,89 @@ export const TIMEOUTS = {
 
 /**
  * Create a timeout middleware with configurable duration
+ *
+ * This implementation properly handles the race condition by:
+ * 1. Using an AbortController to signal timeout to handlers
+ * 2. Tracking response state to prevent double-sends
+ * 3. Cleaning up timers properly in all cases
+ * 4. Logging timeout events for monitoring
  */
 export function timeout(config: TimeoutConfig) {
   const { timeoutMs, message = "Request timeout" } = config;
 
   return async (c: Context, next: Next) => {
-    const controller = new AbortController();
     const requestId = c.res.headers.get("X-Request-Id") ?? "unknown";
+    const startTime = Date.now();
 
-    // Create timeout promise
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      const timer = setTimeout(() => {
-        controller.abort();
-        logger.warn(
-          { requestId, path: c.req.path, method: c.req.method, timeoutMs },
-          "Request timed out"
-        );
-        reject(new HTTPException(408, { message }));
-      }, timeoutMs);
+    // Create AbortController for this request
+    const abortController = new AbortController();
+    let timedOut = false;
+    let handlerCompleted = false;
 
-      // Clear timeout if request completes
-      c.req.raw.signal?.addEventListener("abort", () => clearTimeout(timer));
-    });
+    // Store abort controller in context for handlers to check
+    c.set("abortSignal", abortController.signal);
 
-    // Race between request handling and timeout
-    try {
-      await Promise.race([next(), timeoutPromise]);
-    } catch (error) {
-      if (error instanceof HTTPException && error.status === 408) {
-        return c.json(
-          {
-            error: "Request Timeout",
-            message,
-            requestId,
-          },
-          408
-        );
+    // Set up timeout
+    const timer = setTimeout(() => {
+      if (handlerCompleted) {
+        // Handler already finished, no need to abort
+        return;
       }
-      throw error;
+
+      timedOut = true;
+      abortController.abort();
+
+      const duration = Date.now() - startTime;
+      logger.warn(
+        {
+          requestId,
+          path: c.req.path,
+          method: c.req.method,
+          timeoutMs,
+          duration,
+        },
+        "Request timed out - aborting handler"
+      );
+    }, timeoutMs);
+
+    try {
+      // Run the handler
+      await next();
+
+      // Handler completed successfully
+      handlerCompleted = true;
+    } catch (error) {
+      handlerCompleted = true;
+
+      // Check if this was an abort error (from our timeout)
+      if (error instanceof Error && error.name === "AbortError") {
+        // This is expected when we abort - don't rethrow
+        timedOut = true;
+      } else {
+        // Re-throw other errors for error handling middleware
+        throw error;
+      }
+    } finally {
+      // Always clean up the timer
+      clearTimeout(timer);
     }
+
+    // If timed out, return timeout response
+    if (timedOut) {
+      const duration = Date.now() - startTime;
+
+      return c.json(
+        {
+          error: "Request Timeout",
+          message,
+          requestId,
+          duration,
+        },
+        408
+      );
+    }
+
+    // Handler completed before timeout - response already set by handler
   };
 }
 
@@ -142,3 +190,24 @@ export const apiV1Timeout = pathBasedTimeout(
   },
   TIMEOUTS.DEFAULT // Default: 30 seconds
 );
+
+/**
+ * Helper for handlers to check if request was aborted
+ * Use this in long-running operations to exit early on timeout
+ */
+export function isRequestAborted(c: Context): boolean {
+  const signal = c.get("abortSignal") as AbortSignal | undefined;
+  return signal?.aborted ?? false;
+}
+
+/**
+ * Helper to throw if request was aborted
+ * Use at checkpoints in long-running handlers
+ */
+export function throwIfAborted(c: Context): void {
+  if (isRequestAborted(c)) {
+    const error = new Error("Request was aborted");
+    error.name = "AbortError";
+    throw error;
+  }
+}

@@ -6,7 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { CalendarIcon as CalendarComponent } from "@/components/ui/calendar";
+import { Calendar } from "@/components/ui/calendar";
+import { CalendarIcon } from "@/components/ui/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageContainer } from "@/components/ui/page-container";
@@ -206,12 +207,13 @@ export function Statements() {
                           !dateRange.from && "text-muted-foreground"
                         )}
                       >
-                        <CalendarComponent className="mr-2 size-4" />
+                        <CalendarIcon className="mr-2 size-4" />
                         {dateRange.from ? format(dateRange.from, "PPP") : "Pick a date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent                         mode="single"
+                      <Calendar
+                        mode="single"
                         selected={dateRange.from}
                         onSelect={(date) => setDateRange({ ...dateRange, from: date })}
                         initialFocus
@@ -230,12 +232,13 @@ export function Statements() {
                           !dateRange.to && "text-muted-foreground"
                         )}
                       >
-                        <CalendarComponent className="mr-2 size-4" />
+                        <CalendarIcon className="mr-2 size-4" />
                         {dateRange.to ? format(dateRange.to, "PPP") : "Pick a date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent                         mode="single"
+                      <Calendar
+                        mode="single"
                         selected={dateRange.to}
                         onSelect={(date) => setDateRange({ ...dateRange, to: date })}
                         initialFocus
@@ -398,12 +401,13 @@ export function Statements() {
                           !dateRange.from && "text-muted-foreground"
                         )}
                       >
-                        <CalendarComponent className="mr-2 size-4" />
+                        <CalendarIcon className="mr-2 size-4" />
                         {dateRange.from ? format(dateRange.from, "PPP") : "Pick a date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent                         mode="single"
+                      <Calendar
+                        mode="single"
                         selected={dateRange.from}
                         onSelect={(date) => setDateRange({ ...dateRange, from: date })}
                         initialFocus
@@ -422,12 +426,13 @@ export function Statements() {
                           !dateRange.to && "text-muted-foreground"
                         )}
                       >
-                        <CalendarComponent className="mr-2 size-4" />
+                        <CalendarIcon className="mr-2 size-4" />
                         {dateRange.to ? format(dateRange.to, "PPP") : "Pick a date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent                         mode="single"
+                      <Calendar
+                        mode="single"
                         selected={dateRange.to}
                         onSelect={(date) => setDateRange({ ...dateRange, to: date })}
                         initialFocus

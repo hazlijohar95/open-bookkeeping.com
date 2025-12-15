@@ -22,6 +22,7 @@
 | [PWA](#-progressive-web-app) | Installable offline-first app |
 | [Mobile-First Design](#-mobile-first-design) | Responsive UI patterns |
 | [AI Agent](#-ai-agent) | Intelligent automation |
+| [Agentic UX](#agentic-ux-components) | Thinking visibility, approvals, memory |
 | [API Reference](#-api-reference) | REST & tRPC endpoints |
 | [Development](#-development) | Setup & commands |
 | [Architecture](#-architecture) | System design |
@@ -40,6 +41,60 @@
 | **PDF** | @react-pdf/renderer |
 | **PWA** | vite-plugin-pwa, Workbox |
 | **Animation** | Motion (Framer Motion) |
+
+---
+
+## System Overview
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                           OPEN BOOKKEEPING PLATFORM                           ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  ┌─────────────────────────────────────────────────────────────────────────┐  ║
+║  │                         🌐 FRONTEND (React 19)                          │  ║
+║  ├─────────────────────────────────────────────────────────────────────────┤  ║
+║  │                                                                         │  ║
+║  │   ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐           │  ║
+║  │   │ Dashboard │  │ Invoicing │  │  Payroll  │  │    AI     │           │  ║
+║  │   │  Charts   │  │   Forms   │  │  Module   │  │   Agent   │           │  ║
+║  │   └───────────┘  └───────────┘  └───────────┘  └───────────┘           │  ║
+║  │                                                                         │  ║
+║  │   ┌─────────────────────────────────────────────────────────────────┐  │  ║
+║  │   │                    📱 PWA + Mobile-First                        │  │  ║
+║  │   │   Install Prompt • Offline Support • Push Notifications        │  │  ║
+║  │   └─────────────────────────────────────────────────────────────────┘  │  ║
+║  │                                                                         │  ║
+║  └───────────────────────────────────┬─────────────────────────────────────┘  ║
+║                                      │                                        ║
+║                                      │ tRPC / REST                            ║
+║                                      ▼                                        ║
+║  ┌─────────────────────────────────────────────────────────────────────────┐  ║
+║  │                         ⚙️ BACKEND (Hono + tRPC)                         │  ║
+║  ├─────────────────────────────────────────────────────────────────────────┤  ║
+║  │                                                                         │  ║
+║  │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                 │  ║
+║  │   │   tRPC API   │  │   REST API   │  │   AI Routes  │                 │  ║
+║  │   │   /trpc/*    │  │   /api/v1/*  │  │   /api/ai/*  │                 │  ║
+║  │   └──────────────┘  └──────────────┘  └──────────────┘                 │  ║
+║  │                                                                         │  ║
+║  │   ┌─────────────────────────────────────────────────────────────────┐  │  ║
+║  │   │                      🤖 AI AGENT (ReAct)                        │  │  ║
+║  │   │   Memory • Reasoning • Tools • Approvals • Safety Controls     │  │  ║
+║  │   └─────────────────────────────────────────────────────────────────┘  │  ║
+║  │                                                                         │  ║
+║  └───────────────────────────────────┬─────────────────────────────────────┘  ║
+║                                      │                                        ║
+║        ┌─────────────────────────────┼─────────────────────────────┐         ║
+║        │                             │                             │         ║
+║        ▼                             ▼                             ▼         ║
+║  ┌───────────┐                ┌───────────┐                ┌───────────┐     ║
+║  │ PostgreSQL│                │   Redis   │                │  Supabase │     ║
+║  │ (Drizzle) │                │  (Cache)  │                │  Storage  │     ║
+║  └───────────┘                └───────────┘                └───────────┘     ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
 
 ---
 
@@ -600,6 +655,397 @@ const memories = await recallMemories({
 
 ---
 
+## Agentic UX Components
+
+### Overview
+
+The platform features a sophisticated **Agentic UX** system that provides transparency, control, and trust for AI-assisted operations. These components make the AI's reasoning visible, allow inline approvals, and provide intelligent error recovery.
+
+```
++------------------------------------------------------------------------+
+|                        AGENTIC UX ARCHITECTURE                         |
++------------------------------------------------------------------------+
+|                                                                        |
+|  +------------------+  +------------------+  +------------------+       |
+|  |   THINKING       |  |   APPROVAL       |  |   MEMORY         |      |
+|  |   VISIBILITY     |  |   WORKFLOW       |  |   BROWSER        |      |
+|  +--------+---------+  +--------+---------+  +--------+---------+      |
+|           |                     |                     |                |
+|           v                     v                     v                |
+|  +------------------+  +------------------+  +------------------+       |
+|  | ThinkingStep     |  | ApprovalInline   |  | MemoryPanel      |      |
+|  | - Reasoning      |  | - Quick actions  |  | - View memories  |      |
+|  | - Steps          |  | - Review details |  | - Edit/delete    |      |
+|  | - Confidence     |  | - Approve/reject |  | - Filter/search  |      |
+|  +------------------+  +------------------+  +------------------+       |
+|                                                                        |
+|  +---------------------------------------------------------------------+
+|  |                       ERROR RECOVERY                                |
+|  +---------------------------------------------------------------------+
+|  | ErrorRecovery - Smart classification, suggestions, retry actions    |
+|  +---------------------------------------------------------------------+
+|                                                                        |
++------------------------------------------------------------------------+
+```
+
+### Component Reference
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `ThinkingStep` | `components/agent/thinking-step.tsx` | Display AI reasoning process |
+| `ApprovalInline` | `components/agent/approval-inline.tsx` | Inline approval cards |
+| `MemoryPanel` | `components/agent/memory-panel.tsx` | Memory browser & editor |
+| `ErrorRecovery` | `components/agent/error-recovery.tsx` | Smart error handling |
+
+---
+
+### ThinkingStep Component
+
+Displays the AI's step-by-step reasoning process, making the "black box" transparent to users.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  ◐ Thinking...                                          [Collapse] │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─ Step 1 ─────────────────────────────────────────────────────┐  │
+│  │ ✓ Analyzing Request                                          │  │
+│  │   Understanding what the user wants to accomplish            │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+│  ┌─ Step 2 ─────────────────────────────────────────────────────┐  │
+│  │ ⟳ Gathering Data                                              │  │
+│  │   Fetching customer and invoice information                  │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+│  ┌─ Step 3 ─────────────────────────────────────────────────────┐  │
+│  │ ○ Planning Action                                             │  │
+│  │   Determining the best approach to create the invoice        │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+│  Confidence: ████████░░ 85%                                        │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+#### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Step Visualization** | Shows each reasoning step with status (complete, in-progress, pending) |
+| **Confidence Indicator** | Visual confidence bar (0-100%) |
+| **Collapsible** | Expand/collapse for space efficiency |
+| **Animated Transitions** | Smooth step-by-step reveal |
+
+#### Usage
+
+```tsx
+import { ThinkingStep, ThinkingStepItem } from "@/components/agent/thinking-step";
+
+const steps: ThinkingStepItem[] = [
+  { id: "1", content: "Analyzing request", status: "complete" },
+  { id: "2", content: "Fetching customer data", status: "in_progress" },
+  { id: "3", content: "Creating invoice", status: "pending" },
+];
+
+<ThinkingStep
+  steps={steps}
+  confidence={85}
+  isThinking={true}
+  onCollapse={() => {}}
+/>
+```
+
+---
+
+### ApprovalInline Component
+
+Enables users to approve or reject AI actions directly within the conversation flow.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  ⚠ Action Awaiting Approval                                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ 📄 Create Invoice                                             │  │
+│  │                                                               │  │
+│  │ Customer:  Acme Corporation                                   │  │
+│  │ Amount:    RM 5,000.00                                        │  │
+│  │ Due Date:  15 Jan 2025                                        │  │
+│  │                                                               │  │
+│  │ ┌─────────────────────────────────────────────────────────┐  │  │
+│  │ │ Line Items                                               │  │  │
+│  │ │ • Consulting Services (10 hrs × RM 500)                 │  │  │
+│  │ └─────────────────────────────────────────────────────────┘  │  │
+│  │                                                               │  │
+│  │ [Approve]  [Reject]  [Review Details →]                      │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+│  Expires in 23h 45m                                                 │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+#### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Quick Actions** | One-click approve/reject buttons |
+| **Detail Preview** | Summary of action details inline |
+| **Expandable Details** | Full action details on demand |
+| **Expiry Timer** | Visual countdown for time-sensitive approvals |
+| **Reason Input** | Optional rejection reason field |
+
+#### Approval States
+
+```
+┌───────────┐    ┌───────────┐    ┌───────────┐
+│  PENDING  │───>│ APPROVED  │    │ REJECTED  │
+│   (new)   │    │ (success) │    │  (error)  │
+└─────┬─────┘    └───────────┘    └───────────┘
+      │                                 ▲
+      └─────────────────────────────────┘
+```
+
+#### Usage
+
+```tsx
+import { ApprovalInline } from "@/components/agent/approval-inline";
+
+<ApprovalInline
+  approval={{
+    id: "apr_123",
+    actionType: "create_invoice",
+    title: "Create Invoice",
+    summary: "Invoice for Acme Corporation - RM 5,000.00",
+    details: { customer: "Acme Corp", amount: 5000 },
+    expiresAt: new Date("2025-01-15"),
+    status: "pending",
+  }}
+  onApprove={(id) => approveAction(id)}
+  onReject={(id, reason) => rejectAction(id, reason)}
+/>
+```
+
+---
+
+### MemoryPanel Component
+
+Allows users to view, search, filter, and manage what the AI remembers about their preferences and business context.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  🧠 Agent Memory                                        [12 items] │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  🔍 [Search memories...                                        ]   │
+│                                                                     │
+│  [All (12)] [Preference (5)] [Fact (3)] [Pattern (2)] [Rule (2)]  │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─ Preference ─────────────────────────────────────────────────┐  │
+│  │ ⚙ "Always include SST at 6% for invoices"                    │  │
+│  │   Context: invoice_creation  •  Importance: 8/10             │  │
+│  │   Created 3 days ago  •  Accessed 12 times                   │  │
+│  │   [Edit] [Remove]                                            │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+│  ┌─ Fact ───────────────────────────────────────────────────────┐  │
+│  │ 📄 "Main supplier is ABC Corporation Sdn Bhd"                 │  │
+│  │   Context: vendor_lookup  •  Importance: 7/10                │  │
+│  │   Created 1 week ago  •  Accessed 5 times                    │  │
+│  │   [Edit] [Remove]                                            │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+│  ┌─ Pattern ────────────────────────────────────────────────────┐  │
+│  │ ✨ "Usually creates invoices on Friday afternoons"            │  │
+│  │   Context: scheduling  •  Importance: 5/10                   │  │
+│  │   Created 2 weeks ago  •  Accessed 8 times                   │  │
+│  │   [Edit] [Remove]                                            │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+#### Memory Types
+
+| Type | Icon | Description | Example |
+|------|------|-------------|---------|
+| `preference` | ⚙ | User preferences | "Always include SST at 6%" |
+| `fact` | 📄 | Business facts | "Main supplier is ABC Corp" |
+| `pattern` | ✨ | Usage patterns | "Usually invoices on Fridays" |
+| `instruction` | 👤 | Standing orders | "Auto-approve under RM500" |
+
+#### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Search** | Full-text search across memory content |
+| **Type Filters** | Filter by memory category |
+| **Importance Ranking** | Visual importance indicator |
+| **Access Tracking** | Shows how often memory is used |
+| **Edit/Delete** | Manage individual memories |
+| **Confirmation Dialog** | Safe deletion with confirmation |
+
+#### Usage
+
+```tsx
+import { MemoryPanel, MemoryBadge } from "@/components/agent/memory-panel";
+
+// Full panel
+<MemoryPanel
+  memories={memories}
+  isLoading={false}
+  onDelete={(id) => deleteMemory(id)}
+  onEdit={(memory) => openEditDialog(memory)}
+/>
+
+// Inline badge for chat messages
+<MemoryBadge
+  type="preference"
+  content="Always include SST at 6%"
+  onClick={() => openMemoryPanel()}
+/>
+```
+
+---
+
+### ErrorRecovery Component
+
+Provides intelligent error classification, contextual suggestions, and smart retry functionality.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  ⚠ Invalid Input                                    [validation]  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  The request contained invalid or missing information.              │
+│                                                                     │
+│  ⚡ Suggestions                                                      │
+│  → Check if all required fields are provided                        │
+│  → Verify the format of dates, numbers, and emails                  │
+│  → Ensure amounts are positive numbers                              │
+│                                                                     │
+│  ▸ Technical details                                                │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ Missing required field: customerId                     [Copy] │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+│  [← Go Back]  [Get Help]                                           │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+#### Error Categories
+
+| Category | Auto-Retry | Delay | Description |
+|----------|------------|-------|-------------|
+| `validation` | No | - | Input validation errors |
+| `authentication` | Yes | 0s | Session/auth issues |
+| `rate_limit` | Yes | 60s | Too many requests |
+| `not_found` | No | - | Resource doesn't exist |
+| `permission` | No | - | Access denied |
+| `network` | Yes | 5s | Connection issues |
+| `server` | Yes | 10s | Backend errors |
+| `unknown` | Yes | 0s | Unclassified errors |
+
+#### Smart Classification
+
+```
+Error Message                          → Category
+─────────────────────────────────────────────────────────
+"Missing required field: email"        → validation
+"Session expired, please log in"       → authentication
+"Rate limit exceeded (429)"            → rate_limit
+"Customer not found"                   → not_found
+"Permission denied for this action"    → permission
+"Network request failed"               → network
+"Internal server error (500)"          → server
+```
+
+#### Usage
+
+```tsx
+import { ErrorRecovery, InlineError } from "@/components/agent/error-recovery";
+
+// Full error card
+<ErrorRecovery
+  error="Missing required field: customerId"
+  onRetry={() => retryAction()}
+  onDismiss={() => clearError()}
+  onGoBack={() => goBack()}
+/>
+
+// Compact inline error
+<InlineError
+  error="Invalid email format"
+  onRetry={() => retryValidation()}
+/>
+```
+
+---
+
+### Integration Example
+
+Complete integration of all agentic UX components in a chat interface:
+
+```tsx
+import { ThinkingStep } from "@/components/agent/thinking-step";
+import { ApprovalInline } from "@/components/agent/approval-inline";
+import { MemoryPanel } from "@/components/agent/memory-panel";
+import { ErrorRecovery } from "@/components/agent/error-recovery";
+
+function AgentChat() {
+  return (
+    <div className="flex gap-4">
+      {/* Main Chat Area */}
+      <div className="flex-1 space-y-4">
+        {/* AI Thinking State */}
+        {isThinking && (
+          <ThinkingStep
+            steps={thinkingSteps}
+            confidence={confidence}
+            isThinking={true}
+          />
+        )}
+
+        {/* Pending Approvals */}
+        {pendingApprovals.map((approval) => (
+          <ApprovalInline
+            key={approval.id}
+            approval={approval}
+            onApprove={handleApprove}
+            onReject={handleReject}
+          />
+        ))}
+
+        {/* Error Display */}
+        {error && (
+          <ErrorRecovery
+            error={error}
+            onRetry={handleRetry}
+            onDismiss={clearError}
+          />
+        )}
+      </div>
+
+      {/* Memory Sidebar */}
+      <aside className="w-80">
+        <MemoryPanel
+          memories={memories}
+          onDelete={deleteMemory}
+          onEdit={editMemory}
+        />
+      </aside>
+    </div>
+  );
+}
+```
+
+---
+
 ## API Reference
 
 ### API Architecture
@@ -788,6 +1234,13 @@ invoicely-v2/
 |   |       +-- assets/         # Icons, images
 |   |       +-- components/
 |   |       |   +-- agent/      # AI Agent UI components
+|   |       |   |   +-- chat-interface.tsx    # Main chat component
+|   |       |   |   +-- thinking-step.tsx     # Reasoning visibility
+|   |       |   |   +-- approval-inline.tsx   # Inline approvals
+|   |       |   |   +-- memory-panel.tsx      # Memory browser
+|   |       |   |   +-- error-recovery.tsx    # Smart error handling
+|   |       |   |   +-- tool-result-card.tsx  # Tool execution display
+|   |       |   |   +-- approval-queue.tsx    # Approval management
 |   |       |   +-- ui/         # Base UI (Radix)
 |   |       |   +-- pdf/        # PDF templates
 |   |       |   +-- pwa/        # PWA components (install, update, offline)
