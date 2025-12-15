@@ -22,7 +22,9 @@ export interface Quotation {
   validUntil: string | null;
   acceptedAt: Date | null;
   convertedInvoiceId: string | null;
-  quotationFields: ZodCreateQuotationSchema;
+  quotationFields: Omit<ZodCreateQuotationSchema, 'metadata'> & {
+    metadata: ZodCreateQuotationSchema['metadata'] | null;
+  };
 }
 
 // API response type where nested fields can be null
@@ -45,13 +47,14 @@ export interface QuotationApiResponse {
 }
 
 // Helper to check if a quotation response has all required fields
+// Note: metadata is optional, so we don't require it to be present
 export function isCompleteQuotation(quotation: QuotationApiResponse): quotation is Quotation {
   return !!(
     quotation.quotationFields &&
     quotation.quotationFields.companyDetails &&
     quotation.quotationFields.clientDetails &&
-    quotation.quotationFields.quotationDetails &&
-    quotation.quotationFields.metadata
+    quotation.quotationFields.quotationDetails
+    // metadata is optional - don't filter out quotations without notes/terms
   );
 }
 

@@ -44,7 +44,7 @@ export function MobileMenuDrawer({ open, onClose }: MobileMenuDrawerProps) {
   }, [open]);
 
   // Get all menu items except Overview (which is in bottom nav)
-  const { Overview, ...menuSections } = SIDEBAR_ITEMS;
+  const { Overview: _Overview, ...menuSections } = SIDEBAR_ITEMS;
 
   return (
     <AnimatePresence>

@@ -23,6 +23,7 @@ import { fixedAssetRouter } from "./services/fixedAsset";
 import { agentRouter } from "./services/agent";
 import { payrollRouter } from "./services/payroll";
 import { migrationRouter } from "./services/migration";
+import { subscriptionRouter } from "./services/subscription";
 
 export { router, publicProcedure, protectedProcedure };
 
@@ -51,6 +52,7 @@ export const appRouter = router({
   agent: agentRouter,
   payroll: payrollRouter,
   migration: migrationRouter,
+  subscription: subscriptionRouter,
 });
 
 export type AppRouter = typeof appRouter;

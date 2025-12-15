@@ -3,6 +3,7 @@ import { db } from "@open-bookkeeping/db";
 import { agentQuotas, agentUsage, agentAuditLogs } from "@open-bookkeeping/db";
 import { createLogger } from "@open-bookkeeping/shared";
 import type { AgentActionType } from "./approval.service";
+import { subscriptionService } from "./subscription.service";
 
 const logger = createLogger("agent-safety-service");
 
@@ -62,6 +63,43 @@ export const agentSafetyService = {
     }
 
     return quotas;
+  },
+
+  /**
+   * Get effective quotas for a user based on their subscription tier.
+   * Returns the LOWER of user quotas and plan limits.
+   * This ensures free tier users can't bypass limits even if agent_quotas has higher values.
+   */
+  getEffectiveQuotas: async (userId: string) => {
+    const [userQuotas, planQuotas] = await Promise.all([
+      agentSafetyService.getQuotas(userId),
+      subscriptionService.getEffectiveQuotas(userId),
+    ]);
+
+    // Return the minimum of user quotas and plan limits
+    return {
+      ...userQuotas,
+      dailyInvoiceLimit: Math.min(
+        userQuotas.dailyInvoiceLimit,
+        planQuotas.dailyInvoiceLimit
+      ),
+      dailyBillLimit: Math.min(
+        userQuotas.dailyBillLimit,
+        planQuotas.dailyBillLimit
+      ),
+      dailyJournalEntryLimit: Math.min(
+        userQuotas.dailyJournalEntryLimit,
+        planQuotas.dailyJournalEntryLimit
+      ),
+      dailyQuotationLimit: Math.min(
+        userQuotas.dailyQuotationLimit,
+        planQuotas.dailyQuotationLimit
+      ),
+      dailyTokenLimit: Math.min(
+        userQuotas.dailyTokenLimit,
+        planQuotas.dailyTokenLimit
+      ),
+    };
   },
 
   /**
@@ -225,14 +263,15 @@ export const agentSafetyService = {
   },
 
   /**
-   * Check if an action is allowed based on quotas
+   * Check if an action is allowed based on quotas.
+   * Uses effective quotas which consider subscription tier limits.
    */
   checkQuota: async (
     userId: string,
     action: AgentActionType,
     amount?: number
   ): Promise<QuotaCheckResult> => {
-    const quotas = await agentSafetyService.getQuotas(userId);
+    const quotas = await agentSafetyService.getEffectiveQuotas(userId);
     const usage = await agentSafetyService.getTodayUsage(userId);
 
     // Check emergency stop
@@ -496,11 +535,11 @@ export const agentSafetyService = {
   },
 
   /**
-   * Get usage summary
+   * Get usage summary with effective quotas based on subscription tier.
    */
   getUsageSummary: async (userId: string) => {
     const today = await agentSafetyService.getTodayUsage(userId);
-    const quotas = await agentSafetyService.getQuotas(userId);
+    const quotas = await agentSafetyService.getEffectiveQuotas(userId);
 
     return {
       today: {

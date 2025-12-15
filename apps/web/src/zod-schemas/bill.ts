@@ -13,7 +13,7 @@ export const billItemSchema = z.object({
 });
 
 export const createBillSchema = z.object({
-  vendorId: z.string().uuid().optional().nullable(),
+  vendorId: z.uuid().optional().nullable(),
   billNumber: z.string().min(1, "Bill number is required").max(100),
   description: z.string().max(1000).optional(),
   currency: z.string().length(3).default("MYR"),
@@ -21,7 +21,7 @@ export const createBillSchema = z.object({
   dueDate: z.coerce.date().optional().nullable(),
   status: billStatusSchema.default("pending"),
   notes: z.string().max(2000).optional(),
-  attachmentUrl: z.string().url().max(500).optional(),
+  attachmentUrl: z.url().max(500).optional(),
   items: z.array(billItemSchema).min(1, "At least one item is required"),
 });
 

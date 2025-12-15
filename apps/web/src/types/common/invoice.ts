@@ -20,7 +20,9 @@ export interface Invoice {
   updatedAt: Date;
   status: InvoiceStatusType;
   paidAt: Date | null;
-  invoiceFields: ZodCreateInvoiceSchema;
+  invoiceFields: Omit<ZodCreateInvoiceSchema, 'metadata'> & {
+    metadata: ZodCreateInvoiceSchema['metadata'] | null;
+  };
 }
 
 // API response type where nested fields can be null
@@ -41,13 +43,14 @@ export interface InvoiceApiResponse {
 }
 
 // Helper to check if an invoice response has all required fields
+// Note: metadata is optional, so we don't require it to be present
 export function isCompleteInvoice(invoice: InvoiceApiResponse): invoice is Invoice {
   return !!(
     invoice.invoiceFields &&
     invoice.invoiceFields.companyDetails &&
     invoice.invoiceFields.clientDetails &&
-    invoice.invoiceFields.invoiceDetails &&
-    invoice.invoiceFields.metadata
+    invoice.invoiceFields.invoiceDetails
+    // metadata is optional - don't filter out invoices without notes/terms
   );
 }
 

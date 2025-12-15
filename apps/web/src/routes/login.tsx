@@ -49,7 +49,7 @@ export function Login() {
   // If already logged in, redirect to the return URL or dashboard
   useEffect(() => {
     if (user) {
-      navigate(redirectTo, { replace: true });
+      void navigate(redirectTo, { replace: true });
     }
   }, [user, navigate, redirectTo]);
 

@@ -20,7 +20,7 @@ export const createQuotationFieldKeyStringValuesSchema = fieldKeyStringValuesSch
 export const createQuotationFieldKeyNumberValuesSchema = fieldKeyNumberValuesSchema;
 
 export const createQuotationSchema = z.object({
-  customerId: z.string().uuid().optional(),
+  customerId: z.uuid().optional(),
   companyDetails: companyDetailsSchema,
   clientDetails: clientDetailsSchema,
   quotationDetails: z.object({

@@ -7,6 +7,7 @@ import { getDB } from "@/global/indexdb";
 import { IDB_AGENT_THREADS, IDB_AGENT_MESSAGES } from "@/constants/indexed-db";
 import type { IDBAgentThread, IDBAgentMessage } from "@/types/indexdb";
 import { useSyncSession } from "@/api/agent";
+import { useAuth } from "@/providers/auth-provider";
 
 // Sync interval in ms (30 seconds)
 const SYNC_INTERVAL = 30000;
@@ -37,10 +38,14 @@ export function useChatBackgroundSync(options: UseChatBackgroundSyncOptions = {}
     onSyncError,
   } = options;
 
+  const { user, session } = useAuth();
+  const isAuthenticated = !!user && !!session;
+
   const syncMutation = useSyncSession();
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isSyncingRef = useRef(false);
   const lastSyncRef = useRef<Map<string, number>>(new Map());
+  const authErrorCountRef = useRef(0);
 
   /**
    * Convert IDB message parts to PostgreSQL format
@@ -143,6 +148,21 @@ export function useChatBackgroundSync(options: UseChatBackgroundSyncOptions = {}
       lastSyncRef.current.set(thread.id, Date.now());
       onSyncComplete?.(thread.id);
     } catch (error) {
+      // Check if it's an auth error (401)
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isAuthError = errorMessage.includes("401") || errorMessage.includes("Unauthorized");
+
+      if (isAuthError) {
+        // Don't spam console for auth errors - only log once
+        authErrorCountRef.current++;
+        if (authErrorCountRef.current === 1) {
+          console.log("[ChatSync] Sync paused - user not authenticated");
+        }
+        return;
+      }
+
+      // Reset auth error count on non-auth errors
+      authErrorCountRef.current = 0;
       console.error("[ChatSync] Failed to sync thread:", thread.id, error);
       onSyncError?.(error instanceof Error ? error : new Error(String(error)));
     }
@@ -152,6 +172,11 @@ export function useChatBackgroundSync(options: UseChatBackgroundSyncOptions = {}
    * Sync all local threads that need syncing
    */
   const syncAllThreads = useCallback(async () => {
+    // Skip sync if not authenticated
+    if (!isAuthenticated) {
+      return;
+    }
+
     if (isSyncingRef.current) return;
     isSyncingRef.current = true;
 
@@ -179,7 +204,7 @@ export function useChatBackgroundSync(options: UseChatBackgroundSyncOptions = {}
     } finally {
       isSyncingRef.current = false;
     }
-  }, [syncThread]);
+  }, [isAuthenticated, syncThread]);
 
   /**
    * Trigger a debounced sync (called after new messages)
@@ -204,9 +229,16 @@ export function useChatBackgroundSync(options: UseChatBackgroundSyncOptions = {}
     await syncAllThreads();
   }, [syncAllThreads]);
 
+  // Reset auth error count when user authenticates
+  useEffect(() => {
+    if (isAuthenticated) {
+      authErrorCountRef.current = 0;
+    }
+  }, [isAuthenticated]);
+
   // Set up background sync interval
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !isAuthenticated) return;
 
     // Initial sync after a short delay
     const initialTimeout = setTimeout(() => {
@@ -225,11 +257,11 @@ export function useChatBackgroundSync(options: UseChatBackgroundSyncOptions = {}
         clearTimeout(syncTimeoutRef.current);
       }
     };
-  }, [enabled, syncInterval, syncAllThreads]);
+  }, [enabled, isAuthenticated, syncInterval, syncAllThreads]);
 
   // Sync on page visibility change (when user returns to tab)
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !isAuthenticated) return;
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
@@ -241,11 +273,11 @@ export function useChatBackgroundSync(options: UseChatBackgroundSyncOptions = {}
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [enabled, triggerSync]);
+  }, [enabled, isAuthenticated, triggerSync]);
 
   // Sync before page unload (best effort)
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !isAuthenticated) return;
 
     const handleBeforeUnload = () => {
       // Best effort sync - may not complete
@@ -256,7 +288,7 @@ export function useChatBackgroundSync(options: UseChatBackgroundSyncOptions = {}
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [enabled, syncAllThreads]);
+  }, [enabled, isAuthenticated, syncAllThreads]);
 
   return {
     triggerSync,

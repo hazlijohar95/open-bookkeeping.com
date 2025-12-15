@@ -21,9 +21,9 @@ interface FilterSelectorProps<TData> {
   locale?: Locale;
 }
 
-export const FilterSelector = memo(__FilterSelector) as typeof __FilterSelector;
+export const FilterSelector = memo(FilterSelectorInner) as typeof FilterSelectorInner;
 
-function __FilterSelector<TData>({ filters, columns, actions, strategy, locale = "en" }: FilterSelectorProps<TData>) {
+function FilterSelectorInner<TData>({ filters, columns, actions, strategy, locale = "en" }: FilterSelectorProps<TData>) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const [property, setProperty] = useState<string | undefined>(undefined);
@@ -103,7 +103,7 @@ function __FilterSelector<TData>({ filters, columns, actions, strategy, locale =
           </CommandList>
         </Command>
       ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [property, column, filter, filters, columns, actions, value],
   );
 
@@ -212,9 +212,9 @@ interface QuickSearchFiltersProps<TData> {
   locale?: Locale;
 }
 
-export const QuickSearchFilters = memo(__QuickSearchFilters) as typeof __QuickSearchFilters;
+export const QuickSearchFilters = memo(QuickSearchFiltersInner) as typeof QuickSearchFiltersInner;
 
-function __QuickSearchFilters<TData>({ search, filters, columns, actions }: QuickSearchFiltersProps<TData>) {
+function QuickSearchFiltersInner<TData>({ search, filters, columns, actions }: QuickSearchFiltersProps<TData>) {
   // Hooks must be called unconditionally (before any early returns)
   const cols = useMemo(
     () => columns.filter((c) => isAnyOf<ColumnDataType>(c.type, ["option", "multiOption"])),

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 "use client";
 
 import type {
@@ -219,7 +219,7 @@ export function DataTable<TData, TValue>({
   // Note: We use data and sorting as deps since table.getRowModel() changes on each render
   const filteredRows = useMemo(
     () => table.getRowModel().rows,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [data, sorting, tstFilters, columnVisibility]
   );
 

@@ -35,8 +35,13 @@ interface ViewInvoiceModalProps {
   onOpenChange?: (open: boolean) => void;
 }
 
+// Input type with optional metadata (from API responses)
+type InvoiceDataInput = Omit<ZodCreateInvoiceSchema, 'metadata'> & {
+  metadata?: ZodCreateInvoiceSchema['metadata'] | null;
+};
+
 // Normalize invoice data to ensure all required fields exist for PDF generation
-function normalizeInvoiceData(data: ZodCreateInvoiceSchema): ZodCreateInvoiceSchema {
+function normalizeInvoiceData(data: InvoiceDataInput): ZodCreateInvoiceSchema {
   return {
     ...data,
     companyDetails: {

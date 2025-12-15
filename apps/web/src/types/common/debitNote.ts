@@ -38,7 +38,9 @@ export interface DebitNote {
   createdAt: Date;
   updatedAt: Date;
   issuedAt: Date | null;
-  debitNoteFields: ZodCreateDebitNoteSchema;
+  debitNoteFields: Omit<ZodCreateDebitNoteSchema, 'metadata'> & {
+    metadata: ZodCreateDebitNoteSchema['metadata'] | null;
+  };
 }
 
 // API response type where nested fields can be null

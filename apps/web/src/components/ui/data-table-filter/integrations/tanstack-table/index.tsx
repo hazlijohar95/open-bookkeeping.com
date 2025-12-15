@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 import { isColumnOption, isColumnOptionArray, isStringArray } from "../../lib/helpers";
 import type { ColumnDef, ColumnFiltersState } from "@tanstack/react-table";
 import { multiOptionFilterFn, optionFilterFn } from "../../lib/filter-fns";

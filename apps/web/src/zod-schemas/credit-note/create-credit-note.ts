@@ -22,7 +22,7 @@ export const createCreditNoteFieldKeyStringValuesSchema = fieldKeyStringValuesSc
 export const createCreditNoteFieldKeyNumberValuesSchema = fieldKeyNumberValuesSchema;
 
 export const createCreditNoteSchema = z.object({
-  customerId: z.string().uuid().optional(),
+  customerId: z.uuid().optional(),
   companyDetails: companyDetailsSchema,
   clientDetails: clientDetailsSchema,
   creditNoteDetails: z.object({

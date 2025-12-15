@@ -1,10 +1,18 @@
 import type { ZodCreateInvoiceSchema } from "@/zod-schemas/invoice/create-invoice";
 
-export const getSubTotalValue = (data: ZodCreateInvoiceSchema) => {
+// Type for invoice fields with optional metadata (from API)
+type InvoiceFieldsWithOptionalMetadata = Omit<ZodCreateInvoiceSchema, 'metadata'> & {
+  metadata?: ZodCreateInvoiceSchema['metadata'] | null;
+};
+
+// Type for the minimum fields needed for total calculations
+type TotalCalculationInput = Pick<ZodCreateInvoiceSchema, 'items' | 'invoiceDetails'>;
+
+export const getSubTotalValue = (data: TotalCalculationInput) => {
   return data.items.reduce((acc, item) => acc + item.quantity * item.unitPrice, 0);
 };
 
-export const getTotalValue = (data: ZodCreateInvoiceSchema) => {
+export const getTotalValue = (data: TotalCalculationInput) => {
   const subtotal = getSubTotalValue(data);
 
   const billingRates = data.invoiceDetails.billingDetails ?? [];
@@ -25,3 +33,6 @@ export const getTotalValue = (data: ZodCreateInvoiceSchema) => {
 
   return total;
 };
+
+// Re-export for backward compatibility
+export type { InvoiceFieldsWithOptionalMetadata };

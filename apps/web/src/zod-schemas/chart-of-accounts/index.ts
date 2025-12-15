@@ -46,7 +46,7 @@ export const createAccountSchema = z.object({
   description: z.string().max(500).optional(),
   accountType: accountTypeSchema,
   normalBalance: normalBalanceSchema,
-  parentId: z.string().uuid().optional().nullable(),
+  parentId: z.uuid().optional().nullable(),
   sstTaxCode: sstTaxCodeSchema.optional(),
   isHeader: z.boolean().default(false),
   openingBalance: z.string().optional(),
@@ -54,7 +54,7 @@ export const createAccountSchema = z.object({
 });
 
 export const updateAccountSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   code: z
     .string()
     .min(1)
@@ -63,7 +63,7 @@ export const updateAccountSchema = z.object({
     .optional(),
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional().nullable(),
-  parentId: z.string().uuid().optional().nullable(),
+  parentId: z.uuid().optional().nullable(),
   sstTaxCode: sstTaxCodeSchema.optional().nullable(),
   isActive: z.boolean().optional(),
   isHeader: z.boolean().optional(),
@@ -144,7 +144,7 @@ export const createJournalEntrySchema = z
 
 // Reversal schema
 export const reverseJournalEntrySchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   reversalDate: z.string().min(1, "Reversal date is required"),
 });
 

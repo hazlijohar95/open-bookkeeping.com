@@ -805,8 +805,8 @@ export function PayrollRunDetail() {
                   size="lg"
                   disabled={isMutating}
                   onClick={() => {
-                    if (payrollRun.status === "draft") handleCalculate();
-                    else if (payrollRun.status === "pending_review") handleApprove();
+                    if (payrollRun.status === "draft") void handleCalculate();
+                    else if (payrollRun.status === "pending_review") void handleApprove();
                     else if (payrollRun.status === "approved") setShowFinalizeConfirm(true);
                     else if (payrollRun.status === "finalized") setShowMarkPaidConfirm(true);
                   }}

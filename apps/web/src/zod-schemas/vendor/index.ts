@@ -37,7 +37,7 @@ export const createVendorSchema = z.object({
 
 // Update vendor schema
 export const updateVendorSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
 
   // Basic Information
   name: z.string().min(1, "Name is required").optional(),

@@ -29,6 +29,7 @@ import { agentSafetyService } from "../services/agent-safety.service";
 import { approvalService, type AgentAction, type AgentActionType } from "../services/approval.service";
 import { agentAuditService } from "../services/agent-audit.service";
 import { documentProcessorService } from "../services/document-processor.service";
+import { subscriptionService } from "../services/subscription.service";
 import {
   db,
   vaultDocuments,
@@ -45,6 +46,7 @@ import {
   payrollRuns,
   paySlips,
   bills,
+  userSettings,
 } from "@open-bookkeeping/db";
 import { eq, and, desc, ilike, or, gte, lte, sql, isNull } from "drizzle-orm";
 
@@ -6934,6 +6936,179 @@ ${content}`,
   });
 
   return c.json(result.object);
+});
+
+// ============================================
+// ONBOARDING CHAT ENDPOINT
+// ============================================
+
+const ONBOARDING_SYSTEM_PROMPT = `You are a friendly onboarding assistant for Open Bookkeeping, a Malaysian business accounting platform.
+
+Your role is to welcome new users and gather information to personalize their experience. Be warm, professional, and concise.
+
+## Your Approach
+- Ask ONE question at a time
+- Keep responses SHORT (2-3 sentences max)
+- Allow users to skip any question by saying "skip"
+- Be conversational and friendly
+- Use simple, clear language
+
+## Information to Collect
+Gather these details in a natural conversation flow:
+1. Company/business name
+2. Industry type (e.g., retail, services, F&B, construction, IT)
+3. Business size: solo, 2-10 employees, 11-50, or 50+
+4. Whether they're Malaysia-based
+5. Preferred accounting method (cash or accrual) - explain briefly if asked
+6. Fiscal year end month (most Malaysian companies: December)
+7. Whether they're SST registered
+8. Their main pain points with current bookkeeping
+9. How they heard about Open Bookkeeping
+
+## Important Rules
+- Start by introducing yourself warmly and asking for their company name
+- If they skip a question, move to the next one without pressing
+- After collecting info, use the saveOnboardingData tool to save it
+- When all questions are done (or user wants to finish), call saveOnboardingData with isComplete: true
+- Don't repeat questions they've already answered
+- Be encouraging and make them feel welcome
+
+## Example Opening
+"Welcome to Open Bookkeeping! 👋 I'm here to help set up your account. Let's start with a quick introduction - what's your company or business name?"`;
+
+/**
+ * Onboarding chat endpoint
+ * Uses GPT-4o-mini for fast, responsive conversations
+ */
+aiRoutes.post("/onboarding", async (c) => {
+  const authHeader = c.req.header("Authorization");
+  const user = await authenticateRequest(authHeader);
+
+  if (!user) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const { messages } = await c.req.json<{ messages: UIMessage[] }>();
+
+  if (!messages || !Array.isArray(messages)) {
+    return c.json({ error: "Messages array is required" }, 400);
+  }
+
+  // Check if onboarding is already completed
+  const onboardingStatus = await subscriptionService.getOnboardingStatus(user.id);
+  if (onboardingStatus?.isCompleted) {
+    return c.json({
+      error: "Onboarding already completed",
+      redirectTo: "/invoices"
+    }, 400);
+  }
+
+  // Define onboarding tool
+  const onboardingTools = {
+    saveOnboardingData: tool({
+      description: "Save collected onboarding data to the database. Call this after gathering information from the user.",
+      inputSchema: z.object({
+        companyName: z.string().optional().describe("The user's company or business name"),
+        industryType: z.string().optional().describe("The industry they operate in"),
+        businessSize: z.enum(["solo", "2-10", "11-50", "50+"]).optional().describe("Number of employees"),
+        isMalaysiaBased: z.boolean().optional().describe("Whether they're based in Malaysia"),
+        accountingMethod: z.enum(["cash", "accrual"]).optional().describe("Preferred accounting method"),
+        fiscalYearEndMonth: z.number().min(1).max(12).optional().describe("Month number when fiscal year ends (1-12)"),
+        isSstRegistered: z.boolean().optional().describe("Whether registered for SST"),
+        mainPainPoints: z.string().optional().describe("Their bookkeeping pain points"),
+        referralSource: z.string().optional().describe("How they heard about us"),
+        isComplete: z.boolean().optional().describe("Set to true when onboarding is finished"),
+      }),
+      execute: async ({
+        companyName,
+        industryType,
+        businessSize,
+        isMalaysiaBased,
+        accountingMethod,
+        fiscalYearEndMonth,
+        isSstRegistered,
+        mainPainPoints,
+        referralSource,
+        isComplete,
+      }: {
+        companyName?: string;
+        industryType?: string;
+        businessSize?: "solo" | "2-10" | "11-50" | "50+";
+        isMalaysiaBased?: boolean;
+        accountingMethod?: "cash" | "accrual";
+        fiscalYearEndMonth?: number;
+        isSstRegistered?: boolean;
+        mainPainPoints?: string;
+        referralSource?: string;
+        isComplete?: boolean;
+      }) => {
+        try {
+          const onboardingData = {
+            ...(companyName && { companyName }),
+            ...(industryType && { industryType }),
+            ...(businessSize && { businessSize }),
+            ...(isMalaysiaBased !== undefined && { isMalaysiaBased }),
+            ...(accountingMethod && { accountingMethod }),
+            ...(fiscalYearEndMonth && { fiscalYearEndMonth }),
+            ...(isSstRegistered !== undefined && { isSstRegistered }),
+            ...(mainPainPoints && { mainPainPoints }),
+            ...(referralSource && { referralSource }),
+          };
+
+          // Update onboarding data
+          if (Object.keys(onboardingData).length > 0) {
+            await subscriptionService.updateOnboardingData(user.id, onboardingData);
+          }
+
+          // If completed, mark onboarding as complete
+          if (isComplete) {
+            await subscriptionService.completeOnboarding(user.id, onboardingData);
+
+            // Sync company name to user settings if provided
+            if (onboardingData.companyName) {
+              await db
+                .update(userSettings)
+                .set({
+                  companyName: onboardingData.companyName,
+                  updatedAt: new Date(),
+                })
+                .where(eq(userSettings.userId, user.id));
+            }
+
+            return {
+              success: true,
+              message: "Onboarding completed! Redirecting to dashboard...",
+              redirectTo: "/invoices"
+            };
+          }
+
+          return {
+            success: true,
+            message: "Data saved",
+            savedFields: Object.keys(onboardingData)
+          };
+        } catch (error) {
+          logger.error({ error, userId: user.id }, "Failed to save onboarding data");
+          return {
+            success: false,
+            error: "Failed to save data"
+          };
+        }
+      },
+    }),
+  };
+
+  // Stream response using GPT-4o-mini for speed
+  const result = streamText({
+    model: openai("gpt-4o-mini"),
+    system: ONBOARDING_SYSTEM_PROMPT,
+    messages: convertToModelMessages(limitMessageHistory(messages, 20)),
+    tools: onboardingTools,
+    stopWhen: stepCountIs(3),
+    temperature: 0.7,
+  });
+
+  return result.toTextStreamResponse();
 });
 
 export { aiRoutes };

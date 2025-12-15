@@ -22,7 +22,7 @@ export const createDebitNoteFieldKeyStringValuesSchema = fieldKeyStringValuesSch
 export const createDebitNoteFieldKeyNumberValuesSchema = fieldKeyNumberValuesSchema;
 
 export const createDebitNoteSchema = z.object({
-  customerId: z.string().uuid().optional(),
+  customerId: z.uuid().optional(),
   companyDetails: companyDetailsSchema,
   clientDetails: clientDetailsSchema,
   debitNoteDetails: z.object({

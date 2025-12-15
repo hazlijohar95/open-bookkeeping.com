@@ -9,13 +9,13 @@ import { Bot, UserIcon } from "@/components/ui/icons";
 type VirtualMessage = {
   id: string;
   role: "user" | "assistant" | "system";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   [key: string]: any;
 };
 
 interface VirtualizedMessagesProps {
   messages: VirtualMessage[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   renderMessageContent: (message: any) => React.ReactNode;
   isLoading: boolean;
 }
@@ -81,7 +81,7 @@ export const VirtualizedMessages = memo(function VirtualizedMessages({
       return () => clearTimeout(timeoutId);
     }
     lastMessageCountRef.current = currentCount;
-  }, [visibleMessages.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [visibleMessages.length]);  
 
   const virtualItems = virtualizer.getVirtualItems();
 
@@ -146,7 +146,7 @@ const MessageRow = memo(function MessageRow({
   renderContent,
 }: {
   message: VirtualMessage;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   renderContent: (message: any) => React.ReactNode;
 }) {
   return (

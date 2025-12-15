@@ -45,10 +45,10 @@ const depreciationMethods: { value: DepreciationMethod; label: string }[] = [
 const createFixedAssetSchema = z.object({
   name: z.string().min(1, "Name is required").max(200),
   description: z.string().max(1000).optional(),
-  categoryId: z.string().uuid().optional(),
+  categoryId: z.uuid().optional(),
   acquisitionDate: z.string().min(1, "Acquisition date is required"),
   acquisitionCost: z.string().min(1, "Acquisition cost is required"),
-  vendorId: z.string().uuid().optional(),
+  vendorId: z.uuid().optional(),
   invoiceReference: z.string().max(100).optional(),
   depreciationMethod: z.enum(["straight_line", "declining_balance", "double_declining"]),
   usefulLifeMonths: z.coerce.number().int().min(1).max(600),

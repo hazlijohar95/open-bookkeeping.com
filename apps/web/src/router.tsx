@@ -48,6 +48,7 @@ const Employees = lazy(() => import("./routes/employees").then((m) => ({ default
 const PayrollRuns = lazy(() => import("./routes/payroll").then((m) => ({ default: m.PayrollRuns })));
 const PayrollRunDetail = lazy(() => import("./routes/payroll-run").then((m) => ({ default: m.PayrollRunDetail })));
 const SetupWizard = lazy(() => import("./routes/setup-wizard").then((m) => ({ default: m.SetupWizard })));
+const Onboarding = lazy(() => import("./routes/onboarding"));
 
 // Page skeleton for route transitions - shows structure immediately
 function RouteLoader() {
@@ -91,6 +92,7 @@ export const router = createBrowserRouter([
       { path: "privacy", element: <LazyRoute><Privacy /></LazyRoute> },
       { path: "terms", element: <LazyRoute><Terms /></LazyRoute> },
       { path: "auth/callback", element: <LazyRoute><AuthCallback /></LazyRoute> },
+      { path: "onboarding", element: <LazyRoute><Onboarding /></LazyRoute> },
 
       // Public routes with sidebar (no auth required)
       {

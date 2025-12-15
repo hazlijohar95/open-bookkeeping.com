@@ -27,6 +27,7 @@ export * from "./agentApprovals";
 export * from "./agentQuotas";
 export * from "./agentWorkflows";
 export * from "./agentMemory";
+export * from "./agentTraces";
 
 // Payroll schemas
 export * from "./payroll";
@@ -39,3 +40,6 @@ export * from "./migration";
 
 // User Audit schemas
 export * from "./userAuditLogs";
+
+// Subscription & Onboarding schemas
+export * from "./subscriptions";

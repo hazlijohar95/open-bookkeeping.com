@@ -173,7 +173,7 @@ const DebitNotePreview = ({ form }: { form: UseFormReturn<ZodCreateDebitNoteSche
       debouncedProcessFormValue.cancel();
     };
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [form]);
 
   // Effect to generate PDF when data changes
@@ -204,7 +204,7 @@ const DebitNotePreview = ({ form }: { form: UseFormReturn<ZodCreateDebitNoteSche
     };
 
     // Dont Include generatedPdfUrl in the dependency array as it will cause infinite re-renders
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [data]);
 
   // If there is an error loading the PDF, show an error message

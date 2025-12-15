@@ -46,6 +46,9 @@ const ImportInvoice = ({ form }: { form: UseFormReturn<ZodCreateInvoiceSchema> }
   const data: Invoice[] = [...serverInvoices, ...(idbData.data ?? [])];
 
   const handleRowClick = (invoice: Invoice) => {
+    // Default metadata if none exists
+    const defaultMetadata = { notes: "", terms: "", paymentInformation: [] };
+
     if (invoice.type === "local") {
       // For local invoices, we need to convert image urls to base64 if they're local
       const invoiceFields = { ...invoice.invoiceFields };
@@ -61,11 +64,11 @@ const ImportInvoice = ({ form }: { form: UseFormReturn<ZodCreateInvoiceSchema> }
         invoiceFields.companyDetails.signature = sigBase64 ?? "";
       }
 
-      // Reset form with the adjusted invoice fields
-      form.reset(invoiceFields);
+      // Reset form with the adjusted invoice fields, providing default metadata if null
+      form.reset({ ...invoiceFields, metadata: invoiceFields.metadata ?? defaultMetadata });
     } else {
-      // For server invoices, just use the fields directly
-      form.reset(invoice.invoiceFields);
+      // For server invoices, provide default metadata if null
+      form.reset({ ...invoice.invoiceFields, metadata: invoice.invoiceFields.metadata ?? defaultMetadata });
     }
 
     setOpen(false);

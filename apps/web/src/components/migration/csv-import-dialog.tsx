@@ -111,7 +111,7 @@ export function CSVImportDialog<T>({
 
       const file = e.dataTransfer.files[0];
       if (file) {
-        handleFileSelect(file);
+        void handleFileSelect(file);
       }
     },
     [handleFileSelect]
@@ -131,7 +131,7 @@ export function CSVImportDialog<T>({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) {
-        handleFileSelect(file);
+        void handleFileSelect(file);
       }
     },
     [handleFileSelect]

@@ -256,8 +256,8 @@ function BalancesStep({
   const { data: summary, refetch: refetchSummary } = useTrialBalanceSummary(sessionId);
 
   const handleImportSuccess = () => {
-    refetch();
-    refetchSummary();
+    void refetch();
+    void refetchSummary();
   };
 
   if (isLoading) {

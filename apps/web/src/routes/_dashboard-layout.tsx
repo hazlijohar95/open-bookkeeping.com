@@ -10,6 +10,7 @@ import { MobileBottomNav, MobileMenuDrawer } from "@/components/layout/mobile";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { PageTransition } from "@/components/ui/page-transition";
 import { cn } from "@/lib/utils";
+import { TrialBanner, FreeTierBanner } from "@/components/subscription";
 
 export function DashboardLayout() {
   const { user, isLoading } = useAuth();
@@ -26,7 +27,7 @@ export function DashboardLayout() {
     if (!isLoading && !user) {
       // Save the current path to redirect back after login
       const returnUrl = encodeURIComponent(location.pathname + location.search);
-      navigate(`/login?returnUrl=${returnUrl}`, { replace: true });
+      void navigate(`/login?returnUrl=${returnUrl}`, { replace: true });
     }
   }, [user, isLoading, location, navigate]);
 
@@ -48,6 +49,10 @@ export function DashboardLayout() {
         <div className="dash-page h-full overflow-hidden">
           {/* Header */}
           <DashboardSidebarHeader />
+
+          {/* Subscription banners */}
+          <TrialBanner />
+          <FreeTierBanner />
 
           {/* Main content area */}
           <main

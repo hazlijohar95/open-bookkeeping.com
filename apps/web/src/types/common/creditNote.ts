@@ -42,7 +42,9 @@ export interface CreditNote {
   createdAt: Date;
   updatedAt: Date;
   issuedAt: Date | null;
-  creditNoteFields: ZodCreateCreditNoteSchema;
+  creditNoteFields: Omit<ZodCreateCreditNoteSchema, 'metadata'> & {
+    metadata: ZodCreateCreditNoteSchema['metadata'] | null;
+  };
 }
 
 // API response type where nested fields can be null

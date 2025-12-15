@@ -367,8 +367,8 @@ export function MatchingRulesSheet({ trigger }: MatchingRulesSheetProps) {
             ) : (
               <div className="space-y-2">
                 {rules?.map((rule) => {
-                  const conditions = rule.conditions as MatchingRule["conditions"];
-                  const action = rule.action as MatchingRule["action"];
+                  const conditions = rule.conditions;
+                  const action = rule.action;
 
                   return (
                     <Card key={rule.id}>

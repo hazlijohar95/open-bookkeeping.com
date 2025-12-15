@@ -477,4 +477,12 @@ export const agentRouter = router({
 
       return { deleted: true };
     }),
+
+  // ==========================================
+  // TODAY'S USAGE (for cost monitoring)
+  // ==========================================
+
+  getTodayUsage: protectedProcedure.query(async ({ ctx }) => {
+    return agentSafetyService.getTodayUsage(ctx.user.id);
+  }),
 });

@@ -6,14 +6,14 @@ import type { Resolver } from "react-hook-form";
 
 // Zod v4 compatible zodResolver wrapper
 // @hookform/resolvers is typed for Zod v3, this bypasses the type incompatibility
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export function zodResolver<T extends z.ZodType<any, any, any>>(
   schema: T,
   schemaOptions?: Parameters<typeof originalZodResolver>[1],
   resolverOptions?: Parameters<typeof originalZodResolver>[2]
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
 ): Resolver<any> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return originalZodResolver(schema as any, schemaOptions, resolverOptions);
 }
 

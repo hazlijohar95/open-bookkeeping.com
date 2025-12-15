@@ -17,7 +17,7 @@ export const createCustomerSchema = z.object({
 
 // Update customer schema
 export const updateCustomerSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string().min(1, "Name is required").optional(),
   email: z.string().email("Invalid email address").optional().or(z.literal("")),
   phone: z.string().optional(),

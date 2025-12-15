@@ -1,10 +1,13 @@
 import type { ZodCreateQuotationSchema } from "@/zod-schemas/quotation/create-quotation";
 
-export const getQuotationSubTotalValue = (data: ZodCreateQuotationSchema) => {
+// Type for the minimum fields needed for total calculations
+type QuotationTotalCalculationInput = Pick<ZodCreateQuotationSchema, 'items' | 'quotationDetails'>;
+
+export const getQuotationSubTotalValue = (data: QuotationTotalCalculationInput) => {
   return data.items.reduce((acc, item) => acc + item.quantity * item.unitPrice, 0);
 };
 
-export const getQuotationTotalValue = (data: ZodCreateQuotationSchema) => {
+export const getQuotationTotalValue = (data: QuotationTotalCalculationInput) => {
   const subtotal = getQuotationSubTotalValue(data);
 
   const billingRates = data.quotationDetails.billingDetails;

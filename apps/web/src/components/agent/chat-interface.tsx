@@ -192,7 +192,7 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
         parts: msg.parts,
         createdAt: new Date(msg.createdAt),
       }));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       setMessages(aiMessages as any);
       lastSyncedMessageCountRef.current = validMessages.length;
       // Mark loaded messages as already synced to prevent re-syncing
@@ -206,7 +206,7 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
       if (!chatStore.currentThreadId || messages.length === 0) return;
 
       for (const msg of messages) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const msgAny = msg as any;
         const msgId = msgAny.id as string;
 
@@ -248,7 +248,7 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
   useEffect(() => {
     if (status === "ready" && streamingMessageIdRef.current) {
       const lastMessage = messages[messages.length - 1];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const lastMsgAny = lastMessage as any;
 
       if (lastMsgAny?.role === "assistant" && lastMsgAny.parts) {
@@ -335,7 +335,7 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
     // If we deleted the current thread, create a new one
     if (threadId === chatStore.currentThreadId) {
       const newThreadId = await chatStore.createThread();
-      handleSelectThread(newThreadId);
+      void handleSelectThread(newThreadId);
     }
   }, [chatStore, handleSelectThread]);
 

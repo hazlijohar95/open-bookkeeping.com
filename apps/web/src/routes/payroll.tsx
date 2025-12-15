@@ -108,7 +108,7 @@ export function PayrollRuns() {
   const showSkeleton = isLoading || isAuthLoading || isLoadingEmployees;
 
   const handleView = useCallback((run: PayrollRun) => {
-    navigate(`/payroll/${run.id}`);
+    void navigate(`/payroll/${run.id}`);
   }, [navigate]);
 
   const handleEdit = useCallback((run: PayrollRun) => {
@@ -300,7 +300,7 @@ export function PayrollRuns() {
                       step.link || step.action ? "hover:border-primary/50 hover:shadow-md cursor-pointer" : ""
                     )}
                     onClick={() => {
-                      if (step.link) navigate(step.link);
+                      if (step.link) void navigate(step.link);
                       if (step.action === "create" && activeEmployeeCount > 0) setIsFormOpen(true);
                     }}
                   >

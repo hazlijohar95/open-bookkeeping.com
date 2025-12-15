@@ -131,7 +131,7 @@ const MALAYSIAN_STATE_CODES: Record<string, string> = {
  * IC Number field with auto-parse and DOB auto-fill
  */
 interface ICNumberFieldProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   form: any;
 }
 

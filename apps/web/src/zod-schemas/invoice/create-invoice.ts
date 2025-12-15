@@ -34,7 +34,7 @@ const invoiceClientDetailsSchema = clientDetailsSchema.extend({
 });
 
 export const createInvoiceSchema = z.object({
-  customerId: z.string().uuid().optional(),
+  customerId: z.uuid().optional(),
   companyDetails: invoiceCompanyDetailsSchema,
   clientDetails: invoiceClientDetailsSchema,
   invoiceDetails: z.object({

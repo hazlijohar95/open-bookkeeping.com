@@ -16,8 +16,8 @@ const companyProfileSchema = z.object({
   companyAddress: z.string().max(1000).optional().nullable(),
   companyTaxId: z.string().max(100).optional().nullable(),
   companyPhone: z.string().max(50).optional().nullable(),
-  companyEmail: z.string().email().max(255).optional().nullable().or(z.literal("")),
-  companyWebsite: z.string().url().max(500).optional().nullable().or(z.literal("")),
+  companyEmail: z.email().max(255).optional().nullable().or(z.literal("")),
+  companyWebsite: z.url().max(500).optional().nullable().or(z.literal("")),
 });
 
 type CompanyProfileFormData = z.infer<typeof companyProfileSchema>;
