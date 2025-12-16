@@ -1,9 +1,17 @@
 import { Hono } from "hono";
-import { streamText, generateObject, convertToModelMessages, UIMessage, tool, stepCountIs } from "ai";
+import {
+  streamText,
+  generateObject,
+  convertToModelMessages,
+  UIMessage,
+  tool,
+  stepCountIs,
+} from "ai";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import {
   invoiceRepository,
+  invoiceV2Repository,
   customerRepository,
   quotationRepository,
   ledgerRepository,
@@ -26,7 +34,11 @@ import { authenticateRequest } from "../lib/auth-helpers";
 import { createLogger } from "@open-bookkeeping/shared";
 import { agentMemoryService } from "../services/agent-memory.service";
 import { agentSafetyService } from "../services/agent-safety.service";
-import { approvalService, type AgentAction, type AgentActionType } from "../services/approval.service";
+import {
+  approvalService,
+  type AgentAction,
+  type AgentActionType,
+} from "../services/approval.service";
 import { agentAuditService } from "../services/agent-audit.service";
 import { documentProcessorService } from "../services/document-processor.service";
 import { subscriptionService } from "../services/subscription.service";
@@ -80,7 +92,10 @@ const TOOL_LIMITS = {
  * Limit message history to prevent exceeding token limits
  * Keeps last N messages, prioritizing recent context
  */
-function limitMessageHistory(messages: UIMessage[], maxMessages: number = 10): UIMessage[] {
+function limitMessageHistory(
+  messages: UIMessage[],
+  maxMessages: number = 10
+): UIMessage[] {
   if (messages.length <= maxMessages) {
     return messages;
   }
@@ -100,7 +115,20 @@ function formatCurrency(amount: number, currency: string = "MYR"): string {
 
 // Helper to get month name
 function getMonthName(month: number): string {
-  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const months = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
   return months[month - 1] || `Month ${month}`;
 }
 
@@ -153,7 +181,9 @@ function extractErrorMessage(result: unknown): string | undefined {
 /**
  * Safely parse a numeric string, returning undefined for invalid values
  */
-function safeParseFloat(value: string | number | null | undefined): number | undefined {
+function safeParseFloat(
+  value: string | number | null | undefined
+): number | undefined {
   if (value === null || value === undefined) {
     return undefined;
   }
@@ -167,7 +197,9 @@ function safeParseFloat(value: string | number | null | undefined): number | und
 /**
  * Safely parse an integer, returning undefined for invalid values
  */
-function safeParseInt(value: string | number | null | undefined): number | undefined {
+function safeParseInt(
+  value: string | number | null | undefined
+): number | undefined {
   if (value === null || value === undefined) {
     return undefined;
   }
@@ -179,7 +211,9 @@ function safeParseInt(value: string | number | null | undefined): number | undef
 }
 
 // Helper to calculate invoice total with NaN protection
-function calculateInvoiceTotal(items: Array<{ quantity: number | string; unitPrice: number | string }>) {
+function calculateInvoiceTotal(
+  items: Array<{ quantity: number | string; unitPrice: number | string }>
+) {
   return items.reduce((sum, item) => {
     const quantity = Number(item.quantity);
     const unitPrice = Number(item.unitPrice);
@@ -296,7 +330,12 @@ async function checkToolApproval(
   toolName: string,
   args: Record<string, unknown>,
   estimatedAmount?: number
-): Promise<{ requiresApproval: boolean; approvalId?: string; message?: string; blocked?: boolean } | null> {
+): Promise<{
+  requiresApproval: boolean;
+  approvalId?: string;
+  message?: string;
+  blocked?: boolean;
+} | null> {
   const actionType = TOOL_ACTION_MAPPING[toolName];
   if (!actionType) {
     // Not a write tool, no approval needed
@@ -307,9 +346,16 @@ async function checkToolApproval(
   // STEP 1: Check quota limits FIRST
   // This includes: emergency stop, rate limit, daily quotas, amount limits
   // =====================================
-  const quotaResult = await agentSafetyService.checkQuota(userId, actionType, estimatedAmount);
+  const quotaResult = await agentSafetyService.checkQuota(
+    userId,
+    actionType,
+    estimatedAmount
+  );
   if (!quotaResult.allowed) {
-    logger.warn({ userId, toolName, reason: quotaResult.reason }, "Tool blocked by quota");
+    logger.warn(
+      { userId, toolName, reason: quotaResult.reason },
+      "Tool blocked by quota"
+    );
     return {
       requiresApproval: true, // Treat as "requires approval" but actually blocked
       blocked: true,
@@ -328,7 +374,10 @@ async function checkToolApproval(
     resourceType: TOOL_RESOURCE_MAPPING[toolName],
   };
 
-  const checkResult = await approvalService.checkRequiresApproval(userId, action);
+  const checkResult = await approvalService.checkRequiresApproval(
+    userId,
+    action
+  );
 
   if (!checkResult.requiresApproval) {
     return { requiresApproval: false };
@@ -385,16 +434,27 @@ async function logToolAudit(
       action: actionType,
       resourceType: TOOL_RESOURCE_MAPPING[toolName] || "unknown",
       resourceId: extractResourceId(result),
-      newState: typeof result === "object" && result !== null ? result as Record<string, unknown> : { result },
+      newState:
+        typeof result === "object" && result !== null
+          ? (result as Record<string, unknown>)
+          : { result },
       reasoning: `Executed ${toolName} via chat`,
       approvalType,
       success,
       errorMessage: !success ? extractErrorMessage(result) : undefined,
-      financialImpact: estimatedAmount !== undefined && estimatedAmount > 0 ? {
-        amount: estimatedAmount,
-        currency: "MYR",
-        direction: actionType.includes("expense") || actionType.includes("bill") || actionType.includes("payment_made") ? "decrease" : "increase",
-      } : undefined,
+      financialImpact:
+        estimatedAmount !== undefined && estimatedAmount > 0
+          ? {
+              amount: estimatedAmount,
+              currency: "MYR",
+              direction:
+                actionType.includes("expense") ||
+                actionType.includes("bill") ||
+                actionType.includes("payment_made")
+                  ? "decrease"
+                  : "increase",
+            }
+          : undefined,
     });
 
     // =====================================
@@ -407,10 +467,16 @@ async function logToolAudit(
         amount: estimatedAmount,
         currency: "MYR",
       });
-      logger.debug({ userId, toolName, actionType, estimatedAmount }, "Usage recorded for quota tracking");
+      logger.debug(
+        { userId, toolName, actionType, estimatedAmount },
+        "Usage recorded for quota tracking"
+      );
     }
   } catch (error) {
-    logger.error({ error, toolName, userId }, "Failed to log tool audit or record usage");
+    logger.error(
+      { error, toolName, userId },
+      "Failed to log tool audit or record usage"
+    );
   }
 }
 
@@ -428,17 +494,83 @@ aiRoutes.post("/chat", async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  const { messages, sessionId }: { messages: UIMessage[]; sessionId?: string } = await c.req.json();
+  const { messages, sessionId }: { messages: UIMessage[]; sessionId?: string } =
+    await c.req.json();
+
+  // ============================================
+  // FAST PATH: Simple conversational messages
+  // Skip tool loading for greetings, thanks, simple questions
+  // ============================================
+  const lastMessage = messages[messages.length - 1];
+  const lastMessageText =
+    lastMessage?.parts
+      ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
+      .map((p) => p.text)
+      .join(" ")
+      .toLowerCase()
+      .trim() ?? "";
+
+  // Detect simple conversational messages (no tools needed)
+  const isSimpleMessage =
+    lastMessageText.length < 50 &&
+    (// Greetings
+      /^(hey|hi|hello|hola|good\s*(morning|afternoon|evening)|what'?s?\s*up|yo)\b/i.test(
+        lastMessageText
+      ) ||
+      // Thanks/acknowledgments
+      /^(thanks?|thank\s*you|ty|thx|ok|okay|got\s*it|cool|great|awesome|nice|perfect)\b/i.test(
+        lastMessageText
+      ) ||
+      // Simple questions about the AI
+      /^(who\s*are\s*you|what\s*can\s*you\s*do|how\s*are\s*you|what'?s?\s*your\s*name)\b/i.test(
+        lastMessageText
+      ) ||
+      // Help requests (generic)
+      /^(help|help\s*me|i\s*need\s*help)$/i.test(lastMessageText));
+
+  if (isSimpleMessage) {
+    logger.info(
+      { userId: user.id, message: lastMessageText },
+      "Fast path: simple conversational message"
+    );
+
+    const simpleSystemPrompt = `You are a helpful bookkeeping assistant for Open Bookkeeping, a Malaysian business accounting platform.
+You help with invoicing, expenses, financial reports, and accounting tasks.
+Keep responses concise and friendly. If the user needs help with specific tasks, let them know you can help with:
+- Creating and managing invoices, bills, quotations
+- Tracking customers and vendors
+- Financial reports (P&L, Balance Sheet, Trial Balance)
+- Recording transactions and journal entries
+- Document processing and data extraction
+
+User: ${user.name || user.email}`;
+
+    const result = streamText({
+      model: openai("gpt-4o-mini"), // Use faster, cheaper model for simple messages
+      system: simpleSystemPrompt,
+      messages: convertToModelMessages(messages.slice(-3)), // Only last 3 messages needed
+    });
+
+    return result.toTextStreamResponse();
+  }
 
   // ============================================
   // SESSION MEMORY - Load or create session
   // ============================================
-  let session: Awaited<ReturnType<typeof agentMemoryService.getOrCreateSession>> | undefined;
+  let session:
+    | Awaited<ReturnType<typeof agentMemoryService.getOrCreateSession>>
+    | undefined;
   try {
     session = await agentMemoryService.getOrCreateSession(user.id, sessionId);
-    logger.debug({ userId: user.id, sessionId: session.id }, "Session loaded/created");
+    logger.debug(
+      { userId: user.id, sessionId: session.id },
+      "Session loaded/created"
+    );
   } catch (error) {
-    logger.error({ error, userId: user.id }, "Failed to load session, continuing without persistence");
+    logger.error(
+      { error, userId: user.id },
+      "Failed to load session, continuing without persistence"
+    );
   }
 
   // ============================================
@@ -454,7 +586,11 @@ aiRoutes.post("/chat", async (c) => {
 
     if (usage.tokensUsed + estimatedMinTokens > quotas.dailyTokenLimit) {
       logger.warn(
-        { userId: user.id, tokensUsed: usage.tokensUsed, dailyLimit: quotas.dailyTokenLimit },
+        {
+          userId: user.id,
+          tokensUsed: usage.tokensUsed,
+          dailyLimit: quotas.dailyTokenLimit,
+        },
         "Token budget would be exceeded"
       );
       return c.json(
@@ -474,13 +610,17 @@ aiRoutes.post("/chat", async (c) => {
       return c.json(
         {
           error: "AI agent is paused",
-          details: "AI agent actions are currently disabled. Please contact support or disable emergency stop in settings.",
+          details:
+            "AI agent actions are currently disabled. Please contact support or disable emergency stop in settings.",
         },
         403
       );
     }
   } catch (error) {
-    logger.error({ error, userId: user.id }, "Failed to check token budget, continuing anyway");
+    logger.error(
+      { error, userId: user.id },
+      "Failed to check token budget, continuing anyway"
+    );
   }
 
   // ============================================
@@ -500,9 +640,15 @@ aiRoutes.post("/chat", async (c) => {
   const tools = {
     // Dashboard & Statistics
     getDashboardStats: tool({
-      description: "Get dashboard statistics including total revenue, pending invoices, overdue invoices, quotation conversion rate, and monthly revenue. Use this to answer questions about overall business performance.",
+      description:
+        "Get dashboard statistics including total revenue, pending invoices, overdue invoices, quotation conversion rate, and monthly revenue. Use this to answer questions about overall business performance.",
       inputSchema: z.object({
-        includeQuotations: z.boolean().optional().describe("Whether to include quotation statistics (defaults to true)"),
+        includeQuotations: z
+          .boolean()
+          .optional()
+          .describe(
+            "Whether to include quotation statistics (defaults to true)"
+          ),
       }),
       execute: async ({ includeQuotations = true }) => {
         return withToolTimeout("getDashboardStats", async () => {
@@ -524,7 +670,9 @@ aiRoutes.post("/chat", async (c) => {
 
             if (includeQuotations) {
               // Use efficient count query instead of fetching all records
-              const quotationStats = await quotationRepository.getStats(user.id);
+              const quotationStats = await quotationRepository.getStats(
+                user.id
+              );
               result.totalQuotations = quotationStats.total;
               result.convertedQuotations = quotationStats.converted;
               result.conversionRate = `${quotationStats.conversionRate}%`;
@@ -541,40 +689,78 @@ aiRoutes.post("/chat", async (c) => {
 
     // Invoice Operations
     listInvoices: tool({
-      description: "List user's invoices with optional filters. Use this to show recent invoices, find invoices by status, or get an overview of invoicing activity.",
+      description:
+        "List user's invoices with optional filters. Use this to show recent invoices, find invoices by status, or get an overview of invoicing activity.",
       inputSchema: z.object({
-        limit: z.number().max(TOOL_LIMITS.maxResults.invoices).optional().describe(`Number of invoices to return (default 10, max ${TOOL_LIMITS.maxResults.invoices})`),
-        status: z.enum(["pending", "success", "overdue", "expired", "refunded"]).optional().describe("Filter by invoice status"),
+        limit: z
+          .number()
+          .max(TOOL_LIMITS.maxResults.invoices)
+          .optional()
+          .describe(
+            `Number of invoices to return (default 10, max ${TOOL_LIMITS.maxResults.invoices})`
+          ),
+        status: z
+          .enum(["pending", "success", "overdue", "expired", "refunded"])
+          .optional()
+          .describe("Filter by invoice status"),
       }),
-      execute: async ({ limit = 10, status }: { limit?: number; status?: "pending" | "success" | "overdue" | "expired" | "refunded" }) => {
+      execute: async ({
+        limit = 10,
+        status,
+      }: {
+        limit?: number;
+        status?: "pending" | "success" | "overdue" | "expired" | "refunded";
+      }) => {
         return withToolTimeout("listInvoices", async () => {
           try {
             // Enforce limits
-            const effectiveLimit = Math.min(limit || 10, TOOL_LIMITS.maxResults.invoices);
-            const invoices = await invoiceRepository.findManyLight(user.id, { limit: effectiveLimit });
+            const effectiveLimit = Math.min(
+              limit || 10,
+              TOOL_LIMITS.maxResults.invoices
+            );
+            // Use V2 repository
+            const invoices = await invoiceV2Repository.findManyLight(user.id, {
+              limit: effectiveLimit,
+            });
 
             let filtered = invoices;
             if (status) {
               const now = new Date();
-              filtered = invoices.filter(inv => {
+              filtered = invoices.filter((inv) => {
                 if (status === "overdue") {
-                  return inv.status === "pending" && inv.dueDate && new Date(inv.dueDate) < now;
+                  // V2: "open" status with overdue date
+                  return (
+                    inv.status === "open" &&
+                    inv.dueDate &&
+                    new Date(inv.dueDate) < now
+                  );
                 }
+                // Map legacy status names to V2
+                if (status === "pending") return inv.status === "open";
+                if (status === "success") return inv.status === "paid";
                 return inv.status === status;
               });
             }
 
             return {
-              invoices: filtered.slice(0, effectiveLimit).map(inv => ({
+              invoices: filtered.slice(0, effectiveLimit).map((inv) => ({
                 id: inv.id,
                 serialNumber: `${inv.prefix ?? ""}${inv.serialNumber ?? "N/A"}`,
                 clientName: inv.clientName ?? "Unknown",
-                amount: formatCurrency(inv.amount, inv.currency ?? "MYR"),
-                amountRaw: inv.amount,
+                amount: formatCurrency(
+                  parseFloat(inv.total),
+                  inv.currency ?? "MYR"
+                ),
+                amountRaw: parseFloat(inv.total),
                 status: inv.status,
-                dueDate: inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "No due date",
+                dueDate: inv.dueDate
+                  ? new Date(inv.dueDate).toLocaleDateString()
+                  : "No due date",
                 createdAt: new Date(inv.createdAt).toLocaleDateString(),
-                isOverdue: inv.status === "pending" && inv.dueDate && new Date(inv.dueDate) < new Date(),
+                isOverdue:
+                  inv.status === "open" &&
+                  inv.dueDate &&
+                  new Date(inv.dueDate) < new Date(),
               })),
               total: filtered.length,
             };
@@ -587,47 +773,78 @@ aiRoutes.post("/chat", async (c) => {
     }),
 
     getInvoiceDetails: tool({
-      description: "Get detailed information about a specific invoice by ID. Use this when user asks about a specific invoice.",
+      description:
+        "Get detailed information about a specific invoice by ID. Use this when user asks about a specific invoice.",
       inputSchema: z.object({
         invoiceId: z.string().describe("The invoice ID to look up"),
       }),
       execute: async ({ invoiceId }: { invoiceId: string }) => {
         try {
-          const invoice = await invoiceRepository.findById(invoiceId, user.id);
+          // Use V2 repository
+          const invoice = await invoiceV2Repository.findById(
+            invoiceId,
+            user.id
+          );
           if (!invoice) {
             return { error: "Invoice not found" };
           }
 
-          const items = invoice.invoiceFields?.items ?? [];
-          const total = calculateInvoiceTotal(items);
-          const currency = invoice.invoiceFields?.invoiceDetails?.currency ?? "MYR";
+          // V2 has flat structure with items relation
+          const items = invoice.items ?? [];
+          const clientDetails = invoice.clientDetails as {
+            name?: string;
+            address?: string;
+          } | null;
+          const companyDetails = invoice.companyDetails as {
+            name?: string;
+          } | null;
+          const metadata = invoice.metadata as {
+            notes?: string;
+            terms?: string;
+          } | null;
 
           return {
             id: invoice.id,
-            serialNumber: `${invoice.invoiceFields?.invoiceDetails?.prefix ?? ""}${invoice.invoiceFields?.invoiceDetails?.serialNumber ?? ""}`,
+            serialNumber: `${invoice.prefix ?? ""}${invoice.serialNumber ?? ""}`,
             status: invoice.status,
-            clientName: invoice.invoiceFields?.clientDetails?.name ?? "Unknown",
-            clientAddress: invoice.invoiceFields?.clientDetails?.address ?? "",
-            companyName: invoice.invoiceFields?.companyDetails?.name ?? "",
-            date: invoice.invoiceFields?.invoiceDetails?.date
-              ? new Date(invoice.invoiceFields.invoiceDetails.date).toLocaleDateString()
+            clientName: clientDetails?.name ?? "Unknown",
+            clientAddress: clientDetails?.address ?? "",
+            companyName: companyDetails?.name ?? "",
+            date: invoice.invoiceDate
+              ? new Date(invoice.invoiceDate).toLocaleDateString()
               : "",
-            dueDate: invoice.invoiceFields?.invoiceDetails?.dueDate
-              ? new Date(invoice.invoiceFields.invoiceDetails.dueDate).toLocaleDateString()
+            dueDate: invoice.dueDate
+              ? new Date(invoice.dueDate).toLocaleDateString()
               : "No due date",
-            items: items.map(item => ({
+            items: items.map((item) => ({
               name: item.name,
               description: item.description,
               quantity: Number(item.quantity),
-              unitPrice: formatCurrency(Number(item.unitPrice), currency),
-              total: formatCurrency(Number(item.quantity) * Number(item.unitPrice), currency),
+              unitPrice: formatCurrency(
+                Number(item.unitPrice),
+                invoice.currency
+              ),
+              total: formatCurrency(Number(item.amount), invoice.currency),
             })),
-            subtotal: formatCurrency(total, currency),
-            total: formatCurrency(total, currency),
-            currency,
-            notes: invoice.invoiceFields?.metadata?.notes ?? "",
-            terms: invoice.invoiceFields?.metadata?.terms ?? "",
-            paidAt: invoice.paidAt ? new Date(invoice.paidAt).toLocaleDateString() : null,
+            subtotal: formatCurrency(
+              parseFloat(invoice.subtotal),
+              invoice.currency
+            ),
+            total: formatCurrency(parseFloat(invoice.total), invoice.currency),
+            amountPaid: formatCurrency(
+              parseFloat(invoice.amountPaid),
+              invoice.currency
+            ),
+            amountDue: formatCurrency(
+              parseFloat(invoice.amountDue),
+              invoice.currency
+            ),
+            currency: invoice.currency,
+            notes: metadata?.notes ?? "",
+            terms: metadata?.terms ?? "",
+            paidAt: invoice.paidAt
+              ? new Date(invoice.paidAt).toLocaleDateString()
+              : null,
             createdAt: new Date(invoice.createdAt).toLocaleDateString(),
           };
         } catch (error) {
@@ -637,23 +854,96 @@ aiRoutes.post("/chat", async (c) => {
     }),
 
     getAgingReport: tool({
-      description: "Get accounts receivable aging report showing overdue invoices grouped by days overdue (current, 1-30 days, 31-60 days, 61-90 days, over 90 days). Use this to understand payment delays and outstanding amounts.",
+      description:
+        "Get accounts receivable aging report showing overdue invoices grouped by days overdue (current, 1-30 days, 31-60 days, 61-90 days, over 90 days). Use this to understand payment delays and outstanding amounts.",
       inputSchema: z.object({
-        customerId: z.string().optional().describe("Optional customer ID to filter the report"),
+        customerId: z
+          .string()
+          .optional()
+          .describe("Optional customer ID to filter the report"),
       }),
       execute: async ({ customerId }: { customerId?: string }) => {
         try {
-          const report = await invoiceRepository.getAgingReport(user.id, customerId);
+          // V2: Calculate aging from invoice list
+          const invoices = await invoiceV2Repository.findManyLight(user.id, {
+            limit: 1000,
+          });
+          const now = new Date();
+
+          // Filter to unpaid invoices (open or uncollectible)
+          let unpaid = invoices.filter(
+            (inv) => inv.status === "open" || inv.status === "uncollectible"
+          );
+          if (customerId) {
+            unpaid = unpaid.filter((inv) => inv.customerId === customerId);
+          }
+
+          // Calculate aging buckets
+          const buckets = {
+            current: 0,
+            days1to30: 0,
+            days31to60: 0,
+            days61to90: 0,
+            over90: 0,
+            total: 0,
+          };
+          const amounts = {
+            current: 0,
+            days1to30: 0,
+            days31to60: 0,
+            days61to90: 0,
+            over90: 0,
+            total: 0,
+          };
+
+          for (const inv of unpaid) {
+            const dueDate = inv.dueDate ? new Date(inv.dueDate) : null;
+            const amount = parseFloat(inv.amountDue);
+            amounts.total += amount;
+            buckets.total++;
+
+            if (!dueDate || dueDate >= now) {
+              buckets.current++;
+              amounts.current += amount;
+            } else {
+              const daysOverdue = Math.floor(
+                (now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)
+              );
+              if (daysOverdue <= 30) {
+                buckets.days1to30++;
+                amounts.days1to30 += amount;
+              } else if (daysOverdue <= 60) {
+                buckets.days31to60++;
+                amounts.days31to60 += amount;
+              } else if (daysOverdue <= 90) {
+                buckets.days61to90++;
+                amounts.days61to90 += amount;
+              } else {
+                buckets.over90++;
+                amounts.over90 += amount;
+              }
+            }
+          }
+
           return {
-            summary: report.totals,
-            breakdown: {
-              current: `${report.totals.current} invoices (not yet due)`,
-              days1to30: `${report.totals.days1to30} invoices (1-30 days overdue)`,
-              days31to60: `${report.totals.days31to60} invoices (31-60 days overdue)`,
-              days61to90: `${report.totals.days61to90} invoices (61-90 days overdue)`,
-              over90: `${report.totals.over90} invoices (over 90 days overdue)`,
+            summary: buckets,
+            amounts: {
+              current: formatCurrency(amounts.current),
+              days1to30: formatCurrency(amounts.days1to30),
+              days31to60: formatCurrency(amounts.days31to60),
+              days61to90: formatCurrency(amounts.days61to90),
+              over90: formatCurrency(amounts.over90),
+              total: formatCurrency(amounts.total),
             },
-            totalUnpaid: report.totals.total,
+            breakdown: {
+              current: `${buckets.current} invoices (${formatCurrency(amounts.current)} - not yet due)`,
+              days1to30: `${buckets.days1to30} invoices (${formatCurrency(amounts.days1to30)} - 1-30 days overdue)`,
+              days31to60: `${buckets.days31to60} invoices (${formatCurrency(amounts.days31to60)} - 31-60 days overdue)`,
+              days61to90: `${buckets.days61to90} invoices (${formatCurrency(amounts.days61to90)} - 61-90 days overdue)`,
+              over90: `${buckets.over90} invoices (${formatCurrency(amounts.over90)} - over 90 days overdue)`,
+            },
+            totalUnpaid: buckets.total,
+            totalAmount: formatCurrency(amounts.total),
           };
         } catch (error) {
           return { error: "Failed to fetch aging report" };
@@ -663,15 +953,21 @@ aiRoutes.post("/chat", async (c) => {
 
     // Customer Operations
     listCustomers: tool({
-      description: "List all customers. Use this to show customer list or find information about customers.",
+      description:
+        "List all customers. Use this to show customer list or find information about customers.",
       inputSchema: z.object({
-        limit: z.number().optional().describe("Number of customers to return (default 20)"),
+        limit: z
+          .number()
+          .optional()
+          .describe("Number of customers to return (default 20)"),
       }),
       execute: async ({ limit = 20 }) => {
         try {
-          const customers = await customerRepository.findMany(user.id, { limit });
+          const customers = await customerRepository.findMany(user.id, {
+            limit,
+          });
           return {
-            customers: customers.map(c => ({
+            customers: customers.map((c) => ({
               id: c.id,
               name: c.name,
               email: c.email ?? "No email",
@@ -688,7 +984,8 @@ aiRoutes.post("/chat", async (c) => {
     }),
 
     searchCustomers: tool({
-      description: "Search customers by name or email. Use this when user wants to find a specific customer.",
+      description:
+        "Search customers by name or email. Use this when user wants to find a specific customer.",
       inputSchema: z.object({
         query: z.string().describe("Search query (name or email)"),
       }),
@@ -696,7 +993,7 @@ aiRoutes.post("/chat", async (c) => {
         try {
           const customers = await customerRepository.search(user.id, query);
           return {
-            customers: customers.map(c => ({
+            customers: customers.map((c) => ({
               id: c.id,
               name: c.name,
               email: c.email ?? "No email",
@@ -712,21 +1009,35 @@ aiRoutes.post("/chat", async (c) => {
     }),
 
     getCustomerInvoices: tool({
-      description: "Get all invoices for a specific customer. Use this to see a customer's invoice history or find unpaid invoices for a customer.",
+      description:
+        "Get all invoices for a specific customer. Use this to see a customer's invoice history or find unpaid invoices for a customer.",
       inputSchema: z.object({
         customerId: z.string().describe("The customer ID"),
-        unpaidOnly: z.boolean().optional().describe("Return only unpaid invoices (defaults to false)"),
+        unpaidOnly: z
+          .boolean()
+          .optional()
+          .describe("Return only unpaid invoices (defaults to false)"),
       }),
-      execute: async ({ customerId, unpaidOnly = false }: { customerId: string; unpaidOnly?: boolean }) => {
+      execute: async ({
+        customerId,
+        unpaidOnly = false,
+      }: {
+        customerId: string;
+        unpaidOnly?: boolean;
+      }) => {
         try {
-          const customer = await customerRepository.findById(customerId, user.id);
+          const customer = await customerRepository.findById(
+            customerId,
+            user.id
+          );
           if (!customer) {
             return { error: "Customer not found" };
           }
 
+          // Use V2 repository
           const invoices = unpaidOnly
-            ? await invoiceRepository.getUnpaidByCustomer(customerId, user.id)
-            : await invoiceRepository.findByCustomer(customerId, user.id);
+            ? await invoiceV2Repository.getUnpaidByCustomer(customerId, user.id)
+            : await invoiceV2Repository.findByCustomer(customerId, user.id);
 
           return {
             customer: {
@@ -734,17 +1045,21 @@ aiRoutes.post("/chat", async (c) => {
               name: customer.name,
               email: customer.email,
             },
-            invoices: invoices.map(inv => {
-              const items = inv.invoiceFields?.items ?? [];
-              const total = calculateInvoiceTotal(items);
-              const currency = inv.invoiceFields?.invoiceDetails?.currency ?? "MYR";
+            invoices: invoices.map((inv) => {
               return {
                 id: inv.id,
-                serialNumber: `${inv.invoiceFields?.invoiceDetails?.prefix ?? ""}${inv.invoiceFields?.invoiceDetails?.serialNumber ?? ""}`,
-                amount: formatCurrency(total, currency),
+                serialNumber: `${inv.prefix ?? ""}${inv.serialNumber ?? ""}`,
+                amount: formatCurrency(
+                  parseFloat(inv.total),
+                  inv.currency ?? "MYR"
+                ),
+                amountDue: formatCurrency(
+                  parseFloat(inv.amountDue),
+                  inv.currency ?? "MYR"
+                ),
                 status: inv.status,
-                dueDate: inv.invoiceFields?.invoiceDetails?.dueDate
-                  ? new Date(inv.invoiceFields.invoiceDetails.dueDate).toLocaleDateString()
+                dueDate: inv.dueDate
+                  ? new Date(inv.dueDate).toLocaleDateString()
                   : "No due date",
               };
             }),
@@ -758,24 +1073,57 @@ aiRoutes.post("/chat", async (c) => {
 
     // Quotation Operations
     listQuotations: tool({
-      description: "List user's quotations with optional status filter. Use this to show quotations or find quotes by status.",
+      description:
+        "List user's quotations with optional status filter. Use this to show quotations or find quotes by status.",
       inputSchema: z.object({
-        limit: z.number().optional().describe("Number of quotations to return (default 10)"),
-        status: z.enum(["draft", "sent", "accepted", "rejected", "expired", "converted"]).optional().describe("Filter by quotation status"),
+        limit: z
+          .number()
+          .optional()
+          .describe("Number of quotations to return (default 10)"),
+        status: z
+          .enum([
+            "draft",
+            "sent",
+            "accepted",
+            "rejected",
+            "expired",
+            "converted",
+          ])
+          .optional()
+          .describe("Filter by quotation status"),
       }),
-      execute: async ({ limit = 10, status }: { limit?: number; status?: "draft" | "sent" | "accepted" | "rejected" | "expired" | "converted" }) => {
+      execute: async ({
+        limit = 10,
+        status,
+      }: {
+        limit?: number;
+        status?:
+          | "draft"
+          | "sent"
+          | "accepted"
+          | "rejected"
+          | "expired"
+          | "converted";
+      }) => {
         try {
-          const quotations = await quotationRepository.findMany(user.id, { limit: 50 });
+          const quotations = await quotationRepository.findMany(user.id, {
+            limit: 50,
+          });
 
           let filtered = status
-            ? quotations.filter(q => q.status === status)
+            ? quotations.filter((q) => q.status === status)
             : quotations;
 
           return {
-            quotations: filtered.slice(0, limit).map(q => {
+            quotations: filtered.slice(0, limit).map((q) => {
               const items = q.quotationFields?.items ?? [];
-              const total = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
-              const currency = q.quotationFields?.quotationDetails?.currency ?? "MYR";
+              const total = items.reduce(
+                (sum, item) =>
+                  sum + Number(item.quantity) * Number(item.unitPrice),
+                0
+              );
+              const currency =
+                q.quotationFields?.quotationDetails?.currency ?? "MYR";
               return {
                 id: q.id,
                 serialNumber: `${q.quotationFields?.quotationDetails?.prefix ?? ""}${q.quotationFields?.quotationDetails?.serialNumber ?? ""}`,
@@ -783,7 +1131,9 @@ aiRoutes.post("/chat", async (c) => {
                 amount: formatCurrency(total, currency),
                 status: q.status,
                 validUntil: q.quotationFields?.quotationDetails?.validUntil
-                  ? new Date(q.quotationFields.quotationDetails.validUntil).toLocaleDateString()
+                  ? new Date(
+                      q.quotationFields.quotationDetails.validUntil
+                    ).toLocaleDateString()
                   : "No expiry",
                 createdAt: new Date(q.createdAt).toLocaleDateString(),
               };
@@ -798,23 +1148,38 @@ aiRoutes.post("/chat", async (c) => {
 
     // Financial Reports & Ledger
     getTrialBalance: tool({
-      description: "Get the trial balance report showing all account balances as of a specific date. Use this to verify that debits equal credits and get an overview of all account balances.",
+      description:
+        "Get the trial balance report showing all account balances as of a specific date. Use this to verify that debits equal credits and get an overview of all account balances.",
       inputSchema: z.object({
-        asOfDate: z.string().optional().describe("The date for the trial balance (YYYY-MM-DD format, defaults to today)"),
+        asOfDate: z
+          .string()
+          .optional()
+          .describe(
+            "The date for the trial balance (YYYY-MM-DD format, defaults to today)"
+          ),
       }),
       execute: async ({ asOfDate }) => {
         try {
           const dateStr = asOfDate || new Date().toISOString().split("T")[0];
-          const result = await ledgerRepository.getTrialBalance(user.id, dateStr);
+          const result = await ledgerRepository.getTrialBalance(
+            user.id,
+            dateStr
+          );
 
           return {
             asOfDate: result.asOfDate,
-            accounts: result.accounts.map(acc => ({
+            accounts: result.accounts.map((acc) => ({
               code: acc.accountCode,
               name: acc.accountName,
               type: acc.accountType,
-              debit: acc.debitBalance !== "0" ? formatCurrency(parseFloat(acc.debitBalance)) : null,
-              credit: acc.creditBalance !== "0" ? formatCurrency(parseFloat(acc.creditBalance)) : null,
+              debit:
+                acc.debitBalance !== "0"
+                  ? formatCurrency(parseFloat(acc.debitBalance))
+                  : null,
+              credit:
+                acc.creditBalance !== "0"
+                  ? formatCurrency(parseFloat(acc.creditBalance))
+                  : null,
             })),
             totalDebits: formatCurrency(parseFloat(result.totalDebits)),
             totalCredits: formatCurrency(parseFloat(result.totalCredits)),
@@ -828,19 +1193,28 @@ aiRoutes.post("/chat", async (c) => {
     }),
 
     getProfitAndLoss: tool({
-      description: "Get the Profit and Loss (Income Statement) for a specific period. Shows revenue, expenses, and net profit/loss. Use this to understand business profitability.",
+      description:
+        "Get the Profit and Loss (Income Statement) for a specific period. Shows revenue, expenses, and net profit/loss. Use this to understand business profitability.",
       inputSchema: z.object({
-        startDate: z.string().describe("Start date of the period (YYYY-MM-DD format)"),
-        endDate: z.string().describe("End date of the period (YYYY-MM-DD format)"),
+        startDate: z
+          .string()
+          .describe("Start date of the period (YYYY-MM-DD format)"),
+        endDate: z
+          .string()
+          .describe("End date of the period (YYYY-MM-DD format)"),
       }),
       execute: async ({ startDate, endDate }) => {
         try {
-          const result = await ledgerRepository.getProfitAndLoss(user.id, startDate, endDate);
+          const result = await ledgerRepository.getProfitAndLoss(
+            user.id,
+            startDate,
+            endDate
+          );
 
           return {
             period: result.period,
             revenue: {
-              items: result.revenue.accounts.map(acc => ({
+              items: result.revenue.accounts.map((acc) => ({
                 code: acc.code,
                 name: acc.name,
                 amount: formatCurrency(parseFloat(acc.balance)),
@@ -849,7 +1223,7 @@ aiRoutes.post("/chat", async (c) => {
             },
             expenses: {
               costOfGoodsSold: {
-                items: result.expenses.costOfGoodsSold.map(acc => ({
+                items: result.expenses.costOfGoodsSold.map((acc) => ({
                   code: acc.code,
                   name: acc.name,
                   amount: formatCurrency(parseFloat(acc.balance)),
@@ -857,15 +1231,17 @@ aiRoutes.post("/chat", async (c) => {
                 total: formatCurrency(parseFloat(result.expenses.totalCOGS)),
               },
               operatingExpenses: {
-                items: result.expenses.operatingExpenses.map(acc => ({
+                items: result.expenses.operatingExpenses.map((acc) => ({
                   code: acc.code,
                   name: acc.name,
                   amount: formatCurrency(parseFloat(acc.balance)),
                 })),
-                total: formatCurrency(parseFloat(result.expenses.totalOperating)),
+                total: formatCurrency(
+                  parseFloat(result.expenses.totalOperating)
+                ),
               },
               otherExpenses: {
-                items: result.expenses.otherExpenses.map(acc => ({
+                items: result.expenses.otherExpenses.map((acc) => ({
                   code: acc.code,
                   name: acc.name,
                   amount: formatCurrency(parseFloat(acc.balance)),
@@ -886,58 +1262,84 @@ aiRoutes.post("/chat", async (c) => {
     }),
 
     getBalanceSheet: tool({
-      description: "Get the Balance Sheet showing assets, liabilities, and equity as of a specific date. Use this to understand the financial position of the business.",
+      description:
+        "Get the Balance Sheet showing assets, liabilities, and equity as of a specific date. Use this to understand the financial position of the business.",
       inputSchema: z.object({
-        asOfDate: z.string().optional().describe("The date for the balance sheet (YYYY-MM-DD format, defaults to today)"),
+        asOfDate: z
+          .string()
+          .optional()
+          .describe(
+            "The date for the balance sheet (YYYY-MM-DD format, defaults to today)"
+          ),
       }),
       execute: async ({ asOfDate }) => {
         try {
           const dateStr = asOfDate || new Date().toISOString().split("T")[0];
-          const result = await ledgerRepository.getBalanceSheet(user.id, dateStr);
+          const result = await ledgerRepository.getBalanceSheet(
+            user.id,
+            dateStr
+          );
 
           return {
             asOfDate: result.asOfDate,
             assets: {
-              currentAssets: result.assets.currentAssets.map(acc => ({
+              currentAssets: result.assets.currentAssets.map((acc) => ({
                 code: acc.code,
                 name: acc.name,
                 balance: formatCurrency(parseFloat(acc.balance)),
               })),
-              fixedAssets: result.assets.fixedAssets.map(acc => ({
+              fixedAssets: result.assets.fixedAssets.map((acc) => ({
                 code: acc.code,
                 name: acc.name,
                 balance: formatCurrency(parseFloat(acc.balance)),
               })),
-              totalCurrent: formatCurrency(parseFloat(result.assets.totalCurrent)),
+              totalCurrent: formatCurrency(
+                parseFloat(result.assets.totalCurrent)
+              ),
               totalFixed: formatCurrency(parseFloat(result.assets.totalFixed)),
               totalAssets: formatCurrency(parseFloat(result.assets.total)),
             },
             liabilities: {
-              currentLiabilities: result.liabilities.currentLiabilities.map(acc => ({
-                code: acc.code,
-                name: acc.name,
-                balance: formatCurrency(parseFloat(acc.balance)),
-              })),
-              nonCurrentLiabilities: result.liabilities.nonCurrentLiabilities.map(acc => ({
-                code: acc.code,
-                name: acc.name,
-                balance: formatCurrency(parseFloat(acc.balance)),
-              })),
-              totalCurrent: formatCurrency(parseFloat(result.liabilities.totalCurrent)),
-              totalNonCurrent: formatCurrency(parseFloat(result.liabilities.totalNonCurrent)),
-              totalLiabilities: formatCurrency(parseFloat(result.liabilities.total)),
+              currentLiabilities: result.liabilities.currentLiabilities.map(
+                (acc) => ({
+                  code: acc.code,
+                  name: acc.name,
+                  balance: formatCurrency(parseFloat(acc.balance)),
+                })
+              ),
+              nonCurrentLiabilities:
+                result.liabilities.nonCurrentLiabilities.map((acc) => ({
+                  code: acc.code,
+                  name: acc.name,
+                  balance: formatCurrency(parseFloat(acc.balance)),
+                })),
+              totalCurrent: formatCurrency(
+                parseFloat(result.liabilities.totalCurrent)
+              ),
+              totalNonCurrent: formatCurrency(
+                parseFloat(result.liabilities.totalNonCurrent)
+              ),
+              totalLiabilities: formatCurrency(
+                parseFloat(result.liabilities.total)
+              ),
             },
             equity: {
-              accounts: result.equity.accounts.map(acc => ({
+              accounts: result.equity.accounts.map((acc) => ({
                 code: acc.code,
                 name: acc.name,
                 balance: formatCurrency(parseFloat(acc.balance)),
               })),
-              retainedEarnings: formatCurrency(parseFloat(result.equity.retainedEarnings)),
-              currentYearEarnings: formatCurrency(parseFloat(result.equity.currentYearEarnings)),
+              retainedEarnings: formatCurrency(
+                parseFloat(result.equity.retainedEarnings)
+              ),
+              currentYearEarnings: formatCurrency(
+                parseFloat(result.equity.currentYearEarnings)
+              ),
               totalEquity: formatCurrency(parseFloat(result.equity.total)),
             },
-            totalLiabilitiesAndEquity: formatCurrency(parseFloat(result.totalLiabilitiesAndEquity)),
+            totalLiabilitiesAndEquity: formatCurrency(
+              parseFloat(result.totalLiabilitiesAndEquity)
+            ),
             isBalanced: result.isBalanced,
           };
         } catch (error) {
@@ -947,7 +1349,8 @@ aiRoutes.post("/chat", async (c) => {
     }),
 
     getSSTReport: tool({
-      description: "Get the SST (Sales and Service Tax) report for a period showing taxable sales, SST collected, and SST payable.",
+      description:
+        "Get the SST (Sales and Service Tax) report for a period showing taxable sales, SST collected, and SST payable.",
       inputSchema: z.object({
         startDate: z.string().describe("Report start date (YYYY-MM-DD)"),
         endDate: z.string().describe("Report end date (YYYY-MM-DD)"),
@@ -980,7 +1383,10 @@ aiRoutes.post("/chat", async (c) => {
 
           let totalSales = 0;
           let totalSST = 0;
-          const sstBreakdown: Record<string, { sales: number; sst: number; count: number }> = {};
+          const sstBreakdown: Record<
+            string,
+            { sales: number; sst: number; count: number }
+          > = {};
 
           for (const invoice of invoiceList) {
             const invoiceDetails = invoice.invoiceFields?.invoiceDetails;
@@ -1046,22 +1452,37 @@ aiRoutes.post("/chat", async (c) => {
     }),
 
     getCustomerStatement: tool({
-      description: "Get a statement of account for a specific customer showing all invoices, payments, and outstanding balance.",
+      description:
+        "Get a statement of account for a specific customer showing all invoices, payments, and outstanding balance.",
       inputSchema: z.object({
         customerId: z.string().describe("The customer ID"),
-        startDate: z.string().optional().describe("Statement start date (YYYY-MM-DD, defaults to 90 days ago)"),
-        endDate: z.string().optional().describe("Statement end date (YYYY-MM-DD, defaults to today)"),
+        startDate: z
+          .string()
+          .optional()
+          .describe(
+            "Statement start date (YYYY-MM-DD, defaults to 90 days ago)"
+          ),
+        endDate: z
+          .string()
+          .optional()
+          .describe("Statement end date (YYYY-MM-DD, defaults to today)"),
       }),
       execute: async ({ customerId, startDate, endDate }) => {
         try {
-          const customer = await customerRepository.findById(customerId, user.id);
+          const customer = await customerRepository.findById(
+            customerId,
+            user.id
+          );
           if (!customer) {
             return { error: "Customer not found" };
           }
 
           const now = new Date();
-          const defaultStart = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-          const effectiveStartDate = startDate || defaultStart.toISOString().split("T")[0];
+          const defaultStart = new Date(
+            now.getTime() - 90 * 24 * 60 * 60 * 1000
+          );
+          const effectiveStartDate =
+            startDate || defaultStart.toISOString().split("T")[0];
           const effectiveEndDate = endDate || now.toISOString().split("T")[0];
 
           const { invoices } = await import("@open-bookkeeping/db");
@@ -1138,7 +1559,10 @@ aiRoutes.post("/chat", async (c) => {
               name: customer.name,
               email: customer.email,
             },
-            period: { startDate: effectiveStartDate, endDate: effectiveEndDate },
+            period: {
+              startDate: effectiveStartDate,
+              endDate: effectiveEndDate,
+            },
             summary: {
               totalInvoiced: formatCurrency(totalInvoiced),
               totalPaid: formatCurrency(totalPaid),
@@ -1155,11 +1579,20 @@ aiRoutes.post("/chat", async (c) => {
     }),
 
     getVendorStatement: tool({
-      description: "Get a statement of account for a specific vendor showing all bills, payments, and outstanding balance.",
+      description:
+        "Get a statement of account for a specific vendor showing all bills, payments, and outstanding balance.",
       inputSchema: z.object({
         vendorId: z.string().describe("The vendor ID"),
-        startDate: z.string().optional().describe("Statement start date (YYYY-MM-DD, defaults to 90 days ago)"),
-        endDate: z.string().optional().describe("Statement end date (YYYY-MM-DD, defaults to today)"),
+        startDate: z
+          .string()
+          .optional()
+          .describe(
+            "Statement start date (YYYY-MM-DD, defaults to 90 days ago)"
+          ),
+        endDate: z
+          .string()
+          .optional()
+          .describe("Statement end date (YYYY-MM-DD, defaults to today)"),
       }),
       execute: async ({ vendorId, startDate, endDate }) => {
         try {
@@ -1169,8 +1602,11 @@ aiRoutes.post("/chat", async (c) => {
           }
 
           const now = new Date();
-          const defaultStart = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-          const effectiveStartDate = startDate || defaultStart.toISOString().split("T")[0];
+          const defaultStart = new Date(
+            now.getTime() - 90 * 24 * 60 * 60 * 1000
+          );
+          const effectiveStartDate =
+            startDate || defaultStart.toISOString().split("T")[0];
           const effectiveEndDate = endDate || now.toISOString().split("T")[0];
 
           // Get bills for the vendor within the period
@@ -1218,7 +1654,10 @@ aiRoutes.post("/chat", async (c) => {
               name: vendor.name,
               email: vendor.email,
             },
-            period: { startDate: effectiveStartDate, endDate: effectiveEndDate },
+            period: {
+              startDate: effectiveStartDate,
+              endDate: effectiveEndDate,
+            },
             summary: {
               totalBilled: formatCurrency(totalBilled),
               totalPaid: formatCurrency(totalPaid),
@@ -1235,40 +1674,60 @@ aiRoutes.post("/chat", async (c) => {
     }),
 
     getAccountingPeriodStatus: tool({
-      description: "Get the status of accounting periods (open, closed, or locked). IMPORTANT: In this system, accounting periods are IMPLICITLY OPEN by default - you do NOT need to create them. If no period records exist, all periods are open and ready for posting. Period records are only created when periods are explicitly closed.",
+      description:
+        "Get the status of accounting periods (open, closed, or locked). IMPORTANT: In this system, accounting periods are IMPLICITLY OPEN by default - you do NOT need to create them. If no period records exist, all periods are open and ready for posting. Period records are only created when periods are explicitly closed.",
       inputSchema: z.object({
-        year: z.number().optional().describe("Filter periods by year (defaults to showing all)"),
+        year: z
+          .number()
+          .optional()
+          .describe("Filter periods by year (defaults to showing all)"),
       }),
       execute: async ({ year }) => {
         try {
-          const periods = await accountingPeriodRepository.listPeriods(user.id, year);
+          const periods = await accountingPeriodRepository.listPeriods(
+            user.id,
+            year
+          );
 
           const monthNames = [
-            "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
           ];
 
           // IMPORTANT: No periods = all periods are implicitly open
           const isAllOpen = periods.length === 0;
 
           return {
-            periods: periods.map(p => ({
+            periods: periods.map((p) => ({
               period: `${monthNames[p.month - 1]} ${p.year}`,
               year: p.year,
               month: p.month,
               status: p.status,
-              closedAt: p.closedAt ? new Date(p.closedAt).toLocaleDateString() : null,
+              closedAt: p.closedAt
+                ? new Date(p.closedAt).toLocaleDateString()
+                : null,
               notes: p.notes,
             })),
             totalPeriods: periods.length,
-            openPeriods: periods.filter(p => p.status === "open").length,
-            closedPeriods: periods.filter(p => p.status === "closed").length,
-            lockedPeriods: periods.filter(p => p.status === "locked").length,
+            openPeriods: periods.filter((p) => p.status === "open").length,
+            closedPeriods: periods.filter((p) => p.status === "closed").length,
+            lockedPeriods: periods.filter((p) => p.status === "locked").length,
             // Helpful context for the AI
             message: isAllOpen
               ? "No period records found. This means ALL periods are implicitly OPEN and ready for posting transactions. You can post journal entries and transactions for any date without needing to create periods first."
               : `Found ${periods.length} period record(s). Periods without explicit records are implicitly open.`,
-            canPostToAnyDate: isAllOpen || periods.some(p => p.status === "open"),
+            canPostToAnyDate:
+              isAllOpen || periods.some((p) => p.status === "open"),
           };
         } catch (error) {
           return { error: "Failed to fetch accounting period status" };
@@ -1277,12 +1736,23 @@ aiRoutes.post("/chat", async (c) => {
     }),
 
     searchLedgerTransactions: tool({
-      description: "Search through ledger transactions by description, reference, or entry number. Use this to find specific transactions or investigate entries.",
+      description:
+        "Search through ledger transactions by description, reference, or entry number. Use this to find specific transactions or investigate entries.",
       inputSchema: z.object({
-        query: z.string().describe("Search query (searches description, reference, and entry number)"),
-        startDate: z.string().optional().describe("Start date filter (YYYY-MM-DD)"),
+        query: z
+          .string()
+          .describe(
+            "Search query (searches description, reference, and entry number)"
+          ),
+        startDate: z
+          .string()
+          .optional()
+          .describe("Start date filter (YYYY-MM-DD)"),
         endDate: z.string().optional().describe("End date filter (YYYY-MM-DD)"),
-        limit: z.number().optional().describe("Maximum results to return (default 20)"),
+        limit: z
+          .number()
+          .optional()
+          .describe("Maximum results to return (default 20)"),
       }),
       execute: async ({ query, startDate, endDate, limit = 20 }) => {
         try {
@@ -1294,13 +1764,19 @@ aiRoutes.post("/chat", async (c) => {
           });
 
           return {
-            transactions: results.map(t => ({
+            transactions: results.map((t) => ({
               date: t.transactionDate,
               entryNumber: t.entryNumber,
               description: t.description,
               reference: t.reference,
-              debit: t.debitAmount !== "0" ? formatCurrency(parseFloat(t.debitAmount)) : null,
-              credit: t.creditAmount !== "0" ? formatCurrency(parseFloat(t.creditAmount)) : null,
+              debit:
+                t.debitAmount !== "0"
+                  ? formatCurrency(parseFloat(t.debitAmount))
+                  : null,
+              credit:
+                t.creditAmount !== "0"
+                  ? formatCurrency(parseFloat(t.creditAmount))
+                  : null,
             })),
             totalResults: results.length,
             query,
@@ -1316,10 +1792,15 @@ aiRoutes.post("/chat", async (c) => {
     // ==========================================
 
     createCustomer: tool({
-      description: "Create a new customer in the system. Use this when the user wants to add a new client or customer. Returns the created customer details.",
+      description:
+        "Create a new customer in the system. Use this when the user wants to add a new client or customer. Returns the created customer details.",
       inputSchema: z.object({
         name: z.string().describe("Customer's full name or company name"),
-        email: z.string().email().optional().describe("Customer's email address"),
+        email: z
+          .string()
+          .email()
+          .optional()
+          .describe("Customer's email address"),
         phone: z.string().optional().describe("Customer's phone number"),
         address: z.string().optional().describe("Customer's billing address"),
       }),
@@ -1328,7 +1809,12 @@ aiRoutes.post("/chat", async (c) => {
 
         try {
           // Check approval before executing
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "createCustomer", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "createCustomer",
+            toolArgs
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
@@ -1358,19 +1844,37 @@ aiRoutes.post("/chat", async (c) => {
             },
           };
 
-          await logToolAudit(user.id, session?.id, "createCustomer", toolArgs, result.customer, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createCustomer",
+            toolArgs,
+            result.customer,
+            true
+          );
 
           return result;
         } catch (error) {
-          const errorResult = { error: "Failed to create customer", details: String(error) };
-          await logToolAudit(user.id, session?.id, "createCustomer", toolArgs, errorResult, false);
+          const errorResult = {
+            error: "Failed to create customer",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createCustomer",
+            toolArgs,
+            errorResult,
+            false
+          );
           return errorResult;
         }
       },
     }),
 
     createVendor: tool({
-      description: "Create a new vendor/supplier in the system. Use this when the user wants to add a new vendor or supplier.",
+      description:
+        "Create a new vendor/supplier in the system. Use this when the user wants to add a new vendor or supplier.",
       inputSchema: z.object({
         name: z.string().describe("Vendor's name or company name"),
         email: z.string().email().optional().describe("Vendor's email address"),
@@ -1382,7 +1886,12 @@ aiRoutes.post("/chat", async (c) => {
 
         try {
           // Check approval before executing
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "createVendor", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "createVendor",
+            toolArgs
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
@@ -1411,19 +1920,37 @@ aiRoutes.post("/chat", async (c) => {
             },
           };
 
-          await logToolAudit(user.id, session?.id, "createVendor", toolArgs, result.vendor, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createVendor",
+            toolArgs,
+            result.vendor,
+            true
+          );
 
           return result;
         } catch (error) {
-          const errorResult = { error: "Failed to create vendor", details: String(error) };
-          await logToolAudit(user.id, session?.id, "createVendor", toolArgs, errorResult, false);
+          const errorResult = {
+            error: "Failed to create vendor",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createVendor",
+            toolArgs,
+            errorResult,
+            false
+          );
           return errorResult;
         }
       },
     }),
 
     markInvoiceAsPaid: tool({
-      description: "Mark an invoice as paid. Use this when the user confirms payment has been received for an invoice.",
+      description:
+        "Mark an invoice as paid. Use this when the user confirms payment has been received for an invoice.",
       inputSchema: z.object({
         invoiceId: z.string().describe("The ID of the invoice to mark as paid"),
       }),
@@ -1431,36 +1958,55 @@ aiRoutes.post("/chat", async (c) => {
         const toolArgs = { invoiceId };
 
         try {
-          const invoice = await invoiceRepository.findById(invoiceId, user.id);
+          // Use V2 repository
+          const invoice = await invoiceV2Repository.findById(
+            invoiceId,
+            user.id
+          );
           if (!invoice) {
             return { error: "Invoice not found" };
           }
 
-          // Calculate estimated amount for approval check
-          const items = invoice.invoiceFields?.items ?? [];
-          const estimatedAmount = calculateInvoiceTotal(items);
+          // V2 has total directly
+          const estimatedAmount = parseFloat(invoice.total);
 
           // Check approval before executing
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "markInvoiceAsPaid", toolArgs, estimatedAmount);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "markInvoiceAsPaid",
+            toolArgs,
+            estimatedAmount
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
               approvalId: approvalCheck.approvalId,
               message: approvalCheck.message,
-              preview: { type: "invoice_payment", invoiceId, amount: formatCurrency(estimatedAmount) },
+              preview: {
+                type: "invoice_payment",
+                invoiceId,
+                amount: formatCurrency(estimatedAmount),
+              },
             };
           }
 
-          if (invoice.status === "success") {
+          // V2 status is "paid" not "success"
+          if (invoice.status === "paid") {
             return { error: "Invoice is already marked as paid" };
           }
 
-          const updated = await invoiceRepository.updateStatus(invoiceId, user.id, "success");
+          // V2 uses "paid" status
+          const updated = await invoiceV2Repository.updateStatus(
+            invoiceId,
+            user.id,
+            "paid"
+          );
           if (!updated) {
             return { error: "Failed to update invoice status" };
           }
 
-          const serialNumber = `${invoice.invoiceFields?.invoiceDetails?.prefix ?? ""}${invoice.invoiceFields?.invoiceDetails?.serialNumber ?? ""}`;
+          const serialNumber = `${invoice.prefix ?? ""}${invoice.serialNumber ?? ""}`;
 
           const result = {
             success: true,
@@ -1469,23 +2015,44 @@ aiRoutes.post("/chat", async (c) => {
               id: updated.id,
               serialNumber,
               status: updated.status,
-              paidAt: updated.paidAt ? new Date(updated.paidAt).toLocaleDateString() : null,
+              paidAt: updated.paidAt
+                ? new Date(updated.paidAt).toLocaleDateString()
+                : null,
             },
           };
 
-          await logToolAudit(user.id, session?.id, "markInvoiceAsPaid", toolArgs, result.invoice, true, estimatedAmount);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "markInvoiceAsPaid",
+            toolArgs,
+            result.invoice,
+            true,
+            estimatedAmount
+          );
 
           return result;
         } catch (error) {
-          const errorResult = { error: "Failed to mark invoice as paid", details: String(error) };
-          await logToolAudit(user.id, session?.id, "markInvoiceAsPaid", toolArgs, errorResult, false);
+          const errorResult = {
+            error: "Failed to mark invoice as paid",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "markInvoiceAsPaid",
+            toolArgs,
+            errorResult,
+            false
+          );
           return errorResult;
         }
       },
     }),
 
     convertQuotationToInvoice: tool({
-      description: "Convert an accepted quotation into an invoice. Use this when the user wants to convert a quote to an invoice after it's been accepted.",
+      description:
+        "Convert an accepted quotation into an invoice. Use this when the user wants to convert a quote to an invoice after it's been accepted.",
       inputSchema: z.object({
         quotationId: z.string().describe("The ID of the quotation to convert"),
       }),
@@ -1493,7 +2060,10 @@ aiRoutes.post("/chat", async (c) => {
         const toolArgs = { quotationId };
 
         try {
-          const quotation = await quotationRepository.findById(quotationId, user.id);
+          const quotation = await quotationRepository.findById(
+            quotationId,
+            user.id
+          );
           if (!quotation) {
             return { error: "Quotation not found" };
           }
@@ -1503,25 +2073,48 @@ aiRoutes.post("/chat", async (c) => {
           const estimatedAmount = calculateInvoiceTotal(items);
 
           // Check approval before executing
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "convertQuotationToInvoice", toolArgs, estimatedAmount);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "convertQuotationToInvoice",
+            toolArgs,
+            estimatedAmount
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
               approvalId: approvalCheck.approvalId,
               message: approvalCheck.message,
-              preview: { type: "quotation_conversion", quotationId, amount: formatCurrency(estimatedAmount) },
+              preview: {
+                type: "quotation_conversion",
+                quotationId,
+                amount: formatCurrency(estimatedAmount),
+              },
             };
           }
 
           if (quotation.status === "converted") {
-            return { error: "This quotation has already been converted to an invoice" };
+            return {
+              error: "This quotation has already been converted to an invoice",
+            };
           }
 
-          const result = await quotationRepository.convertToInvoice(quotationId, user.id);
+          const result = await quotationRepository.convertToInvoice(
+            quotationId,
+            user.id
+          );
 
           // Handle error case from repository
-          if ('error' in result) {
-            await logToolAudit(user.id, session?.id, "convertQuotationToInvoice", toolArgs, result, false, estimatedAmount);
+          if ("error" in result) {
+            await logToolAudit(
+              user.id,
+              session?.id,
+              "convertQuotationToInvoice",
+              toolArgs,
+              result,
+              false,
+              estimatedAmount
+            );
             return { error: result.error };
           }
 
@@ -1542,53 +2135,91 @@ aiRoutes.post("/chat", async (c) => {
             },
           };
 
-          await logToolAudit(user.id, session?.id, "convertQuotationToInvoice", toolArgs, successResult, true, estimatedAmount);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "convertQuotationToInvoice",
+            toolArgs,
+            successResult,
+            true,
+            estimatedAmount
+          );
 
           return successResult;
         } catch (error) {
-          const errorResult = { error: "Failed to convert quotation", details: String(error) };
-          await logToolAudit(user.id, session?.id, "convertQuotationToInvoice", toolArgs, errorResult, false);
+          const errorResult = {
+            error: "Failed to convert quotation",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "convertQuotationToInvoice",
+            toolArgs,
+            errorResult,
+            false
+          );
           return errorResult;
         }
       },
     }),
 
     updateInvoiceStatus: tool({
-      description: "Update the status of an invoice. Can mark as pending, paid (success), overdue, expired, or refunded.",
+      description:
+        "Update the status of an invoice. V2 statuses: draft, open, paid, void, uncollectible, refunded.",
       inputSchema: z.object({
         invoiceId: z.string().describe("The ID of the invoice to update"),
-        status: z.enum(["pending", "success", "expired", "refunded"]).describe("The new status for the invoice"),
+        status: z
+          .enum(["draft", "open", "paid", "void", "uncollectible", "refunded"])
+          .describe("The new status for the invoice (V2 statuses)"),
       }),
       execute: async ({ invoiceId, status }) => {
         const toolArgs = { invoiceId, status };
 
         try {
-          const invoice = await invoiceRepository.findById(invoiceId, user.id);
+          // Use V2 repository
+          const invoice = await invoiceV2Repository.findById(
+            invoiceId,
+            user.id
+          );
           if (!invoice) {
             return { error: "Invoice not found" };
           }
 
-          // Calculate estimated amount for approval check
-          const items = invoice.invoiceFields?.items ?? [];
-          const estimatedAmount = calculateInvoiceTotal(items);
+          // V2 has total directly
+          const estimatedAmount = parseFloat(invoice.total);
 
           // Check approval before executing
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateInvoiceStatus", toolArgs, estimatedAmount);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "updateInvoiceStatus",
+            toolArgs,
+            estimatedAmount
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
               approvalId: approvalCheck.approvalId,
               message: approvalCheck.message,
-              preview: { type: "invoice_status_update", invoiceId, newStatus: status },
+              preview: {
+                type: "invoice_status_update",
+                invoiceId,
+                newStatus: status,
+              },
             };
           }
 
-          const updated = await invoiceRepository.updateStatus(invoiceId, user.id, status);
+          const updated = await invoiceV2Repository.updateStatus(
+            invoiceId,
+            user.id,
+            status
+          );
           if (!updated) {
             return { error: "Failed to update invoice status" };
           }
 
-          const serialNumber = `${invoice.invoiceFields?.invoiceDetails?.prefix ?? ""}${invoice.invoiceFields?.invoiceDetails?.serialNumber ?? ""}`;
+          const serialNumber = `${invoice.prefix ?? ""}${invoice.serialNumber ?? ""}`;
 
           const result = {
             success: true,
@@ -1601,40 +2232,73 @@ aiRoutes.post("/chat", async (c) => {
             },
           };
 
-          await logToolAudit(user.id, session?.id, "updateInvoiceStatus", toolArgs, result.invoice, true, estimatedAmount);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "updateInvoiceStatus",
+            toolArgs,
+            result.invoice,
+            true,
+            estimatedAmount
+          );
 
           return result;
         } catch (error) {
-          const errorResult = { error: "Failed to update invoice status", details: String(error) };
-          await logToolAudit(user.id, session?.id, "updateInvoiceStatus", toolArgs, errorResult, false);
+          const errorResult = {
+            error: "Failed to update invoice status",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "updateInvoiceStatus",
+            toolArgs,
+            errorResult,
+            false
+          );
           return errorResult;
         }
       },
     }),
 
     updateQuotationStatus: tool({
-      description: "Update the status of a quotation. Can mark as draft, sent, accepted, rejected, or expired.",
+      description:
+        "Update the status of a quotation. Can mark as draft, sent, accepted, rejected, or expired.",
       inputSchema: z.object({
         quotationId: z.string().describe("The ID of the quotation to update"),
-        status: z.enum(["draft", "sent", "accepted", "rejected", "expired"]).describe("The new status for the quotation"),
+        status: z
+          .enum(["draft", "sent", "accepted", "rejected", "expired"])
+          .describe("The new status for the quotation"),
       }),
       execute: async ({ quotationId, status }) => {
         const toolArgs = { quotationId, status };
 
         try {
-          const quotation = await quotationRepository.findById(quotationId, user.id);
+          const quotation = await quotationRepository.findById(
+            quotationId,
+            user.id
+          );
           if (!quotation) {
             return { error: "Quotation not found" };
           }
 
           // Check approval before executing
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateQuotationStatus", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "updateQuotationStatus",
+            toolArgs
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
               approvalId: approvalCheck.approvalId,
               message: approvalCheck.message,
-              preview: { type: "quotation_status_update", quotationId, newStatus: status },
+              preview: {
+                type: "quotation_status_update",
+                quotationId,
+                newStatus: status,
+              },
             };
           }
 
@@ -1642,14 +2306,25 @@ aiRoutes.post("/chat", async (c) => {
             return { error: "Cannot update status of a converted quotation" };
           }
 
-          const updated = await quotationRepository.updateStatus(quotationId, user.id, status);
+          const updated = await quotationRepository.updateStatus(
+            quotationId,
+            user.id,
+            status
+          );
           if (!updated) {
             return { error: "Failed to update quotation status" };
           }
 
           // Handle error case from repository
-          if ('error' in updated) {
-            await logToolAudit(user.id, session?.id, "updateQuotationStatus", toolArgs, updated, false);
+          if ("error" in updated) {
+            await logToolAudit(
+              user.id,
+              session?.id,
+              "updateQuotationStatus",
+              toolArgs,
+              updated,
+              false
+            );
             return { error: updated.error };
           }
 
@@ -1666,12 +2341,29 @@ aiRoutes.post("/chat", async (c) => {
             },
           };
 
-          await logToolAudit(user.id, session?.id, "updateQuotationStatus", toolArgs, result.quotation, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "updateQuotationStatus",
+            toolArgs,
+            result.quotation,
+            true
+          );
 
           return result;
         } catch (error) {
-          const errorResult = { error: "Failed to update quotation status", details: String(error) };
-          await logToolAudit(user.id, session?.id, "updateQuotationStatus", toolArgs, errorResult, false);
+          const errorResult = {
+            error: "Failed to update quotation status",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "updateQuotationStatus",
+            toolArgs,
+            errorResult,
+            false
+          );
           return errorResult;
         }
       },
@@ -1679,15 +2371,19 @@ aiRoutes.post("/chat", async (c) => {
 
     // Vendor & Bill Operations
     listVendors: tool({
-      description: "List all vendors/suppliers. Use this to show vendor list or find vendors.",
+      description:
+        "List all vendors/suppliers. Use this to show vendor list or find vendors.",
       inputSchema: z.object({
-        limit: z.number().optional().describe("Number of vendors to return (default 20)"),
+        limit: z
+          .number()
+          .optional()
+          .describe("Number of vendors to return (default 20)"),
       }),
       execute: async ({ limit = 20 }) => {
         try {
           const vendors = await vendorRepository.findMany(user.id, { limit });
           return {
-            vendors: vendors.map(v => ({
+            vendors: vendors.map((v) => ({
               id: v.id,
               name: v.name,
               email: v.email ?? "No email",
@@ -1703,22 +2399,34 @@ aiRoutes.post("/chat", async (c) => {
     }),
 
     listBills: tool({
-      description: "List bills (vendor invoices/accounts payable). Use this to see outstanding bills or payment obligations.",
+      description:
+        "List bills (vendor invoices/accounts payable). Use this to see outstanding bills or payment obligations.",
       inputSchema: z.object({
-        limit: z.number().optional().describe("Number of bills to return (default 20)"),
-        status: z.enum(["draft", "pending", "paid", "overdue", "cancelled"]).optional().describe("Filter by bill status"),
+        limit: z
+          .number()
+          .optional()
+          .describe("Number of bills to return (default 20)"),
+        status: z
+          .enum(["draft", "pending", "paid", "overdue", "cancelled"])
+          .optional()
+          .describe("Filter by bill status"),
       }),
       execute: async ({ limit = 20, status }) => {
         try {
-          const bills = await billRepository.findMany(user.id, { limit, status });
+          const bills = await billRepository.findMany(user.id, {
+            limit,
+            status,
+          });
           return {
-            bills: bills.map(b => ({
+            bills: bills.map((b) => ({
               id: b.id,
               billNumber: b.billNumber,
               vendorName: b.vendor?.name ?? "Unknown vendor",
               amount: formatCurrency(Number(b.total ?? 0), b.currency),
               status: b.status,
-              dueDate: b.dueDate ? new Date(b.dueDate).toLocaleDateString() : "No due date",
+              dueDate: b.dueDate
+                ? new Date(b.dueDate).toLocaleDateString()
+                : "No due date",
               billDate: new Date(b.billDate).toLocaleDateString(),
             })),
             total: bills.length,
@@ -1730,25 +2438,36 @@ aiRoutes.post("/chat", async (c) => {
     }),
 
     getUnpaidBills: tool({
-      description: "Get unpaid bills that need payment. Use this to see what needs to be paid.",
+      description:
+        "Get unpaid bills that need payment. Use this to see what needs to be paid.",
       inputSchema: z.object({
-        vendorId: z.string().optional().describe("Optional vendor ID to filter bills"),
+        vendorId: z
+          .string()
+          .optional()
+          .describe("Optional vendor ID to filter bills"),
       }),
       execute: async ({ vendorId }) => {
         try {
           const bills = await billRepository.getUnpaidBills(user.id, vendorId);
 
-          const totalUnpaid = bills.reduce((sum, b) => sum + Number(b.total ?? 0), 0);
+          const totalUnpaid = bills.reduce(
+            (sum, b) => sum + Number(b.total ?? 0),
+            0
+          );
 
           return {
-            bills: bills.map(b => ({
+            bills: bills.map((b) => ({
               id: b.id,
               billNumber: b.billNumber,
               vendorName: b.vendor?.name ?? "Unknown vendor",
               amount: formatCurrency(Number(b.total ?? 0), b.currency),
               status: b.status,
-              dueDate: b.dueDate ? new Date(b.dueDate).toLocaleDateString() : "No due date",
-              isOverdue: b.status === "overdue" || (b.dueDate && new Date(b.dueDate) < new Date()),
+              dueDate: b.dueDate
+                ? new Date(b.dueDate).toLocaleDateString()
+                : "No due date",
+              isOverdue:
+                b.status === "overdue" ||
+                (b.dueDate && new Date(b.dueDate) < new Date()),
             })),
             totalUnpaid: formatCurrency(totalUnpaid),
             totalUnpaidRaw: totalUnpaid,
@@ -1761,7 +2480,8 @@ aiRoutes.post("/chat", async (c) => {
     }),
 
     markBillAsPaid: tool({
-      description: "Mark a bill as paid. Use this when the user has made payment to a vendor.",
+      description:
+        "Mark a bill as paid. Use this when the user has made payment to a vendor.",
       inputSchema: z.object({
         billId: z.string().describe("The ID of the bill to mark as paid"),
       }),
@@ -1778,13 +2498,23 @@ aiRoutes.post("/chat", async (c) => {
           const estimatedAmount = Number(bill.total ?? 0);
 
           // Check approval before executing
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "markBillAsPaid", toolArgs, estimatedAmount);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "markBillAsPaid",
+            toolArgs,
+            estimatedAmount
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
               approvalId: approvalCheck.approvalId,
               message: approvalCheck.message,
-              preview: { type: "bill_payment", billId, amount: formatCurrency(estimatedAmount, bill.currency) },
+              preview: {
+                type: "bill_payment",
+                billId,
+                amount: formatCurrency(estimatedAmount, bill.currency),
+              },
             };
           }
 
@@ -1792,7 +2522,11 @@ aiRoutes.post("/chat", async (c) => {
             return { error: "Bill is already marked as paid" };
           }
 
-          const updated = await billRepository.updateStatus(billId, user.id, "paid");
+          const updated = await billRepository.updateStatus(
+            billId,
+            user.id,
+            "paid"
+          );
           if (!updated) {
             return { error: "Failed to update bill status" };
           }
@@ -1805,16 +2539,36 @@ aiRoutes.post("/chat", async (c) => {
               billNumber: bill.billNumber,
               vendorName: bill.vendor?.name,
               status: updated.status,
-              paidAt: updated.paidAt ? new Date(updated.paidAt).toLocaleDateString() : null,
+              paidAt: updated.paidAt
+                ? new Date(updated.paidAt).toLocaleDateString()
+                : null,
             },
           };
 
-          await logToolAudit(user.id, session?.id, "markBillAsPaid", toolArgs, result.bill, true, estimatedAmount);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "markBillAsPaid",
+            toolArgs,
+            result.bill,
+            true,
+            estimatedAmount
+          );
 
           return result;
         } catch (error) {
-          const errorResult = { error: "Failed to mark bill as paid", details: String(error) };
-          await logToolAudit(user.id, session?.id, "markBillAsPaid", toolArgs, errorResult, false);
+          const errorResult = {
+            error: "Failed to mark bill as paid",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "markBillAsPaid",
+            toolArgs,
+            errorResult,
+            false
+          );
           return errorResult;
         }
       },
@@ -1825,34 +2579,88 @@ aiRoutes.post("/chat", async (c) => {
     // ==========================================
 
     createInvoice: tool({
-      description: "Create a new invoice with line items. Use this when the user wants to create an invoice for a customer. Requires company details, client details, and at least one line item.",
+      description:
+        "Create a new invoice with line items. Use this when the user wants to create an invoice for a customer. Requires company details, client details, and at least one line item.",
       inputSchema: z.object({
-        customerId: z.string().optional().describe("Optional customer ID to link the invoice"),
+        customerId: z
+          .string()
+          .optional()
+          .describe("Optional customer ID to link the invoice"),
         companyName: z.string().describe("Your company/business name"),
         companyAddress: z.string().describe("Your company/business address"),
         clientName: z.string().describe("Customer/client name"),
         clientAddress: z.string().describe("Customer/client address"),
-        currency: z.string().default("MYR").describe("Currency code (default: MYR)"),
+        currency: z
+          .string()
+          .default("MYR")
+          .describe("Currency code (default: MYR)"),
         prefix: z.string().default("INV-").describe("Invoice number prefix"),
-        serialNumber: z.string().describe("Invoice serial number (e.g., '0001')"),
+        serialNumber: z
+          .string()
+          .describe("Invoice serial number (e.g., '0001')"),
         date: z.string().describe("Invoice date (YYYY-MM-DD format)"),
         dueDate: z.string().optional().describe("Due date (YYYY-MM-DD format)"),
-        items: z.array(z.object({
-          name: z.string().describe("Item/service name"),
-          description: z.string().optional().describe("Item description"),
-          quantity: z.number().describe("Quantity"),
-          unitPrice: z.number().describe("Unit price"),
-        })).min(1).describe("Invoice line items (at least one required)"),
-        notes: z.string().optional().describe("Additional notes for the invoice"),
+        items: z
+          .array(
+            z.object({
+              name: z.string().describe("Item/service name"),
+              description: z.string().optional().describe("Item description"),
+              quantity: z.number().describe("Quantity"),
+              unitPrice: z.number().describe("Unit price"),
+            })
+          )
+          .min(1)
+          .describe("Invoice line items (at least one required)"),
+        notes: z
+          .string()
+          .optional()
+          .describe("Additional notes for the invoice"),
         terms: z.string().optional().describe("Payment terms"),
       }),
-      execute: async ({ customerId, companyName, companyAddress, clientName, clientAddress, currency, prefix, serialNumber, date, dueDate, items, notes, terms }) => {
-        const toolArgs = { customerId, companyName, companyAddress, clientName, clientAddress, currency, prefix, serialNumber, date, dueDate, items, notes, terms };
-        const estimatedAmount = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+      execute: async ({
+        customerId,
+        companyName,
+        companyAddress,
+        clientName,
+        clientAddress,
+        currency,
+        prefix,
+        serialNumber,
+        date,
+        dueDate,
+        items,
+        notes,
+        terms,
+      }) => {
+        const toolArgs = {
+          customerId,
+          companyName,
+          companyAddress,
+          clientName,
+          clientAddress,
+          currency,
+          prefix,
+          serialNumber,
+          date,
+          dueDate,
+          items,
+          notes,
+          terms,
+        };
+        const estimatedAmount = items.reduce(
+          (sum, item) => sum + item.quantity * item.unitPrice,
+          0
+        );
 
         try {
           // Check approval before executing
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "createInvoice", toolArgs, estimatedAmount);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "createInvoice",
+            toolArgs,
+            estimatedAmount
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
@@ -1869,16 +2677,34 @@ aiRoutes.post("/chat", async (c) => {
 
           // Validate customer if provided
           if (customerId) {
-            const customer = await customerRepository.findById(customerId, user.id);
+            const customer = await customerRepository.findById(
+              customerId,
+              user.id
+            );
             if (!customer) {
-              await logToolAudit(user.id, session?.id, "createInvoice", toolArgs, { error: "Customer not found" }, false, estimatedAmount);
+              await logToolAudit(
+                user.id,
+                session?.id,
+                "createInvoice",
+                toolArgs,
+                { error: "Customer not found" },
+                false,
+                estimatedAmount
+              );
               return { error: "Customer not found" };
             }
           }
 
-          const invoice = await invoiceRepository.create({
+          // Use V2 repository with new status system
+          const invoice = await invoiceV2Repository.create({
             userId: user.id,
             customerId: customerId ?? undefined,
+            status: "open", // AI-created invoices are immediately open (issued)
+            prefix,
+            serialNumber,
+            currency,
+            invoiceDate: new Date(date),
+            dueDate: dueDate ? new Date(dueDate) : undefined,
             companyDetails: {
               name: companyName,
               address: companyAddress,
@@ -1887,14 +2713,8 @@ aiRoutes.post("/chat", async (c) => {
               name: clientName,
               address: clientAddress,
             },
-            invoiceDetails: {
-              currency,
-              prefix,
-              serialNumber,
-              date: new Date(date),
-              dueDate: dueDate ? new Date(dueDate) : null,
-            },
-            items: items.map(item => ({
+            billingDetails: [],
+            items: items.map((item) => ({
               name: item.name,
               description: item.description,
               quantity: item.quantity,
@@ -1919,46 +2739,104 @@ aiRoutes.post("/chat", async (c) => {
               date,
               dueDate: dueDate ?? null,
               itemCount: items.length,
-              status: "pending",
+              status: "open", // V2 status
             },
           };
 
           // Log successful execution to audit
-          await logToolAudit(user.id, session?.id, "createInvoice", toolArgs, result.invoice, true, estimatedAmount);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createInvoice",
+            toolArgs,
+            result.invoice,
+            true,
+            estimatedAmount
+          );
 
           return result;
         } catch (error) {
           logger.error({ error }, "createInvoice failed");
-          const errorResult = { error: "Failed to create invoice", details: String(error) };
-          await logToolAudit(user.id, session?.id, "createInvoice", toolArgs, errorResult, false, estimatedAmount);
+          const errorResult = {
+            error: "Failed to create invoice",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createInvoice",
+            toolArgs,
+            errorResult,
+            false,
+            estimatedAmount
+          );
           return errorResult;
         }
       },
     }),
 
     createBill: tool({
-      description: "Create a new bill (accounts payable) from a vendor. Use this when the user receives an invoice from a vendor that needs to be paid.",
+      description:
+        "Create a new bill (accounts payable) from a vendor. Use this when the user receives an invoice from a vendor that needs to be paid.",
       inputSchema: z.object({
-        vendorId: z.string().optional().describe("Optional vendor ID to link the bill"),
+        vendorId: z
+          .string()
+          .optional()
+          .describe("Optional vendor ID to link the bill"),
         billNumber: z.string().describe("Bill/invoice number from the vendor"),
         description: z.string().optional().describe("Bill description"),
-        currency: z.string().default("MYR").describe("Currency code (default: MYR)"),
+        currency: z
+          .string()
+          .default("MYR")
+          .describe("Currency code (default: MYR)"),
         billDate: z.string().describe("Bill date (YYYY-MM-DD format)"),
         dueDate: z.string().optional().describe("Due date (YYYY-MM-DD format)"),
-        items: z.array(z.object({
-          description: z.string().describe("Item/service description"),
-          quantity: z.number().describe("Quantity"),
-          unitPrice: z.number().describe("Unit price"),
-        })).min(1).describe("Bill line items (at least one required)"),
+        items: z
+          .array(
+            z.object({
+              description: z.string().describe("Item/service description"),
+              quantity: z.number().describe("Quantity"),
+              unitPrice: z.number().describe("Unit price"),
+            })
+          )
+          .min(1)
+          .describe("Bill line items (at least one required)"),
         notes: z.string().optional().describe("Additional notes"),
       }),
-      execute: async ({ vendorId, billNumber, description, currency, billDate, dueDate, items, notes }) => {
-        const toolArgs = { vendorId, billNumber, description, currency, billDate, dueDate, items, notes };
-        const estimatedAmount = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+      execute: async ({
+        vendorId,
+        billNumber,
+        description,
+        currency,
+        billDate,
+        dueDate,
+        items,
+        notes,
+      }) => {
+        const toolArgs = {
+          vendorId,
+          billNumber,
+          description,
+          currency,
+          billDate,
+          dueDate,
+          items,
+          notes,
+        };
+        const estimatedAmount = items.reduce(
+          (sum, item) => sum + item.quantity * item.unitPrice,
+          0
+        );
 
         try {
           // Check approval before executing
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "createBill", toolArgs, estimatedAmount);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "createBill",
+            toolArgs,
+            estimatedAmount
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
@@ -1978,7 +2856,15 @@ aiRoutes.post("/chat", async (c) => {
           if (vendorId) {
             const vendor = await vendorRepository.findById(vendorId, user.id);
             if (!vendor) {
-              await logToolAudit(user.id, session?.id, "createBill", toolArgs, { error: "Vendor not found" }, false, estimatedAmount);
+              await logToolAudit(
+                user.id,
+                session?.id,
+                "createBill",
+                toolArgs,
+                { error: "Vendor not found" },
+                false,
+                estimatedAmount
+              );
               return { error: "Vendor not found" };
             }
             vendorName = vendor.name;
@@ -1994,7 +2880,7 @@ aiRoutes.post("/chat", async (c) => {
             dueDate: dueDate ? new Date(dueDate) : null,
             status: "pending",
             notes: notes ?? null,
-            items: items.map(item => ({
+            items: items.map((item) => ({
               description: item.description,
               quantity: String(item.quantity),
               unitPrice: String(item.unitPrice),
@@ -2019,38 +2905,76 @@ aiRoutes.post("/chat", async (c) => {
           };
 
           // Log successful execution to audit
-          await logToolAudit(user.id, session?.id, "createBill", toolArgs, result.bill, true, estimatedAmount);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createBill",
+            toolArgs,
+            result.bill,
+            true,
+            estimatedAmount
+          );
 
           return result;
         } catch (error) {
           logger.error({ error }, "createBill failed");
-          const errorResult = { error: "Failed to create bill", details: String(error) };
-          await logToolAudit(user.id, session?.id, "createBill", toolArgs, errorResult, false, estimatedAmount);
+          const errorResult = {
+            error: "Failed to create bill",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createBill",
+            toolArgs,
+            errorResult,
+            false,
+            estimatedAmount
+          );
           return errorResult;
         }
       },
     }),
 
     listAccounts: tool({
-      description: "List chart of accounts for journal entry creation. Shows account codes, names, and types (asset, liability, equity, revenue, expense).",
+      description:
+        "List chart of accounts for journal entry creation. Shows account codes, names, and types (asset, liability, equity, revenue, expense).",
       inputSchema: z.object({
-        accountType: z.enum(["asset", "liability", "equity", "revenue", "expense"]).optional().describe("Filter by account type"),
-        limit: z.number().optional().describe("Number of accounts to return (default 50)"),
+        accountType: z
+          .enum(["asset", "liability", "equity", "revenue", "expense"])
+          .optional()
+          .describe("Filter by account type"),
+        limit: z
+          .number()
+          .optional()
+          .describe("Number of accounts to return (default 50)"),
       }),
       execute: async ({ accountType, limit = 50 }) => {
         try {
-          const accounts = await accountRepository.findAll(user.id, { accountType, isHeader: false });
+          const accounts = await accountRepository.findAll(user.id, {
+            accountType,
+            isHeader: false,
+          });
           const limitedAccounts = accounts.slice(0, limit);
 
           return {
-            accounts: limitedAccounts.map((acc: { id: string; code: string; name: string; accountType: string; normalBalance: string; isHeader: boolean }) => ({
-              id: acc.id,
-              code: acc.code,
-              name: acc.name,
-              type: acc.accountType,
-              normalBalance: acc.normalBalance,
-              isHeader: acc.isHeader,
-            })),
+            accounts: limitedAccounts.map(
+              (acc: {
+                id: string;
+                code: string;
+                name: string;
+                accountType: string;
+                normalBalance: string;
+                isHeader: boolean;
+              }) => ({
+                id: acc.id,
+                code: acc.code,
+                name: acc.name,
+                type: acc.accountType,
+                normalBalance: acc.normalBalance,
+                isHeader: acc.isHeader,
+              })
+            ),
             total: accounts.length,
           };
         } catch (error) {
@@ -2069,51 +2993,106 @@ aiRoutes.post("/chat", async (c) => {
 The tool automatically: DR appropriate Asset account, CR Sales Revenue account.`,
       inputSchema: z.object({
         amount: z.number().describe("Sale amount"),
-        description: z.string().describe("Description (e.g., 'Sales to ABC Corp')"),
+        description: z
+          .string()
+          .describe("Description (e.g., 'Sales to ABC Corp')"),
         entryDate: z.string().describe("Date (YYYY-MM-DD)"),
-        paymentMethod: z.enum(["cash", "bank", "credit"]).describe("cash=DR Cash, bank=DR Bank, credit=DR Accounts Receivable"),
-        reference: z.string().optional().describe("Invoice number or reference"),
+        paymentMethod: z
+          .enum(["cash", "bank", "credit"])
+          .describe(
+            "cash=DR Cash, bank=DR Bank, credit=DR Accounts Receivable"
+          ),
+        reference: z
+          .string()
+          .optional()
+          .describe("Invoice number or reference"),
       }),
-      execute: async ({ amount, description, entryDate, paymentMethod, reference }) => {
-        const toolArgs = { amount, description, entryDate, paymentMethod, reference };
+      execute: async ({
+        amount,
+        description,
+        entryDate,
+        paymentMethod,
+        reference,
+      }) => {
+        const toolArgs = {
+          amount,
+          description,
+          entryDate,
+          paymentMethod,
+          reference,
+        };
 
         try {
           // Check approval before executing
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "recordSalesRevenue", toolArgs, amount);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "recordSalesRevenue",
+            toolArgs,
+            amount
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
               approvalId: approvalCheck.approvalId,
               message: approvalCheck.message,
-              preview: { type: "sales_revenue", amount: formatCurrency(amount), description, paymentMethod },
+              preview: {
+                type: "sales_revenue",
+                amount: formatCurrency(amount),
+                description,
+                paymentMethod,
+              },
             };
           }
 
           // Get standard accounts based on payment method
-          const accounts = await accountRepository.findAll(user.id, { isHeader: false });
+          const accounts = await accountRepository.findAll(user.id, {
+            isHeader: false,
+          });
 
           // Find the appropriate debit account
           let debitAccount;
           if (paymentMethod === "cash") {
-            debitAccount = accounts.find(a => a.code === "1100" || a.name.toLowerCase().includes("cash"));
+            debitAccount = accounts.find(
+              (a) => a.code === "1100" || a.name.toLowerCase().includes("cash")
+            );
           } else if (paymentMethod === "bank") {
-            debitAccount = accounts.find(a => a.code === "1110" || a.name.toLowerCase().includes("bank"));
+            debitAccount = accounts.find(
+              (a) => a.code === "1110" || a.name.toLowerCase().includes("bank")
+            );
           } else {
-            debitAccount = accounts.find(a => a.code === "1200" || a.name.toLowerCase().includes("accounts receivable"));
+            debitAccount = accounts.find(
+              (a) =>
+                a.code === "1200" ||
+                a.name.toLowerCase().includes("accounts receivable")
+            );
           }
 
           // Find sales revenue account
-          const revenueAccount = accounts.find(a =>
-            a.code === "4100" || a.code === "4000" ||
-            (a.accountType === "revenue" && a.name.toLowerCase().includes("sales"))
+          const revenueAccount = accounts.find(
+            (a) =>
+              a.code === "4100" ||
+              a.code === "4000" ||
+              (a.accountType === "revenue" &&
+                a.name.toLowerCase().includes("sales"))
           );
 
           if (!debitAccount || !revenueAccount) {
             const errorResult = {
-              error: "Could not find required accounts. Please ensure Chart of Accounts has Cash/Bank/AR and Sales Revenue accounts.",
-              suggestion: "Use listAccounts to see available accounts, then use createJournalEntry for custom entries.",
+              error:
+                "Could not find required accounts. Please ensure Chart of Accounts has Cash/Bank/AR and Sales Revenue accounts.",
+              suggestion:
+                "Use listAccounts to see available accounts, then use createJournalEntry for custom entries.",
             };
-            await logToolAudit(user.id, session?.id, "recordSalesRevenue", toolArgs, errorResult, false, amount);
+            await logToolAudit(
+              user.id,
+              session?.id,
+              "recordSalesRevenue",
+              toolArgs,
+              errorResult,
+              false,
+              amount
+            );
             return errorResult;
           }
 
@@ -2124,8 +3103,16 @@ The tool automatically: DR appropriate Asset account, CR Sales Revenue account.`
             reference: reference ?? undefined,
             sourceType: "manual",
             lines: [
-              { accountId: debitAccount.id, debitAmount: String(amount), description: `${paymentMethod === "credit" ? "AR" : paymentMethod} received` },
-              { accountId: revenueAccount.id, creditAmount: String(amount), description: "Sales revenue" },
+              {
+                accountId: debitAccount.id,
+                debitAmount: String(amount),
+                description: `${paymentMethod === "credit" ? "AR" : paymentMethod} received`,
+              },
+              {
+                accountId: revenueAccount.id,
+                creditAmount: String(amount),
+                description: "Sales revenue",
+              },
             ],
           });
 
@@ -2145,13 +3132,32 @@ The tool automatically: DR appropriate Asset account, CR Sales Revenue account.`
             },
           };
 
-          await logToolAudit(user.id, session?.id, "recordSalesRevenue", toolArgs, result.entry, true, amount);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "recordSalesRevenue",
+            toolArgs,
+            result.entry,
+            true,
+            amount
+          );
 
           return result;
         } catch (error) {
           logger.error({ error }, "recordSalesRevenue failed");
-          const errorResult = { error: "Failed to record sales revenue", details: String(error) };
-          await logToolAudit(user.id, session?.id, "recordSalesRevenue", toolArgs, errorResult, false, amount);
+          const errorResult = {
+            error: "Failed to record sales revenue",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "recordSalesRevenue",
+            toolArgs,
+            errorResult,
+            false,
+            amount
+          );
           return errorResult;
         }
       },
@@ -2164,26 +3170,57 @@ The tool automatically: DR Expense account, CR Cash/Bank/AP.`,
         amount: z.number().describe("Expense amount"),
         description: z.string().describe("What was the expense for"),
         entryDate: z.string().describe("Date (YYYY-MM-DD)"),
-        expenseType: z.enum(["office", "utilities", "rent", "salary", "supplies", "other"]).describe("Type of expense"),
-        paymentMethod: z.enum(["cash", "bank", "credit"]).describe("cash/bank=paid now, credit=on account"),
+        expenseType: z
+          .enum(["office", "utilities", "rent", "salary", "supplies", "other"])
+          .describe("Type of expense"),
+        paymentMethod: z
+          .enum(["cash", "bank", "credit"])
+          .describe("cash/bank=paid now, credit=on account"),
         reference: z.string().optional().describe("Bill number or reference"),
       }),
-      execute: async ({ amount, description, entryDate, expenseType, paymentMethod, reference }) => {
-        const toolArgs = { amount, description, entryDate, expenseType, paymentMethod, reference };
+      execute: async ({
+        amount,
+        description,
+        entryDate,
+        expenseType,
+        paymentMethod,
+        reference,
+      }) => {
+        const toolArgs = {
+          amount,
+          description,
+          entryDate,
+          expenseType,
+          paymentMethod,
+          reference,
+        };
 
         try {
           // Check approval before executing
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "recordExpense", toolArgs, amount);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "recordExpense",
+            toolArgs,
+            amount
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
               approvalId: approvalCheck.approvalId,
               message: approvalCheck.message,
-              preview: { type: "expense", amount: formatCurrency(amount), description, expenseType },
+              preview: {
+                type: "expense",
+                amount: formatCurrency(amount),
+                description,
+                expenseType,
+              },
             };
           }
 
-          const accounts = await accountRepository.findAll(user.id, { isHeader: false });
+          const accounts = await accountRepository.findAll(user.id, {
+            isHeader: false,
+          });
 
           // Map expense type to account
           const expenseAccountMap: Record<string, string[]> = {
@@ -2196,23 +3233,33 @@ The tool automatically: DR Expense account, CR Cash/Bank/AP.`,
           };
 
           const searchTerms = expenseAccountMap[expenseType];
-          let expenseAccount = accounts.find(a =>
-            searchTerms.some(term => a.code === term || a.name.toLowerCase().includes(term))
+          let expenseAccount = accounts.find((a) =>
+            searchTerms.some(
+              (term) => a.code === term || a.name.toLowerCase().includes(term)
+            )
           );
 
           // Fallback to any expense account
           if (!expenseAccount) {
-            expenseAccount = accounts.find(a => a.accountType === "expense");
+            expenseAccount = accounts.find((a) => a.accountType === "expense");
           }
 
           // Find credit account based on payment method
           let creditAccount;
           if (paymentMethod === "cash") {
-            creditAccount = accounts.find(a => a.code === "1100" || a.name.toLowerCase().includes("cash"));
+            creditAccount = accounts.find(
+              (a) => a.code === "1100" || a.name.toLowerCase().includes("cash")
+            );
           } else if (paymentMethod === "bank") {
-            creditAccount = accounts.find(a => a.code === "1110" || a.name.toLowerCase().includes("bank"));
+            creditAccount = accounts.find(
+              (a) => a.code === "1110" || a.name.toLowerCase().includes("bank")
+            );
           } else {
-            creditAccount = accounts.find(a => a.code === "2100" || a.name.toLowerCase().includes("accounts payable"));
+            creditAccount = accounts.find(
+              (a) =>
+                a.code === "2100" ||
+                a.name.toLowerCase().includes("accounts payable")
+            );
           }
 
           if (!expenseAccount || !creditAccount) {
@@ -2220,7 +3267,15 @@ The tool automatically: DR Expense account, CR Cash/Bank/AP.`,
               error: "Could not find required accounts.",
               suggestion: "Use listAccounts to see available accounts.",
             };
-            await logToolAudit(user.id, session?.id, "recordExpense", toolArgs, errorResult, false, amount);
+            await logToolAudit(
+              user.id,
+              session?.id,
+              "recordExpense",
+              toolArgs,
+              errorResult,
+              false,
+              amount
+            );
             return errorResult;
           }
 
@@ -2231,8 +3286,16 @@ The tool automatically: DR Expense account, CR Cash/Bank/AP.`,
             reference: reference ?? undefined,
             sourceType: "manual",
             lines: [
-              { accountId: expenseAccount.id, debitAmount: String(amount), description },
-              { accountId: creditAccount.id, creditAmount: String(amount), description: `Payment via ${paymentMethod}` },
+              {
+                accountId: expenseAccount.id,
+                debitAmount: String(amount),
+                description,
+              },
+              {
+                accountId: creditAccount.id,
+                creditAmount: String(amount),
+                description: `Payment via ${paymentMethod}`,
+              },
             ],
           });
 
@@ -2251,13 +3314,32 @@ The tool automatically: DR Expense account, CR Cash/Bank/AP.`,
             },
           };
 
-          await logToolAudit(user.id, session?.id, "recordExpense", toolArgs, result.entry, true, amount);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "recordExpense",
+            toolArgs,
+            result.entry,
+            true,
+            amount
+          );
 
           return result;
         } catch (error) {
           logger.error({ error }, "recordExpense failed");
-          const errorResult = { error: "Failed to record expense", details: String(error) };
-          await logToolAudit(user.id, session?.id, "recordExpense", toolArgs, errorResult, false, amount);
+          const errorResult = {
+            error: "Failed to record expense",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "recordExpense",
+            toolArgs,
+            errorResult,
+            false,
+            amount
+          );
           return errorResult;
         }
       },
@@ -2273,32 +3355,79 @@ Automatically: DR Cash/Bank, CR Accounts Receivable.`,
         depositTo: z.enum(["cash", "bank"]).describe("Where deposited"),
         reference: z.string().optional().describe("Invoice or receipt number"),
       }),
-      execute: async ({ amount, customerName, entryDate, depositTo, reference }) => {
-        const toolArgs = { amount, customerName, entryDate, depositTo, reference };
+      execute: async ({
+        amount,
+        customerName,
+        entryDate,
+        depositTo,
+        reference,
+      }) => {
+        const toolArgs = {
+          amount,
+          customerName,
+          entryDate,
+          depositTo,
+          reference,
+        };
 
         try {
           // Check approval before executing
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "recordPaymentReceived", toolArgs, amount);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "recordPaymentReceived",
+            toolArgs,
+            amount
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
               approvalId: approvalCheck.approvalId,
               message: approvalCheck.message,
-              preview: { type: "payment_received", amount: formatCurrency(amount), customerName, depositTo },
+              preview: {
+                type: "payment_received",
+                amount: formatCurrency(amount),
+                customerName,
+                depositTo,
+              },
             };
           }
 
-          const accounts = await accountRepository.findAll(user.id, { isHeader: false });
+          const accounts = await accountRepository.findAll(user.id, {
+            isHeader: false,
+          });
 
-          const cashOrBank = depositTo === "cash"
-            ? accounts.find(a => a.code === "1100" || a.name.toLowerCase().includes("cash"))
-            : accounts.find(a => a.code === "1110" || a.name.toLowerCase().includes("bank"));
+          const cashOrBank =
+            depositTo === "cash"
+              ? accounts.find(
+                  (a) =>
+                    a.code === "1100" || a.name.toLowerCase().includes("cash")
+                )
+              : accounts.find(
+                  (a) =>
+                    a.code === "1110" || a.name.toLowerCase().includes("bank")
+                );
 
-          const ar = accounts.find(a => a.code === "1200" || a.name.toLowerCase().includes("accounts receivable"));
+          const ar = accounts.find(
+            (a) =>
+              a.code === "1200" ||
+              a.name.toLowerCase().includes("accounts receivable")
+          );
 
           if (!cashOrBank || !ar) {
-            const errorResult = { error: "Could not find Cash/Bank or Accounts Receivable accounts." };
-            await logToolAudit(user.id, session?.id, "recordPaymentReceived", toolArgs, errorResult, false, amount);
+            const errorResult = {
+              error:
+                "Could not find Cash/Bank or Accounts Receivable accounts.",
+            };
+            await logToolAudit(
+              user.id,
+              session?.id,
+              "recordPaymentReceived",
+              toolArgs,
+              errorResult,
+              false,
+              amount
+            );
             return errorResult;
           }
 
@@ -2309,8 +3438,16 @@ Automatically: DR Cash/Bank, CR Accounts Receivable.`,
             reference: reference ?? undefined,
             sourceType: "manual",
             lines: [
-              { accountId: cashOrBank.id, debitAmount: String(amount), description: `Deposited to ${depositTo}` },
-              { accountId: ar.id, creditAmount: String(amount), description: `Payment from ${customerName}` },
+              {
+                accountId: cashOrBank.id,
+                debitAmount: String(amount),
+                description: `Deposited to ${depositTo}`,
+              },
+              {
+                accountId: ar.id,
+                creditAmount: String(amount),
+                description: `Payment from ${customerName}`,
+              },
             ],
           });
 
@@ -2327,13 +3464,32 @@ Automatically: DR Cash/Bank, CR Accounts Receivable.`,
             },
           };
 
-          await logToolAudit(user.id, session?.id, "recordPaymentReceived", toolArgs, result.entry, true, amount);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "recordPaymentReceived",
+            toolArgs,
+            result.entry,
+            true,
+            amount
+          );
 
           return result;
         } catch (error) {
           logger.error({ error }, "recordPaymentReceived failed");
-          const errorResult = { error: "Failed to record payment", details: String(error) };
-          await logToolAudit(user.id, session?.id, "recordPaymentReceived", toolArgs, errorResult, false, amount);
+          const errorResult = {
+            error: "Failed to record payment",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "recordPaymentReceived",
+            toolArgs,
+            errorResult,
+            false,
+            amount
+          );
           return errorResult;
         }
       },
@@ -2349,31 +3505,71 @@ Automatically: DR Accounts Payable, CR Cash/Bank.`,
         paidFrom: z.enum(["cash", "bank"]).describe("Paid from cash or bank"),
         reference: z.string().optional().describe("Bill or check number"),
       }),
-      execute: async ({ amount, vendorName, entryDate, paidFrom, reference }) => {
+      execute: async ({
+        amount,
+        vendorName,
+        entryDate,
+        paidFrom,
+        reference,
+      }) => {
         const toolArgs = { amount, vendorName, entryDate, paidFrom, reference };
 
         try {
           // Check approval before executing
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "recordPaymentMade", toolArgs, amount);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "recordPaymentMade",
+            toolArgs,
+            amount
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
               approvalId: approvalCheck.approvalId,
               message: approvalCheck.message,
-              preview: { type: "payment_made", amount: formatCurrency(amount), vendorName, paidFrom },
+              preview: {
+                type: "payment_made",
+                amount: formatCurrency(amount),
+                vendorName,
+                paidFrom,
+              },
             };
           }
 
-          const accounts = await accountRepository.findAll(user.id, { isHeader: false });
+          const accounts = await accountRepository.findAll(user.id, {
+            isHeader: false,
+          });
 
-          const ap = accounts.find(a => a.code === "2100" || a.name.toLowerCase().includes("accounts payable"));
-          const cashOrBank = paidFrom === "cash"
-            ? accounts.find(a => a.code === "1100" || a.name.toLowerCase().includes("cash"))
-            : accounts.find(a => a.code === "1110" || a.name.toLowerCase().includes("bank"));
+          const ap = accounts.find(
+            (a) =>
+              a.code === "2100" ||
+              a.name.toLowerCase().includes("accounts payable")
+          );
+          const cashOrBank =
+            paidFrom === "cash"
+              ? accounts.find(
+                  (a) =>
+                    a.code === "1100" || a.name.toLowerCase().includes("cash")
+                )
+              : accounts.find(
+                  (a) =>
+                    a.code === "1110" || a.name.toLowerCase().includes("bank")
+                );
 
           if (!ap || !cashOrBank) {
-            const errorResult = { error: "Could not find Accounts Payable or Cash/Bank accounts." };
-            await logToolAudit(user.id, session?.id, "recordPaymentMade", toolArgs, errorResult, false, amount);
+            const errorResult = {
+              error: "Could not find Accounts Payable or Cash/Bank accounts.",
+            };
+            await logToolAudit(
+              user.id,
+              session?.id,
+              "recordPaymentMade",
+              toolArgs,
+              errorResult,
+              false,
+              amount
+            );
             return errorResult;
           }
 
@@ -2384,8 +3580,16 @@ Automatically: DR Accounts Payable, CR Cash/Bank.`,
             reference: reference ?? undefined,
             sourceType: "manual",
             lines: [
-              { accountId: ap.id, debitAmount: String(amount), description: `Paid to ${vendorName}` },
-              { accountId: cashOrBank.id, creditAmount: String(amount), description: `From ${paidFrom}` },
+              {
+                accountId: ap.id,
+                debitAmount: String(amount),
+                description: `Paid to ${vendorName}`,
+              },
+              {
+                accountId: cashOrBank.id,
+                creditAmount: String(amount),
+                description: `From ${paidFrom}`,
+              },
             ],
           });
 
@@ -2402,13 +3606,32 @@ Automatically: DR Accounts Payable, CR Cash/Bank.`,
             },
           };
 
-          await logToolAudit(user.id, session?.id, "recordPaymentMade", toolArgs, result.entry, true, amount);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "recordPaymentMade",
+            toolArgs,
+            result.entry,
+            true,
+            amount
+          );
 
           return result;
         } catch (error) {
           logger.error({ error }, "recordPaymentMade failed");
-          const errorResult = { error: "Failed to record payment", details: String(error) };
-          await logToolAudit(user.id, session?.id, "recordPaymentMade", toolArgs, errorResult, false, amount);
+          const errorResult = {
+            error: "Failed to record payment",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "recordPaymentMade",
+            toolArgs,
+            errorResult,
+            false,
+            amount
+          );
           return errorResult;
         }
       },
@@ -2419,46 +3642,86 @@ Automatically: DR Accounts Payable, CR Cash/Bank.`,
 Use when user wants to "record invoice in books", "post invoice to accounting", "do accounting for invoice".`,
       inputSchema: z.object({
         invoiceId: z.string().describe("Invoice ID to post"),
-        entryDate: z.string().optional().describe("Date (YYYY-MM-DD), defaults to invoice date"),
+        entryDate: z
+          .string()
+          .optional()
+          .describe("Date (YYYY-MM-DD), defaults to invoice date"),
       }),
       execute: async ({ invoiceId, entryDate }) => {
         const toolArgs = { invoiceId, entryDate };
 
         try {
-          const invoice = await invoiceRepository.findById(invoiceId, user.id);
+          // Use V2 repository
+          const invoice = await invoiceV2Repository.findById(
+            invoiceId,
+            user.id
+          );
           if (!invoice) {
             return { error: "Invoice not found" };
           }
 
-          const items = invoice.invoiceFields?.items ?? [];
-          const total = calculateInvoiceTotal(items);
-          const invoiceNumber = `${invoice.invoiceFields?.invoiceDetails?.prefix ?? ""}${invoice.invoiceFields?.invoiceDetails?.serialNumber ?? ""}`;
-          const clientName = invoice.invoiceFields?.clientDetails?.name ?? "Unknown";
-          const invoiceDate = invoice.invoiceFields?.invoiceDetails?.date
-            ? new Date(invoice.invoiceFields.invoiceDetails.date).toISOString().split("T")[0]
+          const total = parseFloat(invoice.total);
+          const invoiceNumber = `${invoice.prefix ?? ""}${invoice.serialNumber ?? ""}`;
+          const clientDetails = invoice.clientDetails as {
+            name?: string;
+          } | null;
+          const clientName = clientDetails?.name ?? "Unknown";
+          const invoiceDate = invoice.invoiceDate
+            ? new Date(invoice.invoiceDate).toISOString().split("T")[0]
             : new Date().toISOString().split("T")[0];
 
           // Check approval before executing
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "postInvoiceToLedger", toolArgs, total);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "postInvoiceToLedger",
+            toolArgs,
+            total
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
               approvalId: approvalCheck.approvalId,
               message: approvalCheck.message,
-              preview: { type: "invoice_to_ledger", invoiceNumber, clientName, amount: formatCurrency(total) },
+              preview: {
+                type: "invoice_to_ledger",
+                invoiceNumber,
+                clientName,
+                amount: formatCurrency(total),
+              },
             };
           }
 
-          const accounts = await accountRepository.findAll(user.id, { isHeader: false });
-          const ar = accounts.find(a => a.code === "1200" || a.name.toLowerCase().includes("accounts receivable"));
-          const revenue = accounts.find(a =>
-            a.code === "4100" || a.code === "4000" ||
-            (a.accountType === "revenue" && a.name.toLowerCase().includes("sales"))
+          const accounts = await accountRepository.findAll(user.id, {
+            isHeader: false,
+          });
+          const ar = accounts.find(
+            (a) =>
+              a.code === "1200" ||
+              a.name.toLowerCase().includes("accounts receivable")
+          );
+          const revenue = accounts.find(
+            (a) =>
+              a.code === "4100" ||
+              a.code === "4000" ||
+              (a.accountType === "revenue" &&
+                a.name.toLowerCase().includes("sales"))
           );
 
           if (!ar || !revenue) {
-            const errorResult = { error: "Could not find AR or Sales Revenue accounts in Chart of Accounts." };
-            await logToolAudit(user.id, session?.id, "postInvoiceToLedger", toolArgs, errorResult, false, total);
+            const errorResult = {
+              error:
+                "Could not find AR or Sales Revenue accounts in Chart of Accounts.",
+            };
+            await logToolAudit(
+              user.id,
+              session?.id,
+              "postInvoiceToLedger",
+              toolArgs,
+              errorResult,
+              false,
+              total
+            );
             return errorResult;
           }
 
@@ -2470,8 +3733,16 @@ Use when user wants to "record invoice in books", "post invoice to accounting", 
             sourceType: "invoice",
             sourceId: invoiceId,
             lines: [
-              { accountId: ar.id, debitAmount: String(total), description: `AR - ${clientName}` },
-              { accountId: revenue.id, creditAmount: String(total), description: `Sales - ${invoiceNumber}` },
+              {
+                accountId: ar.id,
+                debitAmount: String(total),
+                description: `AR - ${clientName}`,
+              },
+              {
+                accountId: revenue.id,
+                creditAmount: String(total),
+                description: `Sales - ${invoiceNumber}`,
+              },
             ],
           });
 
@@ -2492,13 +3763,31 @@ Use when user wants to "record invoice in books", "post invoice to accounting", 
             },
           };
 
-          await logToolAudit(user.id, session?.id, "postInvoiceToLedger", toolArgs, result.entry, true, total);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "postInvoiceToLedger",
+            toolArgs,
+            result.entry,
+            true,
+            total
+          );
 
           return result;
         } catch (error) {
           logger.error({ error }, "postInvoiceToLedger failed");
-          const errorResult = { error: "Failed to post invoice to ledger", details: String(error) };
-          await logToolAudit(user.id, session?.id, "postInvoiceToLedger", toolArgs, errorResult, false);
+          const errorResult = {
+            error: "Failed to post invoice to ledger",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "postInvoiceToLedger",
+            toolArgs,
+            errorResult,
+            false
+          );
           return errorResult;
         }
       },
@@ -2513,7 +3802,11 @@ Use when user wants to "record invoice in books", "post invoice to accounting", 
 Use when user wants to "process documents", "extract from documents", "read these invoices/bills".
 After processing, ALWAYS ask user what to do: create entries, show summary, or go through each.`,
       inputSchema: z.object({
-        documentIds: z.array(z.string().uuid()).min(1).max(20).describe("Document IDs from vault to process"),
+        documentIds: z
+          .array(z.string().uuid())
+          .min(1)
+          .max(20)
+          .describe("Document IDs from vault to process"),
       }),
       execute: async ({ documentIds }) => {
         try {
@@ -2523,7 +3816,10 @@ After processing, ALWAYS ask user what to do: create entries, show summary, or g
           // Process documents (sync for 1-5, could be batched for more)
           for (const documentId of documentIds) {
             try {
-              const result = await documentProcessorService.processDocument(documentId, user.id);
+              const result = await documentProcessorService.processDocument(
+                documentId,
+                user.id
+              );
 
               if (result.status === "completed" && result.extractedData) {
                 const data = result.extractedData;
@@ -2534,21 +3830,37 @@ After processing, ALWAYS ask user what to do: create entries, show summary, or g
                   vendor: "vendor" in data ? data.vendor?.name : undefined,
                   total: "total" in data ? data.total : undefined,
                   currency: "currency" in data ? data.currency : "MYR",
-                  date: "invoiceDate" in data ? data.invoiceDate : ("date" in data ? data.date : undefined),
-                  invoiceNumber: "invoiceNumber" in data ? data.invoiceNumber : undefined,
-                  lineItemCount: "lineItems" in data ? data.lineItems?.length ?? 0 : 0,
+                  date:
+                    "invoiceDate" in data
+                      ? data.invoiceDate
+                      : "date" in data
+                        ? data.date
+                        : undefined,
+                  invoiceNumber:
+                    "invoiceNumber" in data ? data.invoiceNumber : undefined,
+                  lineItemCount:
+                    "lineItems" in data ? (data.lineItems?.length ?? 0) : 0,
                   matchedVendor: result.matchedVendor?.name,
                   confidence: result.confidenceScore,
                 });
               } else {
-                errors.push({ documentId, error: result.error ?? "Processing failed" });
+                errors.push({
+                  documentId,
+                  error: result.error ?? "Processing failed",
+                });
               }
             } catch (error) {
-              errors.push({ documentId, error: error instanceof Error ? error.message : "Unknown error" });
+              errors.push({
+                documentId,
+                error: error instanceof Error ? error.message : "Unknown error",
+              });
             }
           }
 
-          const totalAmount = results.reduce((sum, r) => sum + (r.total ?? 0), 0);
+          const totalAmount = results.reduce(
+            (sum, r) => sum + (r.total ?? 0),
+            0
+          );
 
           return {
             processed: results.length,
@@ -2556,13 +3868,17 @@ After processing, ALWAYS ask user what to do: create entries, show summary, or g
             totalAmount: formatCurrency(totalAmount),
             results,
             errors: errors.length > 0 ? errors : undefined,
-            nextStep: results.length > 0
-              ? "Documents processed. Would you like me to: a) Create bills/entries for all, b) Show a detailed summary first, c) Go through each one individually?"
-              : undefined,
+            nextStep:
+              results.length > 0
+                ? "Documents processed. Would you like me to: a) Create bills/entries for all, b) Show a detailed summary first, c) Go through each one individually?"
+                : undefined,
           };
         } catch (error) {
           logger.error({ error }, "processDocuments failed");
-          return { error: "Failed to process documents", details: String(error) };
+          return {
+            error: "Failed to process documents",
+            details: String(error),
+          };
         }
       },
     }),
@@ -2571,11 +3887,18 @@ After processing, ALWAYS ask user what to do: create entries, show summary, or g
       description: `Get full extracted data from a processed document. Shows all line items, vendor details, totals.
 Use when user wants to see "details of document", "what's in this invoice", or "show extracted data".`,
       inputSchema: z.object({
-        documentId: z.string().uuid().describe("Document ID to get details for"),
+        documentId: z
+          .string()
+          .uuid()
+          .describe("Document ID to get details for"),
       }),
       execute: async ({ documentId }) => {
         try {
-          const result = await documentProcessorService.getLatestProcessingResult(documentId, user.id);
+          const result =
+            await documentProcessorService.getLatestProcessingResult(
+              documentId,
+              user.id
+            );
 
           if (!result) {
             return { error: "Document not found or not yet processed" };
@@ -2597,24 +3920,81 @@ Use when user wants to see "details of document", "what's in this invoice", or "
             status: result.status,
             confidence: result.confidenceScore,
             extractedData: {
-              vendor: "vendor" in (data ?? {}) ? (data as { vendor?: { name?: string; address?: string; taxId?: string; email?: string; phone?: string } }).vendor : undefined,
-              invoiceNumber: "invoiceNumber" in (data ?? {}) ? (data as { invoiceNumber?: string }).invoiceNumber : undefined,
-              date: "invoiceDate" in (data ?? {}) ? (data as { invoiceDate?: string }).invoiceDate : ("date" in (data ?? {}) ? (data as { date?: string }).date : undefined),
-              dueDate: "dueDate" in (data ?? {}) ? (data as { dueDate?: string }).dueDate : undefined,
-              currency: "currency" in (data ?? {}) ? (data as { currency?: string }).currency : "MYR",
-              subtotal: "subtotal" in (data ?? {}) ? (data as { subtotal?: number }).subtotal : undefined,
-              taxRate: "taxRate" in (data ?? {}) ? (data as { taxRate?: number }).taxRate : undefined,
-              taxAmount: "taxAmount" in (data ?? {}) ? (data as { taxAmount?: number }).taxAmount : undefined,
-              total: "total" in (data ?? {}) ? (data as { total?: number }).total : undefined,
-              lineItems: "lineItems" in (data ?? {}) ? (data as { lineItems?: Array<{ description: string; quantity: number; unitPrice: number; amount: number }> }).lineItems : undefined,
-              paymentTerms: "paymentTerms" in (data ?? {}) ? (data as { paymentTerms?: string }).paymentTerms : undefined,
+              vendor:
+                "vendor" in (data ?? {})
+                  ? (
+                      data as {
+                        vendor?: {
+                          name?: string;
+                          address?: string;
+                          taxId?: string;
+                          email?: string;
+                          phone?: string;
+                        };
+                      }
+                    ).vendor
+                  : undefined,
+              invoiceNumber:
+                "invoiceNumber" in (data ?? {})
+                  ? (data as { invoiceNumber?: string }).invoiceNumber
+                  : undefined,
+              date:
+                "invoiceDate" in (data ?? {})
+                  ? (data as { invoiceDate?: string }).invoiceDate
+                  : "date" in (data ?? {})
+                    ? (data as { date?: string }).date
+                    : undefined,
+              dueDate:
+                "dueDate" in (data ?? {})
+                  ? (data as { dueDate?: string }).dueDate
+                  : undefined,
+              currency:
+                "currency" in (data ?? {})
+                  ? (data as { currency?: string }).currency
+                  : "MYR",
+              subtotal:
+                "subtotal" in (data ?? {})
+                  ? (data as { subtotal?: number }).subtotal
+                  : undefined,
+              taxRate:
+                "taxRate" in (data ?? {})
+                  ? (data as { taxRate?: number }).taxRate
+                  : undefined,
+              taxAmount:
+                "taxAmount" in (data ?? {})
+                  ? (data as { taxAmount?: number }).taxAmount
+                  : undefined,
+              total:
+                "total" in (data ?? {})
+                  ? (data as { total?: number }).total
+                  : undefined,
+              lineItems:
+                "lineItems" in (data ?? {})
+                  ? (
+                      data as {
+                        lineItems?: Array<{
+                          description: string;
+                          quantity: number;
+                          unitPrice: number;
+                          amount: number;
+                        }>;
+                      }
+                    ).lineItems
+                  : undefined,
+              paymentTerms:
+                "paymentTerms" in (data ?? {})
+                  ? (data as { paymentTerms?: string }).paymentTerms
+                  : undefined,
             },
             matchedVendor: result.matchedVendor,
             suggestedVendorUpdates: result.suggestedVendorUpdates,
           };
         } catch (error) {
           logger.error({ error }, "getDocumentDetails failed");
-          return { error: "Failed to get document details", details: String(error) };
+          return {
+            error: "Failed to get document details",
+            details: String(error),
+          };
         }
       },
     }),
@@ -2624,11 +4004,24 @@ Use when user wants to see "details of document", "what's in this invoice", or "
 ALWAYS ask user first what they want to do with extracted data. Use after processDocuments or getDocumentDetails.`,
       inputSchema: z.object({
         documentId: z.string().uuid().describe("Processed document ID"),
-        action: z.enum(["create_bill", "skip"]).describe("What to create: create_bill (creates bill from invoice/receipt data) or skip"),
-        options: z.object({
-          vendorId: z.string().uuid().optional().describe("Override matched vendor with specific vendor ID"),
-          createVendorIfNotFound: z.boolean().default(true).describe("Create new vendor if no match found"),
-        }).optional(),
+        action: z
+          .enum(["create_bill", "skip"])
+          .describe(
+            "What to create: create_bill (creates bill from invoice/receipt data) or skip"
+          ),
+        options: z
+          .object({
+            vendorId: z
+              .string()
+              .uuid()
+              .optional()
+              .describe("Override matched vendor with specific vendor ID"),
+            createVendorIfNotFound: z
+              .boolean()
+              .default(true)
+              .describe("Create new vendor if no match found"),
+          })
+          .optional(),
       }),
       execute: async ({ documentId, action, options }) => {
         try {
@@ -2641,14 +4034,16 @@ ALWAYS ask user first what they want to do with extracted data. Use after proces
           }
 
           if (action === "create_bill") {
-            const result = await documentProcessorService.createBillFromDocument(
-              user.id,
-              documentId,
-              {
-                vendorId: options?.vendorId,
-                createVendorIfNotFound: options?.createVendorIfNotFound ?? true,
-              }
-            );
+            const result =
+              await documentProcessorService.createBillFromDocument(
+                user.id,
+                documentId,
+                {
+                  vendorId: options?.vendorId,
+                  createVendorIfNotFound:
+                    options?.createVendorIfNotFound ?? true,
+                }
+              );
 
             return {
               success: true,
@@ -2658,7 +4053,8 @@ ALWAYS ask user first what they want to do with extracted data. Use after proces
               vendorCreated: result.vendorCreated,
               total: formatCurrency(result.total, result.currency),
               currency: result.currency,
-              nextStep: "Would you like me to explain the accounting implications?",
+              nextStep:
+                "Would you like me to explain the accounting implications?",
             };
           }
 
@@ -2674,15 +4070,47 @@ ALWAYS ask user first what they want to do with extracted data. Use after proces
       description: `Search through processed documents in the document cabinet. Filter by vendor, date, type, status.
 Use when user asks "what documents do we have", "find invoices from X", "show processed bills".`,
       inputSchema: z.object({
-        filters: z.object({
-          vendorName: z.string().optional().describe("Filter by vendor name (partial match)"),
-          documentType: z.enum(["bill", "invoice", "receipt", "statement"]).optional().describe("Filter by document type"),
-          category: z.enum(["bills", "invoices", "receipts", "statements", "contracts", "tax_documents", "other"]).optional().describe("Filter by vault category"),
-          processingStatus: z.enum(["unprocessed", "processed", "failed"]).optional().describe("Filter by processing status"),
-          dateFrom: z.string().optional().describe("Filter from date (YYYY-MM-DD)"),
-          dateTo: z.string().optional().describe("Filter to date (YYYY-MM-DD)"),
-        }).optional(),
-        limit: z.number().max(50).default(20).describe("Maximum results to return"),
+        filters: z
+          .object({
+            vendorName: z
+              .string()
+              .optional()
+              .describe("Filter by vendor name (partial match)"),
+            documentType: z
+              .enum(["bill", "invoice", "receipt", "statement"])
+              .optional()
+              .describe("Filter by document type"),
+            category: z
+              .enum([
+                "bills",
+                "invoices",
+                "receipts",
+                "statements",
+                "contracts",
+                "tax_documents",
+                "other",
+              ])
+              .optional()
+              .describe("Filter by vault category"),
+            processingStatus: z
+              .enum(["unprocessed", "processed", "failed"])
+              .optional()
+              .describe("Filter by processing status"),
+            dateFrom: z
+              .string()
+              .optional()
+              .describe("Filter from date (YYYY-MM-DD)"),
+            dateTo: z
+              .string()
+              .optional()
+              .describe("Filter to date (YYYY-MM-DD)"),
+          })
+          .optional(),
+        limit: z
+          .number()
+          .max(50)
+          .default(20)
+          .describe("Maximum results to return"),
       }),
       execute: async ({ filters, limit }) => {
         try {
@@ -2693,13 +4121,19 @@ Use when user asks "what documents do we have", "find invoices from X", "show pr
             conditions.push(eq(vaultDocuments.category, filters.category));
           }
           if (filters?.processingStatus) {
-            conditions.push(eq(vaultDocuments.processingStatus, filters.processingStatus));
+            conditions.push(
+              eq(vaultDocuments.processingStatus, filters.processingStatus)
+            );
           }
           if (filters?.dateFrom) {
-            conditions.push(gte(vaultDocuments.createdAt, new Date(filters.dateFrom)));
+            conditions.push(
+              gte(vaultDocuments.createdAt, new Date(filters.dateFrom))
+            );
           }
           if (filters?.dateTo) {
-            conditions.push(lte(vaultDocuments.createdAt, new Date(filters.dateTo)));
+            conditions.push(
+              lte(vaultDocuments.createdAt, new Date(filters.dateTo))
+            );
           }
 
           // Query documents
@@ -2754,8 +4188,8 @@ Use when user asks "what documents do we have", "find invoices from X", "show pr
           let filteredResults = results;
           if (filters?.vendorName) {
             const searchTerm = filters.vendorName.toLowerCase();
-            filteredResults = results.filter(
-              (r) => r.extracted?.vendor?.toLowerCase().includes(searchTerm)
+            filteredResults = results.filter((r) =>
+              r.extracted?.vendor?.toLowerCase().includes(searchTerm)
             );
           }
 
@@ -2770,7 +4204,9 @@ Use when user asks "what documents do we have", "find invoices from X", "show pr
             };
             const targetCategory = categoryMap[filters.documentType];
             if (targetCategory) {
-              filteredResults = filteredResults.filter((r) => r.category === targetCategory);
+              filteredResults = filteredResults.filter(
+                (r) => r.category === targetCategory
+              );
             }
           }
 
@@ -2783,13 +4219,17 @@ Use when user asks "what documents do we have", "find invoices from X", "show pr
             count: filteredResults.length,
             totalValue: formatCurrency(totalValue),
             documents: filteredResults,
-            summary: filteredResults.length > 0
-              ? `Found ${filteredResults.length} documents with total value ${formatCurrency(totalValue)}`
-              : "No documents found matching your criteria",
+            summary:
+              filteredResults.length > 0
+                ? `Found ${filteredResults.length} documents with total value ${formatCurrency(totalValue)}`
+                : "No documents found matching your criteria",
           };
         } catch (error) {
           logger.error({ error }, "queryDocumentCabinet failed");
-          return { error: "Failed to query document cabinet", details: String(error) };
+          return {
+            error: "Failed to query document cabinet",
+            details: String(error),
+          };
         }
       },
     }),
@@ -2798,7 +4238,19 @@ Use when user asks "what documents do we have", "find invoices from X", "show pr
       description: `List all documents in the user's vault. Shows unprocessed and processed documents.
 Use when user asks "show my documents", "what's in the vault", "list uploaded files".`,
       inputSchema: z.object({
-        category: z.enum(["all", "bills", "invoices", "receipts", "statements", "contracts", "tax_documents", "other"]).default("all").describe("Filter by category"),
+        category: z
+          .enum([
+            "all",
+            "bills",
+            "invoices",
+            "receipts",
+            "statements",
+            "contracts",
+            "tax_documents",
+            "other",
+          ])
+          .default("all")
+          .describe("Filter by category"),
         limit: z.number().max(50).default(20).describe("Maximum results"),
       }),
       execute: async ({ category, limit }) => {
@@ -2816,9 +4268,14 @@ Use when user asks "show my documents", "what's in the vault", "list uploaded fi
 
           const summary = {
             total: documents.length,
-            unprocessed: documents.filter((d) => d.processingStatus === "unprocessed").length,
-            processed: documents.filter((d) => d.processingStatus === "processed").length,
-            failed: documents.filter((d) => d.processingStatus === "failed").length,
+            unprocessed: documents.filter(
+              (d) => d.processingStatus === "unprocessed"
+            ).length,
+            processed: documents.filter(
+              (d) => d.processingStatus === "processed"
+            ).length,
+            failed: documents.filter((d) => d.processingStatus === "failed")
+              .length,
           };
 
           return {
@@ -2831,9 +4288,10 @@ Use when user asks "show my documents", "what's in the vault", "list uploaded fi
               size: `${Math.round(doc.size / 1024)}KB`,
               uploadedAt: doc.createdAt.toISOString().split("T")[0],
             })),
-            hint: summary.unprocessed > 0
-              ? `You have ${summary.unprocessed} unprocessed document(s). Would you like me to process them?`
-              : undefined,
+            hint:
+              summary.unprocessed > 0
+                ? `You have ${summary.unprocessed} unprocessed document(s). Would you like me to process them?`
+                : undefined,
           };
         } catch (error) {
           logger.error({ error }, "listVaultDocuments failed");
@@ -2853,12 +4311,19 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         entryDate: z.string().describe("Date (YYYY-MM-DD)"),
         description: z.string().describe("Entry description"),
         reference: z.string().optional().describe("Reference number"),
-        lines: z.array(z.object({
-          accountId: z.string().describe("Account ID from listAccounts"),
-          debitAmount: z.number().optional().describe("Debit amount"),
-          creditAmount: z.number().optional().describe("Credit amount"),
-          description: z.string().optional().describe("Line description"),
-        })).min(2).describe("Entry lines - must use different accounts for debit/credit"),
+        lines: z
+          .array(
+            z.object({
+              accountId: z.string().describe("Account ID from listAccounts"),
+              debitAmount: z.number().optional().describe("Debit amount"),
+              creditAmount: z.number().optional().describe("Credit amount"),
+              description: z.string().optional().describe("Line description"),
+            })
+          )
+          .min(2)
+          .describe(
+            "Entry lines - must use different accounts for debit/credit"
+          ),
       }),
       execute: async ({ entryDate, description, reference, lines }) => {
         const toolArgs = { entryDate, description, reference, lines };
@@ -2873,13 +4338,24 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           }
 
           // Check approval before executing (use total debit as estimated amount)
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs, totalDebit);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs,
+            totalDebit
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
               approvalId: approvalCheck.approvalId,
               message: approvalCheck.message,
-              preview: { type: "journal_entry", description, totalDebit: formatCurrency(totalDebit), lines: lines.length },
+              preview: {
+                type: "journal_entry",
+                description,
+                totalDebit: formatCurrency(totalDebit),
+                lines: lines.length,
+              },
             };
           }
 
@@ -2889,10 +4365,11 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             };
           }
 
-          const uniqueAccountIds = new Set(lines.map(l => l.accountId));
+          const uniqueAccountIds = new Set(lines.map((l) => l.accountId));
           if (uniqueAccountIds.size < 2) {
             return {
-              error: "Must use at least 2 different accounts. Use smart tools instead: recordSalesRevenue, recordExpense, etc.",
+              error:
+                "Must use at least 2 different accounts. Use smart tools instead: recordSalesRevenue, recordExpense, etc.",
             };
           }
 
@@ -2902,10 +4379,14 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             description,
             reference: reference ?? undefined,
             sourceType: "manual",
-            lines: lines.map(line => ({
+            lines: lines.map((line) => ({
               accountId: line.accountId,
-              debitAmount: line.debitAmount ? String(line.debitAmount) : undefined,
-              creditAmount: line.creditAmount ? String(line.creditAmount) : undefined,
+              debitAmount: line.debitAmount
+                ? String(line.debitAmount)
+                : undefined,
+              creditAmount: line.creditAmount
+                ? String(line.creditAmount)
+                : undefined,
               description: line.description,
             })),
           });
@@ -2922,20 +4403,39 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             },
           };
 
-          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, result.entry, true, totalDebit);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs,
+            result.entry,
+            true,
+            totalDebit
+          );
 
           return result;
         } catch (error) {
           logger.error({ error }, "createJournalEntry failed");
-          const errorResult = { error: "Failed to create journal entry", details: String(error) };
-          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, errorResult, false);
+          const errorResult = {
+            error: "Failed to create journal entry",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs,
+            errorResult,
+            false
+          );
           return errorResult;
         }
       },
     }),
 
     postJournalEntry: tool({
-      description: "Post a draft journal entry to the ledger. This makes it permanent and updates account balances.",
+      description:
+        "Post a draft journal entry to the ledger. This makes it permanent and updates account balances.",
       inputSchema: z.object({
         entryId: z.string().describe("The journal entry ID to post"),
       }),
@@ -2949,16 +4449,30 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           }
 
           // Calculate estimated amount from entry lines
-          const estimatedAmount = entry.lines?.reduce((sum, line) => sum + Number(line.debitAmount ?? 0), 0) ?? 0;
+          const estimatedAmount =
+            entry.lines?.reduce(
+              (sum, line) => sum + Number(line.debitAmount ?? 0),
+              0
+            ) ?? 0;
 
           // Check approval before executing
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "postJournalEntry", toolArgs, estimatedAmount);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "postJournalEntry",
+            toolArgs,
+            estimatedAmount
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
               approvalId: approvalCheck.approvalId,
               message: approvalCheck.message,
-              preview: { type: "journal_entry_post", entryNumber: entry.entryNumber, amount: formatCurrency(estimatedAmount) },
+              preview: {
+                type: "journal_entry_post",
+                entryNumber: entry.entryNumber,
+                amount: formatCurrency(estimatedAmount),
+              },
             };
           }
 
@@ -2983,19 +4497,38 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             },
           };
 
-          await logToolAudit(user.id, session?.id, "postJournalEntry", toolArgs, result.entry, true, estimatedAmount);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "postJournalEntry",
+            toolArgs,
+            result.entry,
+            true,
+            estimatedAmount
+          );
 
           return result;
         } catch (error) {
-          const errorResult = { error: "Failed to post journal entry", details: String(error) };
-          await logToolAudit(user.id, session?.id, "postJournalEntry", toolArgs, errorResult, false);
+          const errorResult = {
+            error: "Failed to post journal entry",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "postJournalEntry",
+            toolArgs,
+            errorResult,
+            false
+          );
           return errorResult;
         }
       },
     }),
 
     reverseJournalEntry: tool({
-      description: "Reverse a posted journal entry. This creates a new entry with opposite debits/credits.",
+      description:
+        "Reverse a posted journal entry. This creates a new entry with opposite debits/credits.",
       inputSchema: z.object({
         entryId: z.string().describe("The journal entry ID to reverse"),
         reason: z.string().describe("Reason for reversal"),
@@ -3010,16 +4543,31 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           }
 
           // Calculate estimated amount from entry lines
-          const estimatedAmount = entry.lines?.reduce((sum, line) => sum + Number(line.debitAmount ?? 0), 0) ?? 0;
+          const estimatedAmount =
+            entry.lines?.reduce(
+              (sum, line) => sum + Number(line.debitAmount ?? 0),
+              0
+            ) ?? 0;
 
           // Check approval before executing (reversals always require approval when enabled)
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "reverseJournalEntry", toolArgs, estimatedAmount);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "reverseJournalEntry",
+            toolArgs,
+            estimatedAmount
+          );
           if (approvalCheck?.requiresApproval) {
             return {
               pending: true,
               approvalId: approvalCheck.approvalId,
               message: approvalCheck.message,
-              preview: { type: "journal_entry_reversal", entryNumber: entry.entryNumber, reason, amount: formatCurrency(estimatedAmount) },
+              preview: {
+                type: "journal_entry_reversal",
+                entryNumber: entry.entryNumber,
+                reason,
+                amount: formatCurrency(estimatedAmount),
+              },
             };
           }
 
@@ -3027,7 +4575,11 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             return { error: "Only posted journal entries can be reversed" };
           }
 
-          const reversal = await journalEntryRepository.reverse(entryId, user.id, reason);
+          const reversal = await journalEntryRepository.reverse(
+            entryId,
+            user.id,
+            reason
+          );
 
           const result = {
             success: true,
@@ -3044,12 +4596,30 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             },
           };
 
-          await logToolAudit(user.id, session?.id, "reverseJournalEntry", toolArgs, result, true, estimatedAmount);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "reverseJournalEntry",
+            toolArgs,
+            result,
+            true,
+            estimatedAmount
+          );
 
           return result;
         } catch (error) {
-          const errorResult = { error: "Failed to reverse journal entry", details: String(error) };
-          await logToolAudit(user.id, session?.id, "reverseJournalEntry", toolArgs, errorResult, false);
+          const errorResult = {
+            error: "Failed to reverse journal entry",
+            details: String(error),
+          };
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "reverseJournalEntry",
+            toolArgs,
+            errorResult,
+            false
+          );
           return errorResult;
         }
       },
@@ -3060,11 +4630,20 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     // ==========================================
 
     rememberPreference: tool({
-      description: "Store a user preference or instruction that should be remembered for future interactions. Use this when the user expresses a preference, gives instructions, or provides information that should persist.",
+      description:
+        "Store a user preference or instruction that should be remembered for future interactions. Use this when the user expresses a preference, gives instructions, or provides information that should persist.",
       inputSchema: z.object({
-        key: z.string().describe("A short descriptive key for the memory (e.g., 'invoice_prefix', 'preferred_currency')"),
+        key: z
+          .string()
+          .describe(
+            "A short descriptive key for the memory (e.g., 'invoice_prefix', 'preferred_currency')"
+          ),
         value: z.string().describe("The value or content to remember"),
-        category: z.enum(["preference", "fact", "instruction"]).describe("Type of memory: preference (user likes/dislikes), fact (business info), instruction (how to do things)"),
+        category: z
+          .enum(["preference", "fact", "instruction"])
+          .describe(
+            "Type of memory: preference (user likes/dislikes), fact (business info), instruction (how to do things)"
+          ),
       }),
       execute: async ({ key, value, category }) => {
         try {
@@ -3089,17 +4668,26 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     recallMemories: tool({
-      description: "Search and recall stored memories about user preferences, facts, or instructions using semantic similarity. Use this to find relevant context before taking actions - even if the exact words don't match, this will find conceptually related memories.",
+      description:
+        "Search and recall stored memories about user preferences, facts, or instructions using semantic similarity. Use this to find relevant context before taking actions - even if the exact words don't match, this will find conceptually related memories.",
       inputSchema: z.object({
-        query: z.string().describe("Natural language query to find relevant memories (uses semantic search)"),
+        query: z
+          .string()
+          .describe(
+            "Natural language query to find relevant memories (uses semantic search)"
+          ),
       }),
       execute: async ({ query }) => {
         try {
           // Use semantic search for better memory recall
-          const memories = await agentMemoryService.searchMemoriesSemantic(user.id, query, {
-            threshold: 0.6,  // Lower threshold for broader recall
-            limit: 5,
-          });
+          const memories = await agentMemoryService.searchMemoriesSemantic(
+            user.id,
+            query,
+            {
+              threshold: 0.6, // Lower threshold for broader recall
+              limit: 5,
+            }
+          );
 
           if (memories.length === 0) {
             return { message: "No relevant memories found", memories: [] };
@@ -3121,13 +4709,26 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     updateUserContext: tool({
-      description: "Update business context like company name, default currency, invoice prefix. Use when user provides business configuration info.",
+      description:
+        "Update business context like company name, default currency, invoice prefix. Use when user provides business configuration info.",
       inputSchema: z.object({
         companyName: z.string().optional().describe("Company/business name"),
-        defaultCurrency: z.string().optional().describe("Default currency code (e.g., MYR, USD)"),
-        invoicePrefix: z.string().optional().describe("Default invoice number prefix"),
-        quotationPrefix: z.string().optional().describe("Default quotation number prefix"),
-        fiscalYearEnd: z.string().optional().describe("Fiscal year end date (MM-DD format)"),
+        defaultCurrency: z
+          .string()
+          .optional()
+          .describe("Default currency code (e.g., MYR, USD)"),
+        invoicePrefix: z
+          .string()
+          .optional()
+          .describe("Default invoice number prefix"),
+        quotationPrefix: z
+          .string()
+          .optional()
+          .describe("Default quotation number prefix"),
+        fiscalYearEnd: z
+          .string()
+          .optional()
+          .describe("Fiscal year end date (MM-DD format)"),
         industry: z.string().optional().describe("Business industry"),
       }),
       execute: async (updates) => {
@@ -3158,34 +4759,48 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     // ==========================================
 
     thinkStep: tool({
-      description: "Use this tool to think through complex problems step by step. Call this BEFORE taking any action to plan your approach. IMPORTANT: After calling this tool, you MUST continue to execute the planned steps - do not stop here.",
+      description:
+        "Use this tool to think through complex problems step by step. Call this BEFORE taking any action to plan your approach. IMPORTANT: After calling this tool, you MUST continue to execute the planned steps - do not stop here.",
       inputSchema: z.object({
-        thought: z.string().describe("Your reasoning about the current situation"),
+        thought: z
+          .string()
+          .describe("Your reasoning about the current situation"),
         plan: z.array(z.string()).describe("List of steps you plan to take"),
-        uncertainties: z.array(z.string()).optional().describe("Things you're unsure about that might need clarification"),
+        uncertainties: z
+          .array(z.string())
+          .optional()
+          .describe("Things you're unsure about that might need clarification"),
       }),
       execute: async ({ thought, plan, uncertainties }) => {
         // This is a planning tool - it's used for the AI to externalize its reasoning
         // The AI MUST continue to execute the plan after this tool returns
         return {
           status: "planning_complete",
-          message: "Planning complete. NOW EXECUTE the first step in your plan by calling the appropriate tool. Do NOT stop here - continue with the actual data retrieval or action.",
+          message:
+            "Planning complete. NOW EXECUTE the first step in your plan by calling the appropriate tool. Do NOT stop here - continue with the actual data retrieval or action.",
           reasoning: thought,
           plannedSteps: plan,
           uncertainties: uncertainties ?? [],
           nextAction: plan[0] ?? "No action planned",
-          instruction: "IMPORTANT: Call the next tool now to execute your plan. Do not respond to the user until you have actual data.",
+          instruction:
+            "IMPORTANT: Call the next tool now to execute your plan. Do not respond to the user until you have actual data.",
         };
       },
     }),
 
     validateAction: tool({
-      description: "Validate an action before executing it. Use this before write operations to double-check the action is correct.",
+      description:
+        "Validate an action before executing it. Use this before write operations to double-check the action is correct.",
       inputSchema: z.object({
         action: z.string().describe("The action you're about to take"),
-        target: z.string().describe("What you're acting on (e.g., invoice ID, customer name)"),
+        target: z
+          .string()
+          .describe("What you're acting on (e.g., invoice ID, customer name)"),
         expectedOutcome: z.string().describe("What you expect to happen"),
-        risks: z.array(z.string()).optional().describe("Potential risks or issues"),
+        risks: z
+          .array(z.string())
+          .optional()
+          .describe("Potential risks or issues"),
       }),
       execute: async ({ action, target, expectedOutcome, risks }) => {
         return {
@@ -3204,17 +4819,22 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     // ============================================
 
     getMigrationStatus: tool({
-      description: "Get the current migration/setup wizard status. Use this to understand where the user is in the migration process.",
+      description:
+        "Get the current migration/setup wizard status. Use this to understand where the user is in the migration process.",
       inputSchema: z.object({}),
       execute: async () => {
         const sessions = await migrationSessionRepository.findByUser(user.id);
-        const activeSession = sessions.find(s => s.status !== "completed" && s.status !== "failed");
+        const activeSession = sessions.find(
+          (s) => s.status !== "completed" && s.status !== "failed"
+        );
 
         if (!activeSession) {
           return {
             hasActiveSession: false,
-            message: "No active migration session. User can start the setup wizard at /setup to begin.",
-            completedSessions: sessions.filter(s => s.status === "completed").length,
+            message:
+              "No active migration session. User can start the setup wizard at /setup to begin.",
+            completedSessions: sessions.filter((s) => s.status === "completed")
+              .length,
           };
         }
 
@@ -3234,25 +4854,37 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     getOpeningBalances: tool({
-      description: "Get the opening balances for a migration session. Shows the trial balance entries.",
+      description:
+        "Get the opening balances for a migration session. Shows the trial balance entries.",
       inputSchema: z.object({
         sessionId: z.string().uuid().describe("The migration session ID"),
       }),
       execute: async ({ sessionId }) => {
-        const balances = await openingBalanceRepository.findBySession(sessionId, user.id);
-        const totals = await openingBalanceRepository.calculateTotals(sessionId, user.id);
-        const validation = await openingBalanceRepository.getValidationSummary(sessionId, user.id);
+        const balances = await openingBalanceRepository.findBySession(
+          sessionId,
+          user.id
+        );
+        const totals = await openingBalanceRepository.calculateTotals(
+          sessionId,
+          user.id
+        );
+        const validation = await openingBalanceRepository.getValidationSummary(
+          sessionId,
+          user.id
+        );
 
         const totalDebits = parseFloat(totals.totalDebits);
         const totalCredits = parseFloat(totals.totalCredits);
         const difference = Math.abs(totalDebits - totalCredits);
         const isBalanced = difference < 0.01;
 
-        const entriesWithAccounts = balances.filter(b => !!b.accountId).length;
+        const entriesWithAccounts = balances.filter(
+          (b) => !!b.accountId
+        ).length;
         const entriesWithoutAccounts = balances.length - entriesWithAccounts;
 
         return {
-          entries: balances.slice(0, 20).map(b => ({
+          entries: balances.slice(0, 20).map((b) => ({
             accountCode: b.accountCode,
             accountName: b.accountName,
             accountType: b.accountType,
@@ -3275,35 +4907,46 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     suggestAccountMapping: tool({
-      description: "Suggest which chart of accounts entry an imported account should map to. Use this to help users with account mapping.",
+      description:
+        "Suggest which chart of accounts entry an imported account should map to. Use this to help users with account mapping.",
       inputSchema: z.object({
         accountCode: z.string().describe("The imported account code"),
         accountName: z.string().describe("The imported account name"),
-        accountType: z.enum(["asset", "liability", "equity", "revenue", "expense"]).describe("The account type"),
+        accountType: z
+          .enum(["asset", "liability", "equity", "revenue", "expense"])
+          .describe("The account type"),
       }),
       execute: async ({ accountCode, accountName, accountType }) => {
         // Get existing accounts of the same type
         const existingAccounts = await accountRepository.findAll(user.id);
-        const matchingAccounts = existingAccounts.filter(a =>
-          a.accountType?.toLowerCase() === accountType.toLowerCase()
+        const matchingAccounts = existingAccounts.filter(
+          (a) => a.accountType?.toLowerCase() === accountType.toLowerCase()
         );
 
         // Simple fuzzy matching based on name similarity
         const suggestions = matchingAccounts
-          .map(account => {
+          .map((account) => {
             const nameLower = accountName.toLowerCase();
             const existingLower = account.name.toLowerCase();
 
             // Calculate simple similarity score
             let score = 0;
-            if (existingLower.includes(nameLower) || nameLower.includes(existingLower)) {
+            if (
+              existingLower.includes(nameLower) ||
+              nameLower.includes(existingLower)
+            ) {
               score = 80;
             } else {
               // Check for common words
               const importedWords = nameLower.split(/\s+/);
               const existingWords = existingLower.split(/\s+/);
-              const commonWords = importedWords.filter((w: string) => existingWords.some((ew: string) => ew.includes(w) || w.includes(ew)));
-              score = (commonWords.length / Math.max(importedWords.length, 1)) * 60;
+              const commonWords = importedWords.filter((w: string) =>
+                existingWords.some(
+                  (ew: string) => ew.includes(w) || w.includes(ew)
+                )
+              );
+              score =
+                (commonWords.length / Math.max(importedWords.length, 1)) * 60;
             }
 
             // Boost if account codes are similar
@@ -3318,50 +4961,74 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
               confidence: Math.min(Math.round(score), 100),
             };
           })
-          .filter(s => s.confidence > 20)
+          .filter((s) => s.confidence > 20)
           .sort((a, b) => b.confidence - a.confidence)
           .slice(0, 5);
 
         return {
-          importedAccount: { code: accountCode, name: accountName, type: accountType },
-          suggestions,
-          recommendation: suggestions[0] ? {
-            action: suggestions[0].confidence >= 70 ? "auto_map" : "review",
-            suggestedAccount: suggestions[0],
-            reason: suggestions[0].confidence >= 70
-              ? `High confidence match: "${suggestions[0].accountName}"`
-              : "Manual review recommended - no high confidence match found",
-          } : {
-            action: "create_new",
-            reason: "No matching account found. Consider creating a new account.",
+          importedAccount: {
+            code: accountCode,
+            name: accountName,
+            type: accountType,
           },
+          suggestions,
+          recommendation: suggestions[0]
+            ? {
+                action: suggestions[0].confidence >= 70 ? "auto_map" : "review",
+                suggestedAccount: suggestions[0],
+                reason:
+                  suggestions[0].confidence >= 70
+                    ? `High confidence match: "${suggestions[0].accountName}"`
+                    : "Manual review recommended - no high confidence match found",
+              }
+            : {
+                action: "create_new",
+                reason:
+                  "No matching account found. Consider creating a new account.",
+              },
         };
       },
     }),
 
     validateMigrationData: tool({
-      description: "Validate migration data and identify issues that need to be fixed before applying.",
+      description:
+        "Validate migration data and identify issues that need to be fixed before applying.",
       inputSchema: z.object({
         sessionId: z.string().uuid().describe("The migration session ID"),
       }),
       execute: async ({ sessionId }) => {
-        const session = await migrationSessionRepository.findById(sessionId, user.id);
+        const session = await migrationSessionRepository.findById(
+          sessionId,
+          user.id
+        );
         if (!session) {
           return { error: "Session not found" };
         }
 
-        const balances = await openingBalanceRepository.findBySession(sessionId, user.id);
-        const totals = await openingBalanceRepository.calculateTotals(sessionId, user.id);
+        const balances = await openingBalanceRepository.findBySession(
+          sessionId,
+          user.id
+        );
+        const totals = await openingBalanceRepository.calculateTotals(
+          sessionId,
+          user.id
+        );
 
         const totalDebits = parseFloat(totals.totalDebits);
         const totalCredits = parseFloat(totals.totalCredits);
         const difference = Math.abs(totalDebits - totalCredits);
         const isBalanced = difference < 0.01;
 
-        const entriesWithAccounts = balances.filter(b => !!b.accountId).length;
+        const entriesWithAccounts = balances.filter(
+          (b) => !!b.accountId
+        ).length;
         const entriesWithoutAccounts = balances.length - entriesWithAccounts;
 
-        const issues: Array<{ severity: "error" | "warning" | "info"; message: string; fix?: string }> = [];
+        const issues: Array<{
+          severity: "error" | "warning" | "info";
+          message: string;
+          fix?: string;
+        }> = [];
 
         // Check trial balance
         if (!isBalanced) {
@@ -3382,8 +5049,9 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         }
 
         // Check for zero balances
-        const zeroBalances = balances.filter(b =>
-          parseFloat(b.debitAmount) === 0 && parseFloat(b.creditAmount) === 0
+        const zeroBalances = balances.filter(
+          (b) =>
+            parseFloat(b.debitAmount) === 0 && parseFloat(b.creditAmount) === 0
         );
         if (zeroBalances.length > 0) {
           issues.push({
@@ -3404,7 +5072,7 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         return {
           sessionId,
           status: session.status,
-          isReady: issues.filter(i => i.severity === "error").length === 0,
+          isReady: issues.filter((i) => i.severity === "error").length === 0,
           issues,
           summary: {
             totalAccounts: balances.length,
@@ -3418,75 +5086,112 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     explainMigrationConcept: tool({
-      description: "Explain migration and accounting concepts to help users understand the setup process.",
+      description:
+        "Explain migration and accounting concepts to help users understand the setup process.",
       inputSchema: z.object({
-        concept: z.enum([
-          "opening_balance",
-          "trial_balance",
-          "conversion_date",
-          "account_mapping",
-          "subledger",
-          "payroll_ytd",
-          "double_entry",
-          "chart_of_accounts",
-        ]).describe("The concept to explain"),
+        concept: z
+          .enum([
+            "opening_balance",
+            "trial_balance",
+            "conversion_date",
+            "account_mapping",
+            "subledger",
+            "payroll_ytd",
+            "double_entry",
+            "chart_of_accounts",
+          ])
+          .describe("The concept to explain"),
       }),
       execute: async ({ concept }) => {
-        const explanations: Record<string, { title: string; explanation: string; example?: string }> = {
+        const explanations: Record<
+          string,
+          { title: string; explanation: string; example?: string }
+        > = {
           opening_balance: {
             title: "Opening Balance",
-            explanation: "Opening balances are the account balances at the start of using a new accounting system. They represent the cumulative effect of all past transactions and ensure continuity from your previous system.",
-            example: "If your bank account had RM 50,000 at the conversion date, that's your opening balance for the bank account.",
+            explanation:
+              "Opening balances are the account balances at the start of using a new accounting system. They represent the cumulative effect of all past transactions and ensure continuity from your previous system.",
+            example:
+              "If your bank account had RM 50,000 at the conversion date, that's your opening balance for the bank account.",
           },
           trial_balance: {
             title: "Trial Balance",
-            explanation: "A trial balance is a list of all accounts with their debit and credit balances. The sum of all debits must equal the sum of all credits (double-entry bookkeeping principle). If they don't match, there's an error.",
-            example: "Assets (debits) = RM 100,000, Liabilities + Equity (credits) = RM 100,000. Balanced!",
+            explanation:
+              "A trial balance is a list of all accounts with their debit and credit balances. The sum of all debits must equal the sum of all credits (double-entry bookkeeping principle). If they don't match, there's an error.",
+            example:
+              "Assets (debits) = RM 100,000, Liabilities + Equity (credits) = RM 100,000. Balanced!",
           },
           conversion_date: {
             title: "Conversion Date",
-            explanation: "The conversion date is the cut-off date when you switch to the new accounting system. All transactions before this date are summarized as opening balances. New transactions after this date are recorded in the new system.",
-            example: "If converting on Jan 1, 2024, all 2023 transactions are summarized as opening balances, and 2024 transactions start fresh.",
+            explanation:
+              "The conversion date is the cut-off date when you switch to the new accounting system. All transactions before this date are summarized as opening balances. New transactions after this date are recorded in the new system.",
+            example:
+              "If converting on Jan 1, 2024, all 2023 transactions are summarized as opening balances, and 2024 transactions start fresh.",
           },
           account_mapping: {
             title: "Account Mapping",
-            explanation: "Account mapping links your imported accounts to the chart of accounts in the new system. This ensures data is correctly categorized and reports are accurate.",
-            example: "Your old 'Office Supplies' account maps to '6210 - Office Expenses' in the new chart of accounts.",
+            explanation:
+              "Account mapping links your imported accounts to the chart of accounts in the new system. This ensures data is correctly categorized and reports are accurate.",
+            example:
+              "Your old 'Office Supplies' account maps to '6210 - Office Expenses' in the new chart of accounts.",
           },
           subledger: {
             title: "Subledger Detail",
-            explanation: "Subledgers provide detailed breakdown of control accounts. Accounts Receivable subledger shows individual customer balances, and Accounts Payable shows vendor balances.",
-            example: "AR Control: RM 50,000 = Customer A: RM 20,000 + Customer B: RM 30,000",
+            explanation:
+              "Subledgers provide detailed breakdown of control accounts. Accounts Receivable subledger shows individual customer balances, and Accounts Payable shows vendor balances.",
+            example:
+              "AR Control: RM 50,000 = Customer A: RM 20,000 + Customer B: RM 30,000",
           },
           payroll_ytd: {
             title: "Payroll Year-to-Date (YTD)",
-            explanation: "When migrating mid-year, you need to enter YTD payroll figures for accurate statutory calculations. This includes gross salary, EPF, SOCSO, EIS, and PCB already paid.",
-            example: "If an employee earned RM 30,000 Jan-Jun, their PCB calculation for Jul onwards needs to know this YTD amount.",
+            explanation:
+              "When migrating mid-year, you need to enter YTD payroll figures for accurate statutory calculations. This includes gross salary, EPF, SOCSO, EIS, and PCB already paid.",
+            example:
+              "If an employee earned RM 30,000 Jan-Jun, their PCB calculation for Jul onwards needs to know this YTD amount.",
           },
           double_entry: {
             title: "Double-Entry Bookkeeping",
-            explanation: "Every transaction affects at least two accounts - a debit and a credit of equal amounts. Assets and expenses increase with debits; liabilities, equity, and revenue increase with credits.",
-            example: "Buying supplies (RM 100): Debit 'Office Supplies' RM 100, Credit 'Cash' RM 100.",
+            explanation:
+              "Every transaction affects at least two accounts - a debit and a credit of equal amounts. Assets and expenses increase with debits; liabilities, equity, and revenue increase with credits.",
+            example:
+              "Buying supplies (RM 100): Debit 'Office Supplies' RM 100, Credit 'Cash' RM 100.",
           },
           chart_of_accounts: {
             title: "Chart of Accounts",
-            explanation: "The chart of accounts is a categorized list of all accounts used to record transactions. It's organized by type: Assets (1xxx), Liabilities (2xxx), Equity (3xxx), Revenue (4xxx), Expenses (5-6xxx).",
-            example: "1010 - Cash, 2010 - Accounts Payable, 4010 - Sales Revenue, 6010 - Salaries Expense",
+            explanation:
+              "The chart of accounts is a categorized list of all accounts used to record transactions. It's organized by type: Assets (1xxx), Liabilities (2xxx), Equity (3xxx), Revenue (4xxx), Expenses (5-6xxx).",
+            example:
+              "1010 - Cash, 2010 - Accounts Payable, 4010 - Sales Revenue, 6010 - Salaries Expense",
           },
         };
 
-        return explanations[concept] ?? { title: "Unknown Concept", explanation: "I don't have information about this concept." };
+        return (
+          explanations[concept] ?? {
+            title: "Unknown Concept",
+            explanation: "I don't have information about this concept.",
+          }
+        );
       },
     }),
 
     getMigrationHelp: tool({
-      description: "Get contextual help for the migration wizard. Use this when users ask for help or are stuck.",
+      description:
+        "Get contextual help for the migration wizard. Use this when users ask for help or are stuck.",
       inputSchema: z.object({
-        currentStep: z.string().optional().describe("The current wizard step the user is on"),
-        issue: z.string().optional().describe("Specific issue the user is facing"),
+        currentStep: z
+          .string()
+          .optional()
+          .describe("The current wizard step the user is on"),
+        issue: z
+          .string()
+          .optional()
+          .describe("Specific issue the user is facing"),
       }),
       execute: async ({ currentStep, issue }) => {
-        const stepGuides: Record<string, { title: string; instructions: string[]; tips: string[] }> = {
+        const stepGuides: Record<
+          string,
+          { title: string; instructions: string[]; tips: string[] }
+        > = {
           welcome: {
             title: "Welcome - Choose Source System",
             instructions: [
@@ -3569,11 +5274,25 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           currentStep,
           guide,
           commonIssues: [
-            { issue: "Trial balance doesn't balance", solution: "Check that you haven't mixed up debits and credits. Assets, expenses = debit. Liabilities, equity, revenue = credit." },
-            { issue: "Can't find account to map to", solution: "Create a new account in Chart of Accounts, or map to the closest existing account." },
-            { issue: "Import CSV not working", solution: "Ensure your CSV has headers matching our template. Download the template first." },
+            {
+              issue: "Trial balance doesn't balance",
+              solution:
+                "Check that you haven't mixed up debits and credits. Assets, expenses = debit. Liabilities, equity, revenue = credit.",
+            },
+            {
+              issue: "Can't find account to map to",
+              solution:
+                "Create a new account in Chart of Accounts, or map to the closest existing account.",
+            },
+            {
+              issue: "Import CSV not working",
+              solution:
+                "Ensure your CSV has headers matching our template. Download the template first.",
+            },
           ],
-          specificHelp: issue ? `For "${issue}", please provide more details about what you're trying to do.` : null,
+          specificHelp: issue
+            ? `For "${issue}", please provide more details about what you're trying to do.`
+            : null,
         };
       },
     }),
@@ -3583,17 +5302,28 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     // ============================================
 
     listCreditNotes: tool({
-      description: "List credit notes with optional filters. Credit notes are used to reduce amounts owed by customers (e.g., for returns, discounts, pricing errors).",
+      description:
+        "List credit notes with optional filters. Credit notes are used to reduce amounts owed by customers (e.g., for returns, discounts, pricing errors).",
       inputSchema: z.object({
-        limit: z.number().max(50).optional().describe("Number of credit notes to return (default 20, max 50)"),
-        status: z.enum(["draft", "issued", "applied", "cancelled"]).optional().describe("Filter by status"),
+        limit: z
+          .number()
+          .max(50)
+          .optional()
+          .describe("Number of credit notes to return (default 20, max 50)"),
+        status: z
+          .enum(["draft", "issued", "applied", "cancelled"])
+          .optional()
+          .describe("Filter by status"),
       }),
       execute: async ({ limit = 20, status }) => {
         return withToolTimeout("listCreditNotes", async () => {
           try {
             const userCreditNotes = await db.query.creditNotes.findMany({
               where: status
-                ? and(eq(creditNotes.userId, user.id), eq(creditNotes.status, status))
+                ? and(
+                    eq(creditNotes.userId, user.id),
+                    eq(creditNotes.status, status)
+                  )
                 : eq(creditNotes.userId, user.id),
               with: {
                 customer: true,
@@ -3612,7 +5342,11 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
               creditNotes: userCreditNotes.map((cn) => {
                 const details = cn.creditNoteFields?.creditNoteDetails;
                 const items = cn.creditNoteFields?.items ?? [];
-                const total = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+                const total = items.reduce(
+                  (sum, item) =>
+                    sum + Number(item.quantity) * Number(item.unitPrice),
+                  0
+                );
                 const currency = details?.currency ?? "MYR";
                 return {
                   id: cn.id,
@@ -3623,7 +5357,9 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
                   status: cn.status,
                   reason: cn.reason,
                   originalInvoiceNumber: details?.originalInvoiceNumber ?? null,
-                  date: details?.date ? new Date(details.date).toLocaleDateString() : null,
+                  date: details?.date
+                    ? new Date(details.date).toLocaleDateString()
+                    : null,
                   createdAt: new Date(cn.createdAt).toLocaleDateString(),
                 };
               }),
@@ -3638,14 +5374,18 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     getCreditNoteDetails: tool({
-      description: "Get detailed information about a specific credit note by ID.",
+      description:
+        "Get detailed information about a specific credit note by ID.",
       inputSchema: z.object({
         creditNoteId: z.string().describe("The credit note ID to look up"),
       }),
       execute: async ({ creditNoteId }) => {
         try {
           const creditNote = await db.query.creditNotes.findFirst({
-            where: and(eq(creditNotes.id, creditNoteId), eq(creditNotes.userId, user.id)),
+            where: and(
+              eq(creditNotes.id, creditNoteId),
+              eq(creditNotes.userId, user.id)
+            ),
             with: {
               customer: true,
               invoice: true,
@@ -3668,7 +5408,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           const fields = creditNote.creditNoteFields;
           const details = fields?.creditNoteDetails;
           const items = fields?.items ?? [];
-          const total = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+          const total = items.reduce(
+            (sum, item) => sum + Number(item.quantity) * Number(item.unitPrice),
+            0
+          );
           const currency = details?.currency ?? "MYR";
 
           return {
@@ -3677,24 +5420,34 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             status: creditNote.status,
             reason: creditNote.reason,
             reasonDescription: creditNote.reasonDescription,
-            customerName: creditNote.customer?.name ?? fields?.clientDetails?.name ?? "Unknown",
+            customerName:
+              creditNote.customer?.name ??
+              fields?.clientDetails?.name ??
+              "Unknown",
             customerAddress: fields?.clientDetails?.address ?? "",
             companyName: fields?.companyDetails?.name ?? "",
             originalInvoiceNumber: details?.originalInvoiceNumber ?? null,
-            date: details?.date ? new Date(details.date).toLocaleDateString() : null,
+            date: details?.date
+              ? new Date(details.date).toLocaleDateString()
+              : null,
             items: items.map((item) => ({
               name: item.name,
               description: item.description,
               quantity: Number(item.quantity),
               unitPrice: formatCurrency(Number(item.unitPrice), currency),
-              total: formatCurrency(Number(item.quantity) * Number(item.unitPrice), currency),
+              total: formatCurrency(
+                Number(item.quantity) * Number(item.unitPrice),
+                currency
+              ),
             })),
             subtotal: formatCurrency(total, currency),
             total: formatCurrency(total, currency),
             currency,
             notes: fields?.metadata?.notes ?? "",
             terms: fields?.metadata?.terms ?? "",
-            issuedAt: creditNote.issuedAt ? new Date(creditNote.issuedAt).toLocaleDateString() : null,
+            issuedAt: creditNote.issuedAt
+              ? new Date(creditNote.issuedAt).toLocaleDateString()
+              : null,
             createdAt: new Date(creditNote.createdAt).toLocaleDateString(),
           };
         } catch (error) {
@@ -3709,17 +5462,28 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     // ============================================
 
     listDebitNotes: tool({
-      description: "List debit notes with optional filters. Debit notes are used to increase amounts owed by customers (e.g., for undercharges, additional services).",
+      description:
+        "List debit notes with optional filters. Debit notes are used to increase amounts owed by customers (e.g., for undercharges, additional services).",
       inputSchema: z.object({
-        limit: z.number().max(50).optional().describe("Number of debit notes to return (default 20, max 50)"),
-        status: z.enum(["draft", "issued", "applied", "cancelled"]).optional().describe("Filter by status"),
+        limit: z
+          .number()
+          .max(50)
+          .optional()
+          .describe("Number of debit notes to return (default 20, max 50)"),
+        status: z
+          .enum(["draft", "issued", "applied", "cancelled"])
+          .optional()
+          .describe("Filter by status"),
       }),
       execute: async ({ limit = 20, status }) => {
         return withToolTimeout("listDebitNotes", async () => {
           try {
             const userDebitNotes = await db.query.debitNotes.findMany({
               where: status
-                ? and(eq(debitNotes.userId, user.id), eq(debitNotes.status, status))
+                ? and(
+                    eq(debitNotes.userId, user.id),
+                    eq(debitNotes.status, status)
+                  )
                 : eq(debitNotes.userId, user.id),
               with: {
                 customer: true,
@@ -3738,7 +5502,11 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
               debitNotes: userDebitNotes.map((dn) => {
                 const details = dn.debitNoteFields?.debitNoteDetails;
                 const items = dn.debitNoteFields?.items ?? [];
-                const total = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+                const total = items.reduce(
+                  (sum, item) =>
+                    sum + Number(item.quantity) * Number(item.unitPrice),
+                  0
+                );
                 const currency = details?.currency ?? "MYR";
                 return {
                   id: dn.id,
@@ -3749,7 +5517,9 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
                   status: dn.status,
                   reason: dn.reason,
                   originalInvoiceNumber: details?.originalInvoiceNumber ?? null,
-                  date: details?.date ? new Date(details.date).toLocaleDateString() : null,
+                  date: details?.date
+                    ? new Date(details.date).toLocaleDateString()
+                    : null,
                   createdAt: new Date(dn.createdAt).toLocaleDateString(),
                 };
               }),
@@ -3764,14 +5534,18 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     getDebitNoteDetails: tool({
-      description: "Get detailed information about a specific debit note by ID.",
+      description:
+        "Get detailed information about a specific debit note by ID.",
       inputSchema: z.object({
         debitNoteId: z.string().describe("The debit note ID to look up"),
       }),
       execute: async ({ debitNoteId }) => {
         try {
           const debitNote = await db.query.debitNotes.findFirst({
-            where: and(eq(debitNotes.id, debitNoteId), eq(debitNotes.userId, user.id)),
+            where: and(
+              eq(debitNotes.id, debitNoteId),
+              eq(debitNotes.userId, user.id)
+            ),
             with: {
               customer: true,
               invoice: true,
@@ -3794,7 +5568,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           const fields = debitNote.debitNoteFields;
           const details = fields?.debitNoteDetails;
           const items = fields?.items ?? [];
-          const total = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+          const total = items.reduce(
+            (sum, item) => sum + Number(item.quantity) * Number(item.unitPrice),
+            0
+          );
           const currency = details?.currency ?? "MYR";
 
           return {
@@ -3803,24 +5580,34 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             status: debitNote.status,
             reason: debitNote.reason,
             reasonDescription: debitNote.reasonDescription,
-            customerName: debitNote.customer?.name ?? fields?.clientDetails?.name ?? "Unknown",
+            customerName:
+              debitNote.customer?.name ??
+              fields?.clientDetails?.name ??
+              "Unknown",
             customerAddress: fields?.clientDetails?.address ?? "",
             companyName: fields?.companyDetails?.name ?? "",
             originalInvoiceNumber: details?.originalInvoiceNumber ?? null,
-            date: details?.date ? new Date(details.date).toLocaleDateString() : null,
+            date: details?.date
+              ? new Date(details.date).toLocaleDateString()
+              : null,
             items: items.map((item) => ({
               name: item.name,
               description: item.description,
               quantity: Number(item.quantity),
               unitPrice: formatCurrency(Number(item.unitPrice), currency),
-              total: formatCurrency(Number(item.quantity) * Number(item.unitPrice), currency),
+              total: formatCurrency(
+                Number(item.quantity) * Number(item.unitPrice),
+                currency
+              ),
             })),
             subtotal: formatCurrency(total, currency),
             total: formatCurrency(total, currency),
             currency,
             notes: fields?.metadata?.notes ?? "",
             terms: fields?.metadata?.terms ?? "",
-            issuedAt: debitNote.issuedAt ? new Date(debitNote.issuedAt).toLocaleDateString() : null,
+            issuedAt: debitNote.issuedAt
+              ? new Date(debitNote.issuedAt).toLocaleDateString()
+              : null,
             createdAt: new Date(debitNote.createdAt).toLocaleDateString(),
           };
         } catch (error) {
@@ -3841,34 +5628,50 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
       }),
       execute: async ({ quotationId }) => {
         try {
-          const quotation = await quotationRepository.findById(quotationId, user.id);
+          const quotation = await quotationRepository.findById(
+            quotationId,
+            user.id
+          );
           if (!quotation) {
             return { error: "Quotation not found" };
           }
 
           const items = quotation.quotationFields?.items ?? [];
-          const total = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
-          const currency = quotation.quotationFields?.quotationDetails?.currency ?? "MYR";
+          const total = items.reduce(
+            (sum, item) => sum + Number(item.quantity) * Number(item.unitPrice),
+            0
+          );
+          const currency =
+            quotation.quotationFields?.quotationDetails?.currency ?? "MYR";
 
           return {
             id: quotation.id,
             serialNumber: `${quotation.quotationFields?.quotationDetails?.prefix ?? ""}${quotation.quotationFields?.quotationDetails?.serialNumber ?? ""}`,
             status: quotation.status,
-            clientName: quotation.quotationFields?.clientDetails?.name ?? "Unknown",
-            clientAddress: quotation.quotationFields?.clientDetails?.address ?? "",
+            clientName:
+              quotation.quotationFields?.clientDetails?.name ?? "Unknown",
+            clientAddress:
+              quotation.quotationFields?.clientDetails?.address ?? "",
             companyName: quotation.quotationFields?.companyDetails?.name ?? "",
             date: quotation.quotationFields?.quotationDetails?.date
-              ? new Date(quotation.quotationFields.quotationDetails.date).toLocaleDateString()
+              ? new Date(
+                  quotation.quotationFields.quotationDetails.date
+                ).toLocaleDateString()
               : "",
             validUntil: quotation.quotationFields?.quotationDetails?.validUntil
-              ? new Date(quotation.quotationFields.quotationDetails.validUntil).toLocaleDateString()
+              ? new Date(
+                  quotation.quotationFields.quotationDetails.validUntil
+                ).toLocaleDateString()
               : "No expiry",
             items: items.map((item) => ({
               name: item.name,
               description: item.description,
               quantity: Number(item.quantity),
               unitPrice: formatCurrency(Number(item.unitPrice), currency),
-              total: formatCurrency(Number(item.quantity) * Number(item.unitPrice), currency),
+              total: formatCurrency(
+                Number(item.quantity) * Number(item.unitPrice),
+                currency
+              ),
             })),
             subtotal: formatCurrency(total, currency),
             total: formatCurrency(total, currency),
@@ -3907,20 +5710,31 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             vendorName: bill.vendor?.name ?? "Unknown",
             description: bill.description,
             billDate: new Date(bill.billDate).toLocaleDateString(),
-            dueDate: bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : "No due date",
+            dueDate: bill.dueDate
+              ? new Date(bill.dueDate).toLocaleDateString()
+              : "No due date",
             subtotal: formatCurrency(Number(bill.subtotal ?? 0), bill.currency),
-            taxAmount: formatCurrency(Number(bill.taxAmount ?? 0), bill.currency),
+            taxAmount: formatCurrency(
+              Number(bill.taxAmount ?? 0),
+              bill.currency
+            ),
             total: formatCurrency(Number(bill.total ?? 0), bill.currency),
             currency: bill.currency,
             paymentTerms: bill.paymentTerms,
             notes: bill.notes,
-            items: bill.items?.map((item) => ({
-              description: item.description,
-              quantity: Number(item.quantity ?? 1),
-              unitPrice: formatCurrency(Number(item.unitPrice ?? 0), bill.currency),
-              amount: formatCurrency(Number(item.amount ?? 0), bill.currency),
-            })) ?? [],
-            paidAt: bill.paidAt ? new Date(bill.paidAt).toLocaleDateString() : null,
+            items:
+              bill.items?.map((item) => ({
+                description: item.description,
+                quantity: Number(item.quantity ?? 1),
+                unitPrice: formatCurrency(
+                  Number(item.unitPrice ?? 0),
+                  bill.currency
+                ),
+                amount: formatCurrency(Number(item.amount ?? 0), bill.currency),
+              })) ?? [],
+            paidAt: bill.paidAt
+              ? new Date(bill.paidAt).toLocaleDateString()
+              : null,
             createdAt: new Date(bill.createdAt).toLocaleDateString(),
           };
         } catch (error) {
@@ -3935,10 +5749,18 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     // ============================================
 
     listJournalEntries: tool({
-      description: "List journal entries with optional filters. Use this to view manual entries, posted transactions, or find specific entries.",
+      description:
+        "List journal entries with optional filters. Use this to view manual entries, posted transactions, or find specific entries.",
       inputSchema: z.object({
-        limit: z.number().max(50).optional().describe("Number of entries to return (default 20, max 50)"),
-        status: z.enum(["draft", "posted", "reversed"]).optional().describe("Filter by status"),
+        limit: z
+          .number()
+          .max(50)
+          .optional()
+          .describe("Number of entries to return (default 20, max 50)"),
+        status: z
+          .enum(["draft", "posted", "reversed"])
+          .optional()
+          .describe("Filter by status"),
       }),
       execute: async ({ limit = 20, status }) => {
         return withToolTimeout("listJournalEntries", async () => {
@@ -3946,7 +5768,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             const { journalEntries } = await import("@open-bookkeeping/db");
             const entries = await db.query.journalEntries.findMany({
               where: status
-                ? and(eq(journalEntries.userId, user.id), eq(journalEntries.status, status))
+                ? and(
+                    eq(journalEntries.userId, user.id),
+                    eq(journalEntries.status, status)
+                  )
                 : eq(journalEntries.userId, user.id),
               with: { lines: { with: { account: true } } },
               limit,
@@ -3975,7 +5800,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     getJournalEntryDetails: tool({
-      description: "Get detailed information about a specific journal entry including all debit/credit lines.",
+      description:
+        "Get detailed information about a specific journal entry including all debit/credit lines.",
       inputSchema: z.object({
         entryId: z.string().describe("The journal entry ID to look up"),
       }),
@@ -3983,7 +5809,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         try {
           const { journalEntries } = await import("@open-bookkeeping/db");
           const entry = await db.query.journalEntries.findFirst({
-            where: and(eq(journalEntries.id, entryId), eq(journalEntries.userId, user.id)),
+            where: and(
+              eq(journalEntries.id, entryId),
+              eq(journalEntries.userId, user.id)
+            ),
             with: { lines: { with: { account: true } } },
           });
 
@@ -4001,13 +5830,22 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
               accountCode: line.account?.code ?? "",
               accountName: line.account?.name ?? "",
               description: line.description,
-              debit: Number(line.debitAmount ?? 0) > 0 ? formatCurrency(Number(line.debitAmount)) : null,
-              credit: Number(line.creditAmount ?? 0) > 0 ? formatCurrency(Number(line.creditAmount)) : null,
+              debit:
+                Number(line.debitAmount ?? 0) > 0
+                  ? formatCurrency(Number(line.debitAmount))
+                  : null,
+              credit:
+                Number(line.creditAmount ?? 0) > 0
+                  ? formatCurrency(Number(line.creditAmount))
+                  : null,
             })),
             totalDebit: formatCurrency(Number(entry.totalDebit ?? 0)),
             totalCredit: formatCurrency(Number(entry.totalCredit ?? 0)),
-            isBalanced: Number(entry.totalDebit ?? 0) === Number(entry.totalCredit ?? 0),
-            postedAt: entry.postedAt ? new Date(entry.postedAt).toLocaleDateString() : null,
+            isBalanced:
+              Number(entry.totalDebit ?? 0) === Number(entry.totalCredit ?? 0),
+            postedAt: entry.postedAt
+              ? new Date(entry.postedAt).toLocaleDateString()
+              : null,
             createdAt: new Date(entry.createdAt).toLocaleDateString(),
           };
         } catch (error) {
@@ -4022,7 +5860,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     // ============================================
 
     getAccountDetails: tool({
-      description: "Get detailed information about a specific account from the chart of accounts.",
+      description:
+        "Get detailed information about a specific account from the chart of accounts.",
       inputSchema: z.object({
         accountId: z.string().describe("The account ID to look up"),
       }),
@@ -4041,7 +5880,11 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             subType: account.subType,
             description: account.description,
             isActive: account.isActive,
-            normalBalance: ["asset", "expense"].includes(account.accountType ?? "") ? "debit" : "credit",
+            normalBalance: ["asset", "expense"].includes(
+              account.accountType ?? ""
+            )
+              ? "debit"
+              : "credit",
             createdAt: new Date(account.createdAt).toLocaleDateString(),
           };
         } catch (error) {
@@ -4058,7 +5901,11 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     listBankAccounts: tool({
       description: "List all bank accounts connected for bank feeds.",
       inputSchema: z.object({
-        limit: z.number().max(20).optional().describe("Number of accounts to return (default 10)"),
+        limit: z
+          .number()
+          .max(20)
+          .optional()
+          .describe("Number of accounts to return (default 10)"),
       }),
       execute: async ({ limit = 10 }) => {
         return withToolTimeout("listBankAccounts", async () => {
@@ -4066,7 +5913,9 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             const accounts = await db.query.bankAccounts.findMany({
               where: eq(bankAccounts.userId, user.id),
               limit,
-              orderBy: (bankAccounts, { desc }) => [desc(bankAccounts.createdAt)],
+              orderBy: (bankAccounts, { desc }) => [
+                desc(bankAccounts.createdAt),
+              ],
             });
 
             return {
@@ -4074,9 +5923,13 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
                 id: acc.id,
                 name: acc.accountName,
                 bankName: acc.bankName,
-                accountNumber: acc.accountNumber ? `****${acc.accountNumber.slice(-4)}` : null,
+                accountNumber: acc.accountNumber
+                  ? `****${acc.accountNumber.slice(-4)}`
+                  : null,
                 currency: acc.currency,
-                openingBalance: acc.openingBalance ? formatCurrency(Number(acc.openingBalance), acc.currency) : null,
+                openingBalance: acc.openingBalance
+                  ? formatCurrency(Number(acc.openingBalance), acc.currency)
+                  : null,
                 isActive: acc.isActive,
               })),
               total: accounts.length,
@@ -4090,17 +5943,27 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     listBankTransactions: tool({
-      description: "List bank transactions with optional filters. Use this to view imported transactions or find unmatched transactions.",
+      description:
+        "List bank transactions with optional filters. Use this to view imported transactions or find unmatched transactions.",
       inputSchema: z.object({
-        bankAccountId: z.string().optional().describe("Filter by bank account ID"),
-        limit: z.number().max(100).optional().describe("Number of transactions to return (default 50)"),
+        bankAccountId: z
+          .string()
+          .optional()
+          .describe("Filter by bank account ID"),
+        limit: z
+          .number()
+          .max(100)
+          .optional()
+          .describe("Number of transactions to return (default 50)"),
       }),
       execute: async ({ bankAccountId, limit = 50 }) => {
         return withToolTimeout("listBankTransactions", async () => {
           try {
             const conditions = [eq(bankTransactions.userId, user.id)];
             if (bankAccountId) {
-              conditions.push(eq(bankTransactions.bankAccountId, bankAccountId));
+              conditions.push(
+                eq(bankTransactions.bankAccountId, bankAccountId)
+              );
             }
 
             const transactions = await db.query.bankTransactions.findMany({
@@ -4115,7 +5978,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
                 id: tx.id,
                 date: new Date(tx.transactionDate).toLocaleDateString(),
                 description: tx.description,
-                amount: formatCurrency(Number(tx.amount), tx.bankAccount?.currency ?? "MYR"),
+                amount: formatCurrency(
+                  Number(tx.amount),
+                  tx.bankAccount?.currency ?? "MYR"
+                ),
                 amountRaw: Number(tx.amount),
                 type: Number(tx.amount) >= 0 ? "credit" : "debit",
                 matchStatus: tx.matchStatus,
@@ -4136,7 +6002,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     // ============================================
 
     getBankAccountDetails: tool({
-      description: "Get detailed information about a specific bank account including balance summary and recent transactions.",
+      description:
+        "Get detailed information about a specific bank account including balance summary and recent transactions.",
       inputSchema: z.object({
         bankAccountId: z.string().describe("The bank account ID"),
       }),
@@ -4144,7 +6011,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         return withToolTimeout("getBankAccountDetails", async () => {
           try {
             const account = await db.query.bankAccounts.findFirst({
-              where: and(eq(bankAccounts.id, bankAccountId), eq(bankAccounts.userId, user.id)),
+              where: and(
+                eq(bankAccounts.id, bankAccountId),
+                eq(bankAccounts.userId, user.id)
+              ),
             });
 
             if (!account) {
@@ -4156,9 +6026,15 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
               where: eq(bankTransactions.bankAccountId, bankAccountId),
             });
 
-            const unmatchedCount = transactions.filter((tx) => tx.matchStatus === "unmatched").length;
-            const matchedCount = transactions.filter((tx) => tx.matchStatus === "matched").length;
-            const reconciledCount = transactions.filter((tx) => tx.isReconciled).length;
+            const unmatchedCount = transactions.filter(
+              (tx) => tx.matchStatus === "unmatched"
+            ).length;
+            const matchedCount = transactions.filter(
+              (tx) => tx.matchStatus === "matched"
+            ).length;
+            const reconciledCount = transactions.filter(
+              (tx) => tx.isReconciled
+            ).length;
 
             // Calculate current balance from transactions
             const totalDeposits = transactions
@@ -4167,17 +6043,28 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             const totalWithdrawals = transactions
               .filter((tx) => tx.type === "withdrawal")
               .reduce((sum, tx) => sum + Number(tx.amount), 0);
-            const calculatedBalance = Number(account.openingBalance ?? 0) + totalDeposits - totalWithdrawals;
+            const calculatedBalance =
+              Number(account.openingBalance ?? 0) +
+              totalDeposits -
+              totalWithdrawals;
 
             return {
               account: {
                 id: account.id,
                 name: account.accountName,
                 bankName: account.bankName,
-                accountNumber: account.accountNumber ? `****${account.accountNumber.slice(-4)}` : null,
+                accountNumber: account.accountNumber
+                  ? `****${account.accountNumber.slice(-4)}`
+                  : null,
                 currency: account.currency,
-                openingBalance: formatCurrency(Number(account.openingBalance ?? 0), account.currency),
-                currentBalance: formatCurrency(calculatedBalance, account.currency),
+                openingBalance: formatCurrency(
+                  Number(account.openingBalance ?? 0),
+                  account.currency
+                ),
+                currentBalance: formatCurrency(
+                  calculatedBalance,
+                  account.currency
+                ),
                 isActive: account.isActive,
               },
               summary: {
@@ -4197,10 +6084,13 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     matchBankTransaction: tool({
-      description: "Match a bank transaction to an invoice (for deposits) or bill (for withdrawals). This links the payment to the accounting record.",
+      description:
+        "Match a bank transaction to an invoice (for deposits) or bill (for withdrawals). This links the payment to the accounting record.",
       inputSchema: z.object({
         transactionId: z.string().describe("The bank transaction ID to match"),
-        matchType: z.enum(["invoice", "bill"]).describe("Type of document to match"),
+        matchType: z
+          .enum(["invoice", "bill"])
+          .describe("Type of document to match"),
         documentId: z.string().describe("The invoice or bill ID to match to"),
       }),
       execute: async ({ transactionId, matchType, documentId }) => {
@@ -4208,7 +6098,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
         try {
           const transaction = await db.query.bankTransactions.findFirst({
-            where: and(eq(bankTransactions.id, transactionId), eq(bankTransactions.userId, user.id)),
+            where: and(
+              eq(bankTransactions.id, transactionId),
+              eq(bankTransactions.userId, user.id)
+            ),
           });
 
           if (!transaction) {
@@ -4219,14 +6112,26 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             return { error: "Transaction is already matched" };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "match_transaction", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "match_transaction",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Matching transaction requires approval" };
+            return {
+              status: "approval_required",
+              message: "Matching transaction requires approval",
+            };
           }
 
           // Validate the document exists
           if (matchType === "invoice") {
-            const invoice = await invoiceRepository.findById(documentId, user.id);
+            // Use V2 repository
+            const invoice = await invoiceV2Repository.findById(
+              documentId,
+              user.id
+            );
             if (!invoice) {
               return { error: "Invoice not found" };
             }
@@ -4240,11 +6145,19 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
               })
               .where(eq(bankTransactions.id, transactionId));
 
-            await logToolAudit(user.id, session?.id, "match_transaction", toolArgs, { matched: true }, true);
+            await logToolAudit(
+              user.id,
+              session?.id,
+              "match_transaction",
+              toolArgs,
+              { matched: true },
+              true
+            );
 
+            const invoiceNumber = `${invoice.prefix}${invoice.serialNumber}`;
             return {
               status: "success",
-              message: `Transaction matched to invoice #${invoice.invoiceNumber}`,
+              message: `Transaction matched to invoice #${invoiceNumber}`,
             };
           } else {
             const bill = await db.query.bills.findFirst({
@@ -4264,7 +6177,14 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
               })
               .where(eq(bankTransactions.id, transactionId));
 
-            await logToolAudit(user.id, session?.id, "match_transaction", toolArgs, { matched: true }, true);
+            await logToolAudit(
+              user.id,
+              session?.id,
+              "match_transaction",
+              toolArgs,
+              { matched: true },
+              true
+            );
 
             return {
               status: "success",
@@ -4279,16 +6199,22 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     unmatchBankTransaction: tool({
-      description: "Remove the match from a bank transaction. Use this when a transaction was incorrectly matched.",
+      description:
+        "Remove the match from a bank transaction. Use this when a transaction was incorrectly matched.",
       inputSchema: z.object({
-        transactionId: z.string().describe("The bank transaction ID to unmatch"),
+        transactionId: z
+          .string()
+          .describe("The bank transaction ID to unmatch"),
       }),
       execute: async ({ transactionId }) => {
         const toolArgs = { transactionId };
 
         try {
           const transaction = await db.query.bankTransactions.findFirst({
-            where: and(eq(bankTransactions.id, transactionId), eq(bankTransactions.userId, user.id)),
+            where: and(
+              eq(bankTransactions.id, transactionId),
+              eq(bankTransactions.userId, user.id)
+            ),
           });
 
           if (!transaction) {
@@ -4315,7 +6241,14 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             })
             .where(eq(bankTransactions.id, transactionId));
 
-          await logToolAudit(user.id, session?.id, "match_transaction", toolArgs, { unmatched: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "match_transaction",
+            toolArgs,
+            { unmatched: true },
+            true
+          );
 
           return { status: "success", message: "Transaction match removed" };
         } catch (error) {
@@ -4326,16 +6259,22 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     reconcileBankTransaction: tool({
-      description: "Mark a matched bank transaction as reconciled. This confirms the transaction has been verified against accounting records.",
+      description:
+        "Mark a matched bank transaction as reconciled. This confirms the transaction has been verified against accounting records.",
       inputSchema: z.object({
-        transactionId: z.string().describe("The bank transaction ID to reconcile"),
+        transactionId: z
+          .string()
+          .describe("The bank transaction ID to reconcile"),
       }),
       execute: async ({ transactionId }) => {
         const toolArgs = { transactionId };
 
         try {
           const transaction = await db.query.bankTransactions.findFirst({
-            where: and(eq(bankTransactions.id, transactionId), eq(bankTransactions.userId, user.id)),
+            where: and(
+              eq(bankTransactions.id, transactionId),
+              eq(bankTransactions.userId, user.id)
+            ),
           });
 
           if (!transaction) {
@@ -4350,9 +6289,17 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             return { error: "Transaction is already reconciled" };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "create_matching_entry", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "create_matching_entry",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Reconciling transaction requires approval" };
+            return {
+              status: "approval_required",
+              message: "Reconciling transaction requires approval",
+            };
           }
 
           await db
@@ -4364,9 +6311,19 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             })
             .where(eq(bankTransactions.id, transactionId));
 
-          await logToolAudit(user.id, session?.id, "create_matching_entry", toolArgs, { reconciled: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "create_matching_entry",
+            toolArgs,
+            { reconciled: true },
+            true
+          );
 
-          return { status: "success", message: "Transaction reconciled successfully" };
+          return {
+            status: "success",
+            message: "Transaction reconciled successfully",
+          };
         } catch (error) {
           logger.error({ error }, "reconcileBankTransaction failed");
           return { error: "Failed to reconcile transaction" };
@@ -4379,9 +6336,14 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     // ============================================
 
     listFixedAssets: tool({
-      description: "List all fixed assets with their current book values and depreciation status.",
+      description:
+        "List all fixed assets with their current book values and depreciation status.",
       inputSchema: z.object({
-        limit: z.number().max(50).optional().describe("Number of assets to return (default 20)"),
+        limit: z
+          .number()
+          .max(50)
+          .optional()
+          .describe("Number of assets to return (default 20)"),
       }),
       execute: async ({ limit = 20 }) => {
         return withToolTimeout("listFixedAssets", async () => {
@@ -4399,10 +6361,18 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
                 name: asset.name,
                 assetCode: asset.assetCode,
                 category: asset.category?.name ?? "Uncategorized",
-                acquisitionDate: asset.acquisitionDate ? new Date(asset.acquisitionDate).toLocaleDateString() : null,
-                acquisitionCost: formatCurrency(Number(asset.acquisitionCost ?? 0)),
-                netBookValue: formatCurrency(Number(asset.netBookValue ?? asset.acquisitionCost ?? 0)),
-                accumulatedDepreciation: formatCurrency(Number(asset.accumulatedDepreciation ?? 0)),
+                acquisitionDate: asset.acquisitionDate
+                  ? new Date(asset.acquisitionDate).toLocaleDateString()
+                  : null,
+                acquisitionCost: formatCurrency(
+                  Number(asset.acquisitionCost ?? 0)
+                ),
+                netBookValue: formatCurrency(
+                  Number(asset.netBookValue ?? asset.acquisitionCost ?? 0)
+                ),
+                accumulatedDepreciation: formatCurrency(
+                  Number(asset.accumulatedDepreciation ?? 0)
+                ),
                 status: asset.status,
                 usefulLifeMonths: asset.usefulLifeMonths,
                 depreciationMethod: asset.depreciationMethod,
@@ -4418,14 +6388,18 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     getFixedAssetDetails: tool({
-      description: "Get detailed information about a specific fixed asset including depreciation schedule.",
+      description:
+        "Get detailed information about a specific fixed asset including depreciation schedule.",
       inputSchema: z.object({
         assetId: z.string().describe("The fixed asset ID to look up"),
       }),
       execute: async ({ assetId }) => {
         try {
           const asset = await db.query.fixedAssets.findFirst({
-            where: and(eq(fixedAssets.id, assetId), eq(fixedAssets.userId, user.id)),
+            where: and(
+              eq(fixedAssets.id, assetId),
+              eq(fixedAssets.userId, user.id)
+            ),
             with: { category: true, vendor: true },
           });
 
@@ -4440,14 +6414,22 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             assetCode: asset.assetCode,
             category: asset.category?.name ?? "Uncategorized",
             location: asset.location,
-            acquisitionDate: asset.acquisitionDate ? new Date(asset.acquisitionDate).toLocaleDateString() : null,
+            acquisitionDate: asset.acquisitionDate
+              ? new Date(asset.acquisitionDate).toLocaleDateString()
+              : null,
             acquisitionCost: formatCurrency(Number(asset.acquisitionCost ?? 0)),
             salvageValue: formatCurrency(Number(asset.salvageValue ?? 0)),
-            netBookValue: formatCurrency(Number(asset.netBookValue ?? asset.acquisitionCost ?? 0)),
-            accumulatedDepreciation: formatCurrency(Number(asset.accumulatedDepreciation ?? 0)),
+            netBookValue: formatCurrency(
+              Number(asset.netBookValue ?? asset.acquisitionCost ?? 0)
+            ),
+            accumulatedDepreciation: formatCurrency(
+              Number(asset.accumulatedDepreciation ?? 0)
+            ),
             usefulLifeMonths: asset.usefulLifeMonths,
             depreciationMethod: asset.depreciationMethod,
-            depreciationStartDate: asset.depreciationStartDate ? new Date(asset.depreciationStartDate).toLocaleDateString() : null,
+            depreciationStartDate: asset.depreciationStartDate
+              ? new Date(asset.depreciationStartDate).toLocaleDateString()
+              : null,
             status: asset.status,
             serialNumber: asset.serialNumber,
             vendor: asset.vendor?.name ?? null,
@@ -4461,7 +6443,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     listFixedAssetCategories: tool({
-      description: "List all fixed asset categories with their default depreciation settings.",
+      description:
+        "List all fixed asset categories with their default depreciation settings.",
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -4492,20 +6475,36 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     // ============================================
 
     createFixedAsset: tool({
-      description: "Create a new fixed asset. Requires asset account, depreciation expense account, and accumulated depreciation account IDs.",
+      description:
+        "Create a new fixed asset. Requires asset account, depreciation expense account, and accumulated depreciation account IDs.",
       inputSchema: z.object({
         name: z.string().describe("Asset name"),
         description: z.string().optional().describe("Asset description"),
         categoryId: z.string().optional().describe("Asset category ID"),
         acquisitionDate: z.string().describe("Date acquired (YYYY-MM-DD)"),
         acquisitionCost: z.number().describe("Purchase cost"),
-        acquisitionMethod: z.enum(["purchase", "donation", "transfer", "lease_to_own"]).default("purchase"),
-        depreciationMethod: z.enum(["straight_line", "declining_balance", "double_declining"]).default("straight_line"),
-        usefulLifeMonths: z.number().describe("Useful life in months (e.g., 60 for 5 years)"),
-        salvageValue: z.number().default(0).describe("Residual value at end of life"),
-        assetAccountId: z.string().describe("Account ID for the asset (asset type)"),
-        depreciationExpenseAccountId: z.string().describe("Account ID for depreciation expense"),
-        accumulatedDepreciationAccountId: z.string().describe("Account ID for accumulated depreciation"),
+        acquisitionMethod: z
+          .enum(["purchase", "donation", "transfer", "lease_to_own"])
+          .default("purchase"),
+        depreciationMethod: z
+          .enum(["straight_line", "declining_balance", "double_declining"])
+          .default("straight_line"),
+        usefulLifeMonths: z
+          .number()
+          .describe("Useful life in months (e.g., 60 for 5 years)"),
+        salvageValue: z
+          .number()
+          .default(0)
+          .describe("Residual value at end of life"),
+        assetAccountId: z
+          .string()
+          .describe("Account ID for the asset (asset type)"),
+        depreciationExpenseAccountId: z
+          .string()
+          .describe("Account ID for depreciation expense"),
+        accumulatedDepreciationAccountId: z
+          .string()
+          .describe("Account ID for accumulated depreciation"),
         location: z.string().optional().describe("Physical location"),
         serialNumber: z.string().optional().describe("Serial number"),
       }),
@@ -4528,9 +6527,17 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         const toolArgs = { name, acquisitionDate, acquisitionCost };
 
         try {
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Creating fixed asset requires approval" };
+            return {
+              status: "approval_required",
+              message: "Creating fixed asset requires approval",
+            };
           }
 
           // Generate asset code
@@ -4568,7 +6575,14 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             })
             .returning();
 
-          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, { assetId: asset!.id }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs,
+            { assetId: asset!.id },
+            true
+          );
 
           return {
             status: "success",
@@ -4584,7 +6598,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     updateFixedAsset: tool({
-      description: "Update an existing fixed asset's information. Cannot change financial details after depreciation starts.",
+      description:
+        "Update an existing fixed asset's information. Cannot change financial details after depreciation starts.",
       inputSchema: z.object({
         assetId: z.string().describe("The fixed asset ID to update"),
         name: z.string().optional().describe("New asset name"),
@@ -4597,7 +6612,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
         try {
           const asset = await db.query.fixedAssets.findFirst({
-            where: and(eq(fixedAssets.id, assetId), eq(fixedAssets.userId, user.id)),
+            where: and(
+              eq(fixedAssets.id, assetId),
+              eq(fixedAssets.userId, user.id)
+            ),
           });
 
           if (!asset) {
@@ -4610,15 +6628,31 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
           const updateData: Record<string, unknown> = { updatedAt: new Date() };
           if (updates.name) updateData.name = updates.name;
-          if (updates.description !== undefined) updateData.description = updates.description;
-          if (updates.location !== undefined) updateData.location = updates.location;
-          if (updates.serialNumber !== undefined) updateData.serialNumber = updates.serialNumber;
+          if (updates.description !== undefined)
+            updateData.description = updates.description;
+          if (updates.location !== undefined)
+            updateData.location = updates.location;
+          if (updates.serialNumber !== undefined)
+            updateData.serialNumber = updates.serialNumber;
 
-          await db.update(fixedAssets).set(updateData).where(eq(fixedAssets.id, assetId));
+          await db
+            .update(fixedAssets)
+            .set(updateData)
+            .where(eq(fixedAssets.id, assetId));
 
-          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, { success: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs,
+            { success: true },
+            true
+          );
 
-          return { status: "success", message: `Fixed asset '${asset.name}' updated` };
+          return {
+            status: "success",
+            message: `Fixed asset '${asset.name}' updated`,
+          };
         } catch (error) {
           logger.error({ error }, "updateFixedAsset failed");
           return { error: "Failed to update fixed asset" };
@@ -4627,7 +6661,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     calculateDepreciation: tool({
-      description: "Calculate and preview depreciation for a fixed asset for a given year. Does not post to ledger.",
+      description:
+        "Calculate and preview depreciation for a fixed asset for a given year. Does not post to ledger.",
       inputSchema: z.object({
         assetId: z.string().describe("The fixed asset ID"),
         year: z.number().describe("The year to calculate depreciation for"),
@@ -4635,7 +6670,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
       execute: async ({ assetId, year }) => {
         try {
           const asset = await db.query.fixedAssets.findFirst({
-            where: and(eq(fixedAssets.id, assetId), eq(fixedAssets.userId, user.id)),
+            where: and(
+              eq(fixedAssets.id, assetId),
+              eq(fixedAssets.userId, user.id)
+            ),
           });
 
           if (!asset) {
@@ -4643,7 +6681,9 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           }
 
           if (asset.status !== "active") {
-            return { error: `Cannot calculate depreciation for asset with status '${asset.status}'` };
+            return {
+              error: `Cannot calculate depreciation for asset with status '${asset.status}'`,
+            };
           }
 
           const acquisitionCost = Number(asset.acquisitionCost);
@@ -4682,8 +6722,14 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             year,
             depreciationMethod: asset.depreciationMethod,
             annualDepreciation: formatCurrency(annualDepreciation, "MYR"),
-            currentAccumulatedDepreciation: formatCurrency(accumulatedDep, "MYR"),
-            newAccumulatedDepreciation: formatCurrency(newAccumulatedDep, "MYR"),
+            currentAccumulatedDepreciation: formatCurrency(
+              accumulatedDep,
+              "MYR"
+            ),
+            newAccumulatedDepreciation: formatCurrency(
+              newAccumulatedDep,
+              "MYR"
+            ),
             currentNetBookValue: formatCurrency(netBookValue, "MYR"),
             newNetBookValue: formatCurrency(newNetBookValue, "MYR"),
             isFullyDepreciated: newNetBookValue <= salvageValue,
@@ -4696,20 +6742,38 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     disposeFixedAsset: tool({
-      description: "Record the disposal of a fixed asset (sale, scrap, donation, or trade-in).",
+      description:
+        "Record the disposal of a fixed asset (sale, scrap, donation, or trade-in).",
       inputSchema: z.object({
         assetId: z.string().describe("The fixed asset ID to dispose"),
         disposalDate: z.string().describe("Date of disposal (YYYY-MM-DD)"),
-        disposalMethod: z.enum(["sale", "scrapped", "donation", "trade_in"]).describe("How the asset was disposed"),
-        proceeds: z.number().default(0).describe("Sale proceeds (0 for scrap/donation)"),
-        notes: z.string().optional().describe("Additional notes about disposal"),
+        disposalMethod: z
+          .enum(["sale", "scrapped", "donation", "trade_in"])
+          .describe("How the asset was disposed"),
+        proceeds: z
+          .number()
+          .default(0)
+          .describe("Sale proceeds (0 for scrap/donation)"),
+        notes: z
+          .string()
+          .optional()
+          .describe("Additional notes about disposal"),
       }),
-      execute: async ({ assetId, disposalDate, disposalMethod, proceeds, notes }) => {
+      execute: async ({
+        assetId,
+        disposalDate,
+        disposalMethod,
+        proceeds,
+        notes,
+      }) => {
         const toolArgs = { assetId, disposalDate, disposalMethod, proceeds };
 
         try {
           const asset = await db.query.fixedAssets.findFirst({
-            where: and(eq(fixedAssets.id, assetId), eq(fixedAssets.userId, user.id)),
+            where: and(
+              eq(fixedAssets.id, assetId),
+              eq(fixedAssets.userId, user.id)
+            ),
           });
 
           if (!asset) {
@@ -4720,9 +6784,17 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             return { error: "Asset has already been disposed" };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Disposing fixed asset requires approval" };
+            return {
+              status: "approval_required",
+              message: "Disposing fixed asset requires approval",
+            };
           }
 
           const netBookValueAtDisposal = Number(asset.netBookValue);
@@ -4754,13 +6826,23 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             })
             .where(eq(fixedAssets.id, assetId));
 
-          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, { disposalId: disposal!.id }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs,
+            { disposalId: disposal!.id },
+            true
+          );
 
           return {
             status: "success",
             disposalId: disposal!.id,
             message: `Fixed asset '${asset.name}' disposed via ${disposalMethod}`,
-            netBookValueAtDisposal: formatCurrency(netBookValueAtDisposal, "MYR"),
+            netBookValueAtDisposal: formatCurrency(
+              netBookValueAtDisposal,
+              "MYR"
+            ),
             proceeds: formatCurrency(proceeds, "MYR"),
             gainLoss: formatCurrency(gainLoss, "MYR"),
             isGain: gainLoss > 0,
@@ -4777,10 +6859,18 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     // ============================================
 
     listEmployees: tool({
-      description: "List all employees with their basic information and employment status.",
+      description:
+        "List all employees with their basic information and employment status.",
       inputSchema: z.object({
-        status: z.enum(["active", "probation", "terminated", "resigned", "retired"]).optional().describe("Filter by employment status"),
-        limit: z.number().max(100).optional().describe("Number of employees to return (default 50)"),
+        status: z
+          .enum(["active", "probation", "terminated", "resigned", "retired"])
+          .optional()
+          .describe("Filter by employment status"),
+        limit: z
+          .number()
+          .max(100)
+          .optional()
+          .describe("Number of employees to return (default 50)"),
       }),
       execute: async ({ status, limit = 50 }) => {
         return withToolTimeout("listEmployees", async () => {
@@ -4800,14 +6890,18 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
               employees: employeeList.map((emp) => ({
                 id: emp.id,
                 employeeCode: emp.employeeCode,
-                fullName: [emp.firstName, emp.lastName].filter(Boolean).join(" "),
+                fullName: [emp.firstName, emp.lastName]
+                  .filter(Boolean)
+                  .join(" "),
                 email: emp.email,
                 phone: emp.phone,
                 position: emp.position,
                 department: emp.department,
                 employmentType: emp.employmentType,
                 status: emp.status,
-                joinDate: emp.dateJoined ? new Date(emp.dateJoined).toLocaleDateString() : null,
+                joinDate: emp.dateJoined
+                  ? new Date(emp.dateJoined).toLocaleDateString()
+                  : null,
               })),
               total: employeeList.length,
             };
@@ -4820,14 +6914,18 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     getEmployeeDetails: tool({
-      description: "Get detailed information about a specific employee including statutory info.",
+      description:
+        "Get detailed information about a specific employee including statutory info.",
       inputSchema: z.object({
         employeeId: z.string().describe("The employee ID to look up"),
       }),
       execute: async ({ employeeId }) => {
         try {
           const employee = await db.query.employees.findFirst({
-            where: and(eq(employees.id, employeeId), eq(employees.userId, user.id)),
+            where: and(
+              eq(employees.id, employeeId),
+              eq(employees.userId, user.id)
+            ),
           });
 
           if (!employee) {
@@ -4837,18 +6935,28 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           return {
             id: employee.id,
             employeeCode: employee.employeeCode,
-            fullName: [employee.firstName, employee.lastName].filter(Boolean).join(" "),
+            fullName: [employee.firstName, employee.lastName]
+              .filter(Boolean)
+              .join(" "),
             email: employee.email,
             phone: employee.phone,
-            icNumber: employee.icNumber ? `****${employee.icNumber.slice(-4)}` : null,
+            icNumber: employee.icNumber
+              ? `****${employee.icNumber.slice(-4)}`
+              : null,
             position: employee.position,
             department: employee.department,
             employmentType: employee.employmentType,
             status: employee.status,
-            joinDate: employee.dateJoined ? new Date(employee.dateJoined).toLocaleDateString() : null,
-            resignationDate: employee.dateResigned ? new Date(employee.dateResigned).toLocaleDateString() : null,
+            joinDate: employee.dateJoined
+              ? new Date(employee.dateJoined).toLocaleDateString()
+              : null,
+            resignationDate: employee.dateResigned
+              ? new Date(employee.dateResigned).toLocaleDateString()
+              : null,
             bankName: employee.bankName,
-            bankAccountNumber: employee.bankAccountNumber ? `****${employee.bankAccountNumber.slice(-4)}` : null,
+            bankAccountNumber: employee.bankAccountNumber
+              ? `****${employee.bankAccountNumber.slice(-4)}`
+              : null,
             epfNumber: employee.epfNumber,
             socsoNumber: employee.socsoNumber,
             eisNumber: employee.eisNumber,
@@ -4869,8 +6977,23 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     listPayrollRuns: tool({
       description: "List payroll runs with their status and totals.",
       inputSchema: z.object({
-        status: z.enum(["draft", "approved", "calculating", "pending_review", "finalized", "paid", "cancelled"]).optional().describe("Filter by payroll status"),
-        limit: z.number().max(24).optional().describe("Number of payroll runs to return (default 12)"),
+        status: z
+          .enum([
+            "draft",
+            "approved",
+            "calculating",
+            "pending_review",
+            "finalized",
+            "paid",
+            "cancelled",
+          ])
+          .optional()
+          .describe("Filter by payroll status"),
+        limit: z
+          .number()
+          .max(24)
+          .optional()
+          .describe("Number of payroll runs to return (default 12)"),
       }),
       execute: async ({ status, limit = 12 }) => {
         return withToolTimeout("listPayrollRuns", async () => {
@@ -4890,13 +7013,23 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
               payrollRuns: runs.map((run) => ({
                 id: run.id,
                 name: run.name,
-                periodStart: run.periodStartDate ? new Date(run.periodStartDate).toLocaleDateString() : null,
-                periodEnd: run.periodEndDate ? new Date(run.periodEndDate).toLocaleDateString() : null,
+                periodStart: run.periodStartDate
+                  ? new Date(run.periodStartDate).toLocaleDateString()
+                  : null,
+                periodEnd: run.periodEndDate
+                  ? new Date(run.periodEndDate).toLocaleDateString()
+                  : null,
                 status: run.status,
-                totalGrossSalary: formatCurrency(Number(run.totalGrossSalary ?? 0)),
+                totalGrossSalary: formatCurrency(
+                  Number(run.totalGrossSalary ?? 0)
+                ),
                 totalNetSalary: formatCurrency(Number(run.totalNetSalary ?? 0)),
-                totalEpfEmployee: formatCurrency(Number(run.totalEpfEmployee ?? 0)),
-                totalEpfEmployer: formatCurrency(Number(run.totalEpfEmployer ?? 0)),
+                totalEpfEmployee: formatCurrency(
+                  Number(run.totalEpfEmployee ?? 0)
+                ),
+                totalEpfEmployer: formatCurrency(
+                  Number(run.totalEpfEmployer ?? 0)
+                ),
                 totalPcb: formatCurrency(Number(run.totalPcb ?? 0)),
                 createdAt: new Date(run.createdAt).toLocaleDateString(),
               })),
@@ -4935,8 +7068,14 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             id: paySlip.id,
             employeeName: paySlip.employeeName ?? "Unknown",
             employeeCode: paySlip.employeeCode ?? "",
-            periodStart: paySlip.payrollRun?.periodStartDate ? new Date(paySlip.payrollRun.periodStartDate).toLocaleDateString() : null,
-            periodEnd: paySlip.payrollRun?.periodEndDate ? new Date(paySlip.payrollRun.periodEndDate).toLocaleDateString() : null,
+            periodStart: paySlip.payrollRun?.periodStartDate
+              ? new Date(
+                  paySlip.payrollRun.periodStartDate
+                ).toLocaleDateString()
+              : null,
+            periodEnd: paySlip.payrollRun?.periodEndDate
+              ? new Date(paySlip.payrollRun.periodEndDate).toLocaleDateString()
+              : null,
             basicSalary: formatCurrency(Number(paySlip.baseSalary ?? 0)),
             grossSalary: formatCurrency(Number(paySlip.grossSalary ?? 0)),
             netSalary: formatCurrency(Number(paySlip.netSalary ?? 0)),
@@ -4945,7 +7084,9 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
               socsoEmployee: formatCurrency(Number(paySlip.socsoEmployee ?? 0)),
               eisEmployee: formatCurrency(Number(paySlip.eisEmployee ?? 0)),
               pcb: formatCurrency(Number(paySlip.pcb ?? 0)),
-              totalDeductions: formatCurrency(Number(paySlip.totalDeductions ?? 0)),
+              totalDeductions: formatCurrency(
+                Number(paySlip.totalDeductions ?? 0)
+              ),
             },
             employerContributions: {
               epfEmployer: formatCurrency(Number(paySlip.epfEmployer ?? 0)),
@@ -4966,7 +7107,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     // ============================================
 
     createEmployee: tool({
-      description: "Create a new employee record for payroll. Required fields: first name, date joined.",
+      description:
+        "Create a new employee record for payroll. Required fields: first name, date joined.",
       inputSchema: z.object({
         firstName: z.string().describe("Employee first name"),
         lastName: z.string().optional().describe("Employee last name"),
@@ -4976,9 +7118,14 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         dateJoined: z.string().describe("Date joined (YYYY-MM-DD)"),
         department: z.string().optional().describe("Department"),
         position: z.string().optional().describe("Job position"),
-        employmentType: z.enum(["full_time", "part_time", "contract", "intern"]).default("full_time"),
+        employmentType: z
+          .enum(["full_time", "part_time", "contract", "intern"])
+          .default("full_time"),
         bankName: z.string().optional().describe("Bank name for salary"),
-        bankAccountNumber: z.string().optional().describe("Bank account number"),
+        bankAccountNumber: z
+          .string()
+          .optional()
+          .describe("Bank account number"),
       }),
       execute: async ({
         firstName,
@@ -4996,9 +7143,17 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         const toolArgs = { firstName, lastName, dateJoined };
 
         try {
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "create_customer", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "create_customer",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Creating employee requires approval" };
+            return {
+              status: "approval_required",
+              message: "Creating employee requires approval",
+            };
           }
 
           // Generate employee code
@@ -5028,7 +7183,14 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             })
             .returning();
 
-          await logToolAudit(user.id, session?.id, "create_customer", toolArgs, { employeeId: employee!.id }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "create_customer",
+            toolArgs,
+            { employeeId: employee!.id },
+            true
+          );
 
           return {
             status: "success",
@@ -5053,15 +7215,24 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         phone: z.string().optional().describe("New phone number"),
         department: z.string().optional().describe("New department"),
         position: z.string().optional().describe("New position"),
-        status: z.enum(["active", "probation", "terminated", "resigned", "retired"]).optional().describe("Employment status"),
-        dateResigned: z.string().optional().describe("Resignation date if status is resigned/terminated"),
+        status: z
+          .enum(["active", "probation", "terminated", "resigned", "retired"])
+          .optional()
+          .describe("Employment status"),
+        dateResigned: z
+          .string()
+          .optional()
+          .describe("Resignation date if status is resigned/terminated"),
       }),
       execute: async ({ employeeId, ...updates }) => {
         const toolArgs = { employeeId, ...updates };
 
         try {
           const employee = await db.query.employees.findFirst({
-            where: and(eq(employees.id, employeeId), eq(employees.userId, user.id)),
+            where: and(
+              eq(employees.id, employeeId),
+              eq(employees.userId, user.id)
+            ),
           });
 
           if (!employee) {
@@ -5070,19 +7241,36 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
           const updateData: Record<string, unknown> = { updatedAt: new Date() };
           if (updates.firstName) updateData.firstName = updates.firstName;
-          if (updates.lastName !== undefined) updateData.lastName = updates.lastName;
+          if (updates.lastName !== undefined)
+            updateData.lastName = updates.lastName;
           if (updates.email !== undefined) updateData.email = updates.email;
           if (updates.phone !== undefined) updateData.phone = updates.phone;
-          if (updates.department !== undefined) updateData.department = updates.department;
-          if (updates.position !== undefined) updateData.position = updates.position;
+          if (updates.department !== undefined)
+            updateData.department = updates.department;
+          if (updates.position !== undefined)
+            updateData.position = updates.position;
           if (updates.status) updateData.status = updates.status;
-          if (updates.dateResigned) updateData.dateResigned = updates.dateResigned;
+          if (updates.dateResigned)
+            updateData.dateResigned = updates.dateResigned;
 
-          await db.update(employees).set(updateData).where(eq(employees.id, employeeId));
+          await db
+            .update(employees)
+            .set(updateData)
+            .where(eq(employees.id, employeeId));
 
-          await logToolAudit(user.id, session?.id, "update_customer", toolArgs, { success: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "update_customer",
+            toolArgs,
+            { success: true },
+            true
+          );
 
-          return { status: "success", message: `Employee ${employee.firstName} updated successfully` };
+          return {
+            status: "success",
+            message: `Employee ${employee.firstName} updated successfully`,
+          };
         } catch (error) {
           logger.error({ error }, "updateEmployee failed");
           return { error: "Failed to update employee" };
@@ -5091,7 +7279,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     listSalaryComponents: tool({
-      description: "List all salary components (earnings and deductions) configured for payroll.",
+      description:
+        "List all salary components (earnings and deductions) configured for payroll.",
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -5109,16 +7298,23 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
               name: c.name,
               type: c.componentType,
               calculationMethod: c.calculationMethod,
-              defaultAmount: c.defaultAmount ? formatCurrency(Number(c.defaultAmount)) : null,
-              defaultPercentage: c.defaultPercentage ? `${c.defaultPercentage}%` : null,
+              defaultAmount: c.defaultAmount
+                ? formatCurrency(Number(c.defaultAmount))
+                : null,
+              defaultPercentage: c.defaultPercentage
+                ? `${c.defaultPercentage}%`
+                : null,
               isEpfApplicable: c.isEpfApplicable,
               isSocsoApplicable: c.isSocsoApplicable,
               isEisApplicable: c.isEisApplicable,
               isPcbApplicable: c.isPcbApplicable,
               isActive: c.isActive,
             })),
-            earnings: components.filter((c) => c.componentType === "earnings").length,
-            deductions: components.filter((c) => c.componentType === "deductions").length,
+            earnings: components.filter((c) => c.componentType === "earnings")
+              .length,
+            deductions: components.filter(
+              (c) => c.componentType === "deductions"
+            ).length,
           };
         } catch (error) {
           logger.error({ error }, "listSalaryComponents failed");
@@ -5128,20 +7324,32 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     createPayrollRun: tool({
-      description: "Create a new payroll run for a specific month. This initializes the payroll batch.",
+      description:
+        "Create a new payroll run for a specific month. This initializes the payroll batch.",
       inputSchema: z.object({
         year: z.number().describe("Payroll year (e.g., 2024)"),
         month: z.number().min(1).max(12).describe("Payroll month (1-12)"),
         payDate: z.string().describe("Payment date (YYYY-MM-DD)"),
-        name: z.string().optional().describe("Optional name for the payroll run"),
+        name: z
+          .string()
+          .optional()
+          .describe("Optional name for the payroll run"),
       }),
       execute: async ({ year, month, payDate, name }) => {
         const toolArgs = { year, month, payDate };
 
         try {
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "create_journal_entry", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "create_journal_entry",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Creating payroll run requires approval" };
+            return {
+              status: "approval_required",
+              message: "Creating payroll run requires approval",
+            };
           }
 
           // Check if payroll run already exists for this period
@@ -5180,7 +7388,14 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             })
             .returning();
 
-          await logToolAudit(user.id, session?.id, "create_journal_entry", toolArgs, { payrollRunId: payrollRun!.id }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "create_journal_entry",
+            toolArgs,
+            { payrollRunId: payrollRun!.id },
+            true
+          );
 
           return {
             status: "success",
@@ -5196,11 +7411,14 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     calculateStatutoryDeductions: tool({
-      description: "Calculate EPF, SOCSO, EIS, and PCB deductions for a given salary. Useful for estimating employee take-home pay.",
+      description:
+        "Calculate EPF, SOCSO, EIS, and PCB deductions for a given salary. Useful for estimating employee take-home pay.",
       inputSchema: z.object({
         grossSalary: z.number().describe("Monthly gross salary in MYR"),
         age: z.number().optional().describe("Employee age (affects EPF rates)"),
-        nationality: z.enum(["malaysian", "permanent_resident", "foreign"]).default("malaysian"),
+        nationality: z
+          .enum(["malaysian", "permanent_resident", "foreign"])
+          .default("malaysian"),
       }),
       execute: async ({ grossSalary, age = 30, nationality }) => {
         try {
@@ -5208,7 +7426,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           // Below 60: 11% employee, 12%/13% employer
           // 60 and above: Different rates
           const epfEmployeeRate = age >= 60 ? 0.055 : 0.11;
-          const epfEmployerRate = age >= 60 ? 0.065 : (grossSalary > 5000 ? 0.12 : 0.13);
+          const epfEmployerRate =
+            age >= 60 ? 0.065 : grossSalary > 5000 ? 0.12 : 0.13;
 
           // SOCSO rates (simplified)
           // First Category: Employment Injury & Invalidity
@@ -5220,13 +7439,17 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           const eisEmployerRate = 0.002; // 0.2%
 
           // Calculate contributions
-          const epfEmployee = Math.round(grossSalary * epfEmployeeRate * 100) / 100;
-          const epfEmployer = Math.round(grossSalary * epfEmployerRate * 100) / 100;
+          const epfEmployee =
+            Math.round(grossSalary * epfEmployeeRate * 100) / 100;
+          const epfEmployer =
+            Math.round(grossSalary * epfEmployerRate * 100) / 100;
 
           // SOCSO is capped at RM5,000 wage
           const socsoWage = Math.min(grossSalary, 5000);
-          const socsoEmployee = Math.round(socsoWage * socsoEmployeeRate * 100) / 100;
-          const socsoEmployer = Math.round(socsoWage * socsoEmployerRate * 100) / 100;
+          const socsoEmployee =
+            Math.round(socsoWage * socsoEmployeeRate * 100) / 100;
+          const socsoEmployer =
+            Math.round(socsoWage * socsoEmployerRate * 100) / 100;
 
           // EIS is capped at RM5,000 wage
           const eisWage = Math.min(grossSalary, 5000);
@@ -5243,29 +7466,48 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           if (taxableIncome > 0) {
             // Simplified Malaysian tax brackets (2024)
             if (taxableIncome <= 5000) annualTax = 0;
-            else if (taxableIncome <= 20000) annualTax = (taxableIncome - 5000) * 0.01;
-            else if (taxableIncome <= 35000) annualTax = 150 + (taxableIncome - 20000) * 0.03;
-            else if (taxableIncome <= 50000) annualTax = 600 + (taxableIncome - 35000) * 0.06;
-            else if (taxableIncome <= 70000) annualTax = 1500 + (taxableIncome - 50000) * 0.11;
-            else if (taxableIncome <= 100000) annualTax = 3700 + (taxableIncome - 70000) * 0.19;
+            else if (taxableIncome <= 20000)
+              annualTax = (taxableIncome - 5000) * 0.01;
+            else if (taxableIncome <= 35000)
+              annualTax = 150 + (taxableIncome - 20000) * 0.03;
+            else if (taxableIncome <= 50000)
+              annualTax = 600 + (taxableIncome - 35000) * 0.06;
+            else if (taxableIncome <= 70000)
+              annualTax = 1500 + (taxableIncome - 50000) * 0.11;
+            else if (taxableIncome <= 100000)
+              annualTax = 3700 + (taxableIncome - 70000) * 0.19;
             else annualTax = 9400 + (taxableIncome - 100000) * 0.25;
           }
 
           const pcb = Math.round((annualTax / 12) * 100) / 100;
 
-          const totalEmployeeDeductions = epfEmployee + socsoEmployee + eisEmployee + pcb;
-          const totalEmployerContributions = epfEmployer + socsoEmployer + eisEmployer;
+          const totalEmployeeDeductions =
+            epfEmployee + socsoEmployee + eisEmployee + pcb;
+          const totalEmployerContributions =
+            epfEmployer + socsoEmployer + eisEmployer;
           const netSalary = grossSalary - totalEmployeeDeductions;
 
           return {
             grossSalary: formatCurrency(grossSalary),
             deductions: {
-              epf: { employee: formatCurrency(epfEmployee), employer: formatCurrency(epfEmployer), rate: `${epfEmployeeRate * 100}%` },
-              socso: { employee: formatCurrency(socsoEmployee), employer: formatCurrency(socsoEmployer) },
-              eis: { employee: formatCurrency(eisEmployee), employer: formatCurrency(eisEmployer) },
+              epf: {
+                employee: formatCurrency(epfEmployee),
+                employer: formatCurrency(epfEmployer),
+                rate: `${epfEmployeeRate * 100}%`,
+              },
+              socso: {
+                employee: formatCurrency(socsoEmployee),
+                employer: formatCurrency(socsoEmployer),
+              },
+              eis: {
+                employee: formatCurrency(eisEmployee),
+                employer: formatCurrency(eisEmployer),
+              },
               pcb: formatCurrency(pcb),
               totalEmployeeDeductions: formatCurrency(totalEmployeeDeductions),
-              totalEmployerContributions: formatCurrency(totalEmployerContributions),
+              totalEmployerContributions: formatCurrency(
+                totalEmployerContributions
+              ),
             },
             netSalary: formatCurrency(netSalary),
             note: "PCB is an estimate. Actual PCB depends on tax relief claims and other factors.",
@@ -5302,7 +7544,9 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             registrationNumber: vendor.registrationNumber,
             taxId: vendor.taxId,
             bankName: vendor.bankName,
-            bankAccountNumber: vendor.bankAccountNumber ? `****${vendor.bankAccountNumber.slice(-4)}` : null,
+            bankAccountNumber: vendor.bankAccountNumber
+              ? `****${vendor.bankAccountNumber.slice(-4)}`
+              : null,
             paymentTermsDays: vendor.paymentTermsDays,
             createdAt: new Date(vendor.createdAt).toLocaleDateString(),
           };
@@ -5317,7 +7561,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
       description: "Get all bills for a specific vendor.",
       inputSchema: z.object({
         vendorId: z.string().describe("The vendor ID"),
-        unpaidOnly: z.boolean().optional().describe("Return only unpaid bills (defaults to false)"),
+        unpaidOnly: z
+          .boolean()
+          .optional()
+          .describe("Return only unpaid bills (defaults to false)"),
       }),
       execute: async ({ vendorId, unpaidOnly = false }) => {
         try {
@@ -5342,7 +7589,9 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
               billNumber: bill.billNumber,
               amount: formatCurrency(Number(bill.total ?? 0), bill.currency),
               status: bill.status,
-              dueDate: bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : "No due date",
+              dueDate: bill.dueDate
+                ? new Date(bill.dueDate).toLocaleDateString()
+                : "No due date",
             })),
             totalBills: bills.length,
             totalUnpaid: bills.filter((b) => b.status !== "paid").length,
@@ -5365,14 +7614,23 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
       }),
       execute: async ({ customerId }) => {
         try {
-          const customer = await customerRepository.findById(customerId, user.id);
+          const customer = await customerRepository.findById(
+            customerId,
+            user.id
+          );
           if (!customer) {
             return { error: "Customer not found" };
           }
 
-          // Get customer invoice count
-          const invoices = await invoiceRepository.findByCustomer(customerId, user.id);
-          const unpaidCount = invoices.filter((i) => i.status === "pending").length;
+          // Get customer invoice count using V2
+          const invoices = await invoiceV2Repository.findByCustomer(
+            customerId,
+            user.id
+          );
+          // V2: unpaid means status is "open" or "uncollectible"
+          const unpaidCount = invoices.filter(
+            (i) => i.status === "open" || i.status === "uncollectible"
+          ).length;
 
           return {
             id: customer.id,
@@ -5400,27 +7658,52 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
     // Credit Note Operations
     createCreditNoteFromInvoice: tool({
-      description: "Create a credit note from an existing invoice. Use this when a customer returns goods or needs a refund/adjustment.",
+      description:
+        "Create a credit note from an existing invoice. Use this when a customer returns goods or needs a refund/adjustment.",
       inputSchema: z.object({
-        invoiceId: z.string().describe("The invoice ID to create credit note from"),
-        reason: z.enum(["return", "discount", "pricing_error", "damaged_goods", "other"]).describe("Reason for the credit note"),
-        reasonDescription: z.string().optional().describe("Additional description for the reason"),
+        invoiceId: z
+          .string()
+          .describe("The invoice ID to create credit note from"),
+        reason: z
+          .enum([
+            "return",
+            "discount",
+            "pricing_error",
+            "damaged_goods",
+            "other",
+          ])
+          .describe("Reason for the credit note"),
+        reasonDescription: z
+          .string()
+          .optional()
+          .describe("Additional description for the reason"),
       }),
       execute: async ({ invoiceId, reason, reasonDescription }) => {
         const toolArgs = { invoiceId, reason, reasonDescription };
 
         try {
-          const invoice = await invoiceRepository.findById(invoiceId, user.id);
+          // Use V2 repository
+          const invoice = await invoiceV2Repository.findById(
+            invoiceId,
+            user.id
+          );
           if (!invoice) {
             return { error: "Invoice not found" };
           }
 
+          const invoiceNumber = `${invoice.prefix}${invoice.serialNumber}`;
+
           // Use "create_invoice" action type for now (compatible with existing enum)
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "createInvoice", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "createInvoice",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
             return {
               status: "approval_required",
-              message: `Creating credit note for invoice #${invoice.invoiceNumber} requires approval`,
+              message: `Creating credit note for invoice #${invoiceNumber} requires approval`,
             };
           }
 
@@ -5437,12 +7720,19 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             })
             .returning();
 
-          await logToolAudit(user.id, session?.id, "createInvoice", toolArgs, { creditNoteId: creditNote!.id }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createInvoice",
+            toolArgs,
+            { creditNoteId: creditNote!.id },
+            true
+          );
 
           return {
             status: "success",
             creditNoteId: creditNote!.id,
-            message: `Credit note created from invoice #${invoice.invoiceNumber}. Status: draft.`,
+            message: `Credit note created from invoice #${invoiceNumber}. Status: draft.`,
           };
         } catch (error) {
           logger.error({ error }, "createCreditNoteFromInvoice failed");
@@ -5452,26 +7742,40 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     updateCreditNoteStatus: tool({
-      description: "Update the status of a credit note. Valid statuses: draft, issued, applied, cancelled.",
+      description:
+        "Update the status of a credit note. Valid statuses: draft, issued, applied, cancelled.",
       inputSchema: z.object({
         creditNoteId: z.string().describe("The credit note ID"),
-        status: z.enum(["draft", "issued", "applied", "cancelled"]).describe("New status for the credit note"),
+        status: z
+          .enum(["draft", "issued", "applied", "cancelled"])
+          .describe("New status for the credit note"),
       }),
       execute: async ({ creditNoteId, status }) => {
         const toolArgs = { creditNoteId, status };
 
         try {
           const creditNote = await db.query.creditNotes.findFirst({
-            where: and(eq(creditNotes.id, creditNoteId), eq(creditNotes.userId, user.id)),
+            where: and(
+              eq(creditNotes.id, creditNoteId),
+              eq(creditNotes.userId, user.id)
+            ),
           });
 
           if (!creditNote) {
             return { error: "Credit note not found" };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateInvoice", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "updateInvoice",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Updating credit note status requires approval" };
+            return {
+              status: "approval_required",
+              message: "Updating credit note status requires approval",
+            };
           }
 
           await db
@@ -5483,9 +7787,19 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             })
             .where(eq(creditNotes.id, creditNoteId));
 
-          await logToolAudit(user.id, session?.id, "updateInvoice", toolArgs, { success: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "updateInvoice",
+            toolArgs,
+            { success: true },
+            true
+          );
 
-          return { status: "success", message: `Credit note status updated to '${status}'` };
+          return {
+            status: "success",
+            message: `Credit note status updated to '${status}'`,
+          };
         } catch (error) {
           logger.error({ error }, "updateCreditNoteStatus failed");
           return { error: "Failed to update credit note status" };
@@ -5494,7 +7808,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     voidCreditNote: tool({
-      description: "Cancel/void a credit note. Only draft credit notes can be voided.",
+      description:
+        "Cancel/void a credit note. Only draft credit notes can be voided.",
       inputSchema: z.object({
         creditNoteId: z.string().describe("The credit note ID to void"),
       }),
@@ -5503,7 +7818,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
         try {
           const creditNote = await db.query.creditNotes.findFirst({
-            where: and(eq(creditNotes.id, creditNoteId), eq(creditNotes.userId, user.id)),
+            where: and(
+              eq(creditNotes.id, creditNoteId),
+              eq(creditNotes.userId, user.id)
+            ),
           });
 
           if (!creditNote) {
@@ -5511,17 +7829,35 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           }
 
           if (creditNote.status !== "draft") {
-            return { error: "Only draft credit notes can be voided. Use updateCreditNoteStatus to cancel issued notes." };
+            return {
+              error:
+                "Only draft credit notes can be voided. Use updateCreditNoteStatus to cancel issued notes.",
+            };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "voidInvoice", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "voidInvoice",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Voiding credit note requires approval" };
+            return {
+              status: "approval_required",
+              message: "Voiding credit note requires approval",
+            };
           }
 
           await db.delete(creditNotes).where(eq(creditNotes.id, creditNoteId));
 
-          await logToolAudit(user.id, session?.id, "voidInvoice", toolArgs, { success: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "voidInvoice",
+            toolArgs,
+            { success: true },
+            true
+          );
 
           return { status: "success", message: "Credit note has been deleted" };
         } catch (error) {
@@ -5533,26 +7869,51 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
     // Debit Note Operations
     createDebitNoteFromInvoice: tool({
-      description: "Create a debit note to increase the amount owed by a customer (e.g., for pricing adjustments).",
+      description:
+        "Create a debit note to increase the amount owed by a customer (e.g., for pricing adjustments).",
       inputSchema: z.object({
-        invoiceId: z.string().describe("The invoice ID to create debit note from"),
-        reason: z.enum(["return", "discount", "pricing_error", "damaged_goods", "other"]).describe("Reason for the debit note"),
-        reasonDescription: z.string().optional().describe("Additional description for the reason"),
+        invoiceId: z
+          .string()
+          .describe("The invoice ID to create debit note from"),
+        reason: z
+          .enum([
+            "return",
+            "discount",
+            "pricing_error",
+            "damaged_goods",
+            "other",
+          ])
+          .describe("Reason for the debit note"),
+        reasonDescription: z
+          .string()
+          .optional()
+          .describe("Additional description for the reason"),
       }),
       execute: async ({ invoiceId, reason, reasonDescription }) => {
         const toolArgs = { invoiceId, reason, reasonDescription };
 
         try {
-          const invoice = await invoiceRepository.findById(invoiceId, user.id);
+          // Use V2 repository
+          const invoice = await invoiceV2Repository.findById(
+            invoiceId,
+            user.id
+          );
           if (!invoice) {
             return { error: "Invoice not found" };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "createInvoice", toolArgs);
+          const invoiceNumber = `${invoice.prefix}${invoice.serialNumber}`;
+
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "createInvoice",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
             return {
               status: "approval_required",
-              message: `Creating debit note for invoice #${invoice.invoiceNumber} requires approval`,
+              message: `Creating debit note for invoice #${invoiceNumber} requires approval`,
             };
           }
 
@@ -5569,12 +7930,19 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             })
             .returning();
 
-          await logToolAudit(user.id, session?.id, "createInvoice", toolArgs, { debitNoteId: debitNote!.id }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createInvoice",
+            toolArgs,
+            { debitNoteId: debitNote!.id },
+            true
+          );
 
           return {
             status: "success",
             debitNoteId: debitNote!.id,
-            message: `Debit note created from invoice #${invoice.invoiceNumber}. Status: draft.`,
+            message: `Debit note created from invoice #${invoiceNumber}. Status: draft.`,
           };
         } catch (error) {
           logger.error({ error }, "createDebitNoteFromInvoice failed");
@@ -5584,26 +7952,40 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     updateDebitNoteStatus: tool({
-      description: "Update the status of a debit note. Valid statuses: draft, issued, applied, cancelled.",
+      description:
+        "Update the status of a debit note. Valid statuses: draft, issued, applied, cancelled.",
       inputSchema: z.object({
         debitNoteId: z.string().describe("The debit note ID"),
-        status: z.enum(["draft", "issued", "applied", "cancelled"]).describe("New status for the debit note"),
+        status: z
+          .enum(["draft", "issued", "applied", "cancelled"])
+          .describe("New status for the debit note"),
       }),
       execute: async ({ debitNoteId, status }) => {
         const toolArgs = { debitNoteId, status };
 
         try {
           const debitNote = await db.query.debitNotes.findFirst({
-            where: and(eq(debitNotes.id, debitNoteId), eq(debitNotes.userId, user.id)),
+            where: and(
+              eq(debitNotes.id, debitNoteId),
+              eq(debitNotes.userId, user.id)
+            ),
           });
 
           if (!debitNote) {
             return { error: "Debit note not found" };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateInvoice", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "updateInvoice",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Updating debit note status requires approval" };
+            return {
+              status: "approval_required",
+              message: "Updating debit note status requires approval",
+            };
           }
 
           await db
@@ -5615,9 +7997,19 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             })
             .where(eq(debitNotes.id, debitNoteId));
 
-          await logToolAudit(user.id, session?.id, "updateInvoice", toolArgs, { success: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "updateInvoice",
+            toolArgs,
+            { success: true },
+            true
+          );
 
-          return { status: "success", message: `Debit note status updated to '${status}'` };
+          return {
+            status: "success",
+            message: `Debit note status updated to '${status}'`,
+          };
         } catch (error) {
           logger.error({ error }, "updateDebitNoteStatus failed");
           return { error: "Failed to update debit note status" };
@@ -5635,7 +8027,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
         try {
           const debitNote = await db.query.debitNotes.findFirst({
-            where: and(eq(debitNotes.id, debitNoteId), eq(debitNotes.userId, user.id)),
+            where: and(
+              eq(debitNotes.id, debitNoteId),
+              eq(debitNotes.userId, user.id)
+            ),
           });
 
           if (!debitNote) {
@@ -5646,14 +8041,29 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             return { error: "Only draft debit notes can be voided" };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "voidInvoice", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "voidInvoice",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Voiding debit note requires approval" };
+            return {
+              status: "approval_required",
+              message: "Voiding debit note requires approval",
+            };
           }
 
           await db.delete(debitNotes).where(eq(debitNotes.id, debitNoteId));
 
-          await logToolAudit(user.id, session?.id, "voidInvoice", toolArgs, { success: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "voidInvoice",
+            toolArgs,
+            { success: true },
+            true
+          );
 
           return { status: "success", message: "Debit note has been deleted" };
         } catch (error) {
@@ -5677,14 +8087,25 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         const toolArgs = { customerId, ...updates };
 
         try {
-          const customer = await customerRepository.findById(customerId, user.id);
+          const customer = await customerRepository.findById(
+            customerId,
+            user.id
+          );
           if (!customer) {
             return { error: "Customer not found" };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateCustomer", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "updateCustomer",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Updating customer requires approval" };
+            return {
+              status: "approval_required",
+              message: "Updating customer requires approval",
+            };
           }
 
           const { customers } = await import("@open-bookkeeping/db");
@@ -5694,11 +8115,24 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           if (updates.phone) updateData.phone = updates.phone;
           if (updates.address) updateData.address = updates.address;
 
-          await db.update(customers).set(updateData).where(eq(customers.id, customerId));
+          await db
+            .update(customers)
+            .set(updateData)
+            .where(eq(customers.id, customerId));
 
-          await logToolAudit(user.id, session?.id, "updateCustomer", toolArgs, { success: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "updateCustomer",
+            toolArgs,
+            { success: true },
+            true
+          );
 
-          return { status: "success", message: `Customer '${customer.name}' has been updated` };
+          return {
+            status: "success",
+            message: `Customer '${customer.name}' has been updated`,
+          };
         } catch (error) {
           logger.error({ error }, "updateCustomer failed");
           return { error: "Failed to update customer" };
@@ -5715,7 +8149,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         email: z.string().email().optional().describe("New email address"),
         phone: z.string().optional().describe("New phone number"),
         address: z.string().optional().describe("New address"),
-        paymentTermsDays: z.number().optional().describe("Payment terms in days"),
+        paymentTermsDays: z
+          .number()
+          .optional()
+          .describe("Payment terms in days"),
       }),
       execute: async ({ vendorId, ...updates }) => {
         const toolArgs = { vendorId, ...updates };
@@ -5726,9 +8163,17 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             return { error: "Vendor not found" };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateVendor", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "updateVendor",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Updating vendor requires approval" };
+            return {
+              status: "approval_required",
+              message: "Updating vendor requires approval",
+            };
           }
 
           const { vendors } = await import("@open-bookkeeping/db");
@@ -5737,13 +8182,27 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           if (updates.email) updateData.email = updates.email;
           if (updates.phone) updateData.phone = updates.phone;
           if (updates.address) updateData.address = updates.address;
-          if (updates.paymentTermsDays !== undefined) updateData.paymentTermsDays = updates.paymentTermsDays;
+          if (updates.paymentTermsDays !== undefined)
+            updateData.paymentTermsDays = updates.paymentTermsDays;
 
-          await db.update(vendors).set(updateData).where(eq(vendors.id, vendorId));
+          await db
+            .update(vendors)
+            .set(updateData)
+            .where(eq(vendors.id, vendorId));
 
-          await logToolAudit(user.id, session?.id, "updateVendor", toolArgs, { success: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "updateVendor",
+            toolArgs,
+            { success: true },
+            true
+          );
 
-          return { status: "success", message: `Vendor '${vendor.name}' has been updated` };
+          return {
+            status: "success",
+            message: `Vendor '${vendor.name}' has been updated`,
+          };
         } catch (error) {
           logger.error({ error }, "updateVendor failed");
           return { error: "Failed to update vendor" };
@@ -5756,18 +8215,33 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
       description: "Create a new account in the chart of accounts.",
       inputSchema: z.object({
         code: z.string().describe("Account code (e.g., '1100', '4000')"),
-        name: z.string().describe("Account name (e.g., 'Cash in Bank', 'Sales Revenue')"),
-        accountType: z.enum(["asset", "liability", "equity", "revenue", "expense"]).describe("Type of account"),
+        name: z
+          .string()
+          .describe("Account name (e.g., 'Cash in Bank', 'Sales Revenue')"),
+        accountType: z
+          .enum(["asset", "liability", "equity", "revenue", "expense"])
+          .describe("Type of account"),
         description: z.string().optional().describe("Account description"),
-        isActive: z.boolean().default(true).describe("Whether the account is active"),
+        isActive: z
+          .boolean()
+          .default(true)
+          .describe("Whether the account is active"),
       }),
       execute: async ({ code, name, accountType, description, isActive }) => {
         const toolArgs = { code, name, accountType, description, isActive };
 
         try {
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Creating account requires approval" };
+            return {
+              status: "approval_required",
+              message: "Creating account requires approval",
+            };
           }
 
           const { accounts } = await import("@open-bookkeeping/db");
@@ -5784,7 +8258,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           // Derive normal balance from account type
           // Assets & Expenses: normally debit
           // Liabilities, Equity & Revenue: normally credit
-          const normalBalance = (accountType === "asset" || accountType === "expense") ? "debit" : "credit";
+          const normalBalance =
+            accountType === "asset" || accountType === "expense"
+              ? "debit"
+              : "credit";
 
           const [account] = await db
             .insert(accounts)
@@ -5799,7 +8276,14 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             })
             .returning();
 
-          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, { accountId: account!.id }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs,
+            { accountId: account!.id },
+            true
+          );
 
           return {
             status: "success",
@@ -5828,28 +8312,54 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           const { accounts } = await import("@open-bookkeeping/db");
 
           const account = await db.query.accounts.findFirst({
-            where: and(eq(accounts.id, accountId), eq(accounts.userId, user.id)),
+            where: and(
+              eq(accounts.id, accountId),
+              eq(accounts.userId, user.id)
+            ),
           });
 
           if (!account) {
             return { error: "Account not found" };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Updating account requires approval" };
+            return {
+              status: "approval_required",
+              message: "Updating account requires approval",
+            };
           }
 
           const updateData: Record<string, unknown> = { updatedAt: new Date() };
           if (updates.name) updateData.name = updates.name;
-          if (updates.description !== undefined) updateData.description = updates.description;
-          if (updates.isActive !== undefined) updateData.isActive = updates.isActive;
+          if (updates.description !== undefined)
+            updateData.description = updates.description;
+          if (updates.isActive !== undefined)
+            updateData.isActive = updates.isActive;
 
-          await db.update(accounts).set(updateData).where(eq(accounts.id, accountId));
+          await db
+            .update(accounts)
+            .set(updateData)
+            .where(eq(accounts.id, accountId));
 
-          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, { success: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs,
+            { success: true },
+            true
+          );
 
-          return { status: "success", message: `Account '${account.name}' has been updated` };
+          return {
+            status: "success",
+            message: `Account '${account.name}' has been updated`,
+          };
         } catch (error) {
           logger.error({ error }, "updateAccount failed");
           return { error: "Failed to update account" };
@@ -5858,7 +8368,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     deleteAccount: tool({
-      description: "Delete an account from the chart of accounts. Only accounts with no transactions can be deleted.",
+      description:
+        "Delete an account from the chart of accounts. Only accounts with no transactions can be deleted.",
       inputSchema: z.object({
         accountId: z.string().describe("The account ID to delete"),
       }),
@@ -5866,10 +8377,14 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
         const toolArgs = { accountId };
 
         try {
-          const { accounts, journalEntryLines } = await import("@open-bookkeeping/db");
+          const { accounts, journalEntryLines } =
+            await import("@open-bookkeeping/db");
 
           const account = await db.query.accounts.findFirst({
-            where: and(eq(accounts.id, accountId), eq(accounts.userId, user.id)),
+            where: and(
+              eq(accounts.id, accountId),
+              eq(accounts.userId, user.id)
+            ),
           });
 
           if (!account) {
@@ -5882,19 +8397,40 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           });
 
           if (hasTransactions) {
-            return { error: "Cannot delete account with existing transactions. Deactivate it instead using updateAccount." };
+            return {
+              error:
+                "Cannot delete account with existing transactions. Deactivate it instead using updateAccount.",
+            };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "reverseJournalEntry", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "reverseJournalEntry",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Deleting account requires approval" };
+            return {
+              status: "approval_required",
+              message: "Deleting account requires approval",
+            };
           }
 
           await db.delete(accounts).where(eq(accounts.id, accountId));
 
-          await logToolAudit(user.id, session?.id, "reverseJournalEntry", toolArgs, { success: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "reverseJournalEntry",
+            toolArgs,
+            { success: true },
+            true
+          );
 
-          return { status: "success", message: `Account '${account.name}' has been deleted` };
+          return {
+            status: "success",
+            message: `Account '${account.name}' has been deleted`,
+          };
         } catch (error) {
           logger.error({ error }, "deleteAccount failed");
           return { error: "Failed to delete account" };
@@ -5908,7 +8444,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
       inputSchema: z.object({
         billId: z.string().describe("The bill ID to update"),
         notes: z.string().optional().describe("New notes for the bill"),
-        dueDate: z.string().optional().describe("New due date (ISO date string)"),
+        dueDate: z
+          .string()
+          .optional()
+          .describe("New due date (ISO date string)"),
         paymentTerms: z.string().optional().describe("Payment terms"),
       }),
       execute: async ({ billId, notes, dueDate, paymentTerms }) => {
@@ -5929,21 +8468,40 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             return { error: "Cannot update a paid bill" };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateBill", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "updateBill",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Updating bill requires approval" };
+            return {
+              status: "approval_required",
+              message: "Updating bill requires approval",
+            };
           }
 
           const updateData: Record<string, unknown> = { updatedAt: new Date() };
           if (notes !== undefined) updateData.notes = notes;
           if (dueDate) updateData.dueDate = new Date(dueDate);
-          if (paymentTerms !== undefined) updateData.paymentTerms = paymentTerms;
+          if (paymentTerms !== undefined)
+            updateData.paymentTerms = paymentTerms;
 
           await db.update(bills).set(updateData).where(eq(bills.id, billId));
 
-          await logToolAudit(user.id, session?.id, "updateBill", toolArgs, { success: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "updateBill",
+            toolArgs,
+            { success: true },
+            true
+          );
 
-          return { status: "success", message: `Bill #${bill.billNumber} has been updated` };
+          return {
+            status: "success",
+            message: `Bill #${bill.billNumber} has been updated`,
+          };
         } catch (error) {
           logger.error({ error }, "updateBill failed");
           return { error: "Failed to update bill" };
@@ -5956,14 +8514,18 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     // ============================================
 
     getPayrollRunDetails: tool({
-      description: "Get detailed information about a specific payroll run including all pay slips.",
+      description:
+        "Get detailed information about a specific payroll run including all pay slips.",
       inputSchema: z.object({
         payrollRunId: z.string().describe("The payroll run ID"),
       }),
       execute: async ({ payrollRunId }) => {
         try {
           const payrollRun = await db.query.payrollRuns.findFirst({
-            where: and(eq(payrollRuns.id, payrollRunId), eq(payrollRuns.userId, user.id)),
+            where: and(
+              eq(payrollRuns.id, payrollRunId),
+              eq(payrollRuns.userId, user.id)
+            ),
             with: {
               paySlips: {
                 with: {
@@ -6000,7 +8562,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             summary,
             paySlips: payrollRun.paySlips?.map((slip) => ({
               id: slip.id,
-              employeeName: `${slip.employee?.firstName || ""} ${slip.employee?.lastName || ""}`.trim(),
+              employeeName:
+                `${slip.employee?.firstName || ""} ${slip.employee?.lastName || ""}`.trim(),
               employeeCode: slip.employee?.employeeCode,
               grossSalary: slip.grossSalary,
               totalDeductions: slip.totalDeductions,
@@ -6016,7 +8579,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     calculatePayrollRun: tool({
-      description: "Calculate all pay slips for a payroll run. This must be done before approving.",
+      description:
+        "Calculate all pay slips for a payroll run. This must be done before approving.",
       inputSchema: z.object({
         payrollRunId: z.string().describe("The payroll run ID to calculate"),
       }),
@@ -6025,7 +8589,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
         try {
           const payrollRun = await db.query.payrollRuns.findFirst({
-            where: and(eq(payrollRuns.id, payrollRunId), eq(payrollRuns.userId, user.id)),
+            where: and(
+              eq(payrollRuns.id, payrollRunId),
+              eq(payrollRuns.userId, user.id)
+            ),
           });
 
           if (!payrollRun) {
@@ -6033,16 +8600,27 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           }
 
           if (payrollRun.status !== "draft") {
-            return { error: `Cannot calculate payroll in ${payrollRun.status} status` };
+            return {
+              error: `Cannot calculate payroll in ${payrollRun.status} status`,
+            };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Calculating payroll requires approval" };
+            return {
+              status: "approval_required",
+              message: "Calculating payroll requires approval",
+            };
           }
 
           // Import and call the calculation service
-          const { calculatePayroll } = await import("../services/payroll/payroll-calculation.service");
+          const { calculatePayroll } =
+            await import("../services/payroll/payroll-calculation.service");
           const result = await calculatePayroll({
             userId: user.id,
             payrollRunId,
@@ -6051,15 +8629,28 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             runNumber: payrollRun.runNumber,
           });
 
-          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, result, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs,
+            result,
+            true
+          );
 
           return {
             status: "success",
             message: `Payroll calculated for ${result.totalEmployees || 0} employees`,
             summary: {
-              totalGrossSalary: formatCurrency(Number(result.totalGrossSalary || 0)),
-              totalDeductions: formatCurrency(Number(result.totalDeductions || 0)),
-              totalNetSalary: formatCurrency(Number(result.totalNetSalary || 0)),
+              totalGrossSalary: formatCurrency(
+                Number(result.totalGrossSalary || 0)
+              ),
+              totalDeductions: formatCurrency(
+                Number(result.totalDeductions || 0)
+              ),
+              totalNetSalary: formatCurrency(
+                Number(result.totalNetSalary || 0)
+              ),
             },
           };
         } catch (error) {
@@ -6079,7 +8670,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
         try {
           const payrollRun = await db.query.payrollRuns.findFirst({
-            where: and(eq(payrollRuns.id, payrollRunId), eq(payrollRuns.userId, user.id)),
+            where: and(
+              eq(payrollRuns.id, payrollRunId),
+              eq(payrollRuns.userId, user.id)
+            ),
           });
 
           if (!payrollRun) {
@@ -6087,24 +8681,47 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           }
 
           if (payrollRun.status !== "pending_review") {
-            return { error: `Payroll must be in 'pending_review' status to approve. Current: ${payrollRun.status}` };
+            return {
+              error: `Payroll must be in 'pending_review' status to approve. Current: ${payrollRun.status}`,
+            };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Approving payroll requires approval" };
+            return {
+              status: "approval_required",
+              message: "Approving payroll requires approval",
+            };
           }
 
-          await db.update(payrollRuns).set({
-            status: "approved",
-            approvedAt: new Date(),
-            approvedBy: user.id,
-            updatedAt: new Date(),
-          }).where(eq(payrollRuns.id, payrollRunId));
+          await db
+            .update(payrollRuns)
+            .set({
+              status: "approved",
+              approvedAt: new Date(),
+              approvedBy: user.id,
+              updatedAt: new Date(),
+            })
+            .where(eq(payrollRuns.id, payrollRunId));
 
-          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, { approved: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs,
+            { approved: true },
+            true
+          );
 
-          return { status: "success", message: `Payroll run for ${getMonthName(payrollRun.periodMonth)} ${payrollRun.periodYear} has been approved` };
+          return {
+            status: "success",
+            message: `Payroll run for ${getMonthName(payrollRun.periodMonth)} ${payrollRun.periodYear} has been approved`,
+          };
         } catch (error) {
           logger.error({ error }, "approvePayrollRun failed");
           return { error: "Failed to approve payroll run" };
@@ -6113,7 +8730,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     finalizePayrollRun: tool({
-      description: "Finalize an approved payroll run. This creates the accounting entries.",
+      description:
+        "Finalize an approved payroll run. This creates the accounting entries.",
       inputSchema: z.object({
         payrollRunId: z.string().describe("The payroll run ID to finalize"),
       }),
@@ -6122,7 +8740,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
         try {
           const payrollRun = await db.query.payrollRuns.findFirst({
-            where: and(eq(payrollRuns.id, payrollRunId), eq(payrollRuns.userId, user.id)),
+            where: and(
+              eq(payrollRuns.id, payrollRunId),
+              eq(payrollRuns.userId, user.id)
+            ),
           });
 
           if (!payrollRun) {
@@ -6130,27 +8751,51 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           }
 
           if (payrollRun.status !== "approved") {
-            return { error: `Payroll must be approved before finalizing. Current: ${payrollRun.status}` };
+            return {
+              error: `Payroll must be approved before finalizing. Current: ${payrollRun.status}`,
+            };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Finalizing payroll requires approval" };
+            return {
+              status: "approval_required",
+              message: "Finalizing payroll requires approval",
+            };
           }
 
           // Create accrual journal entry
-          const { createPayrollAccrualEntry } = await import("../services/payroll/payroll-journal.service");
+          const { createPayrollAccrualEntry } =
+            await import("../services/payroll/payroll-journal.service");
           await createPayrollAccrualEntry(user.id, payrollRun);
 
-          await db.update(payrollRuns).set({
-            status: "finalized",
-            finalizedAt: new Date(),
-            updatedAt: new Date(),
-          }).where(eq(payrollRuns.id, payrollRunId));
+          await db
+            .update(payrollRuns)
+            .set({
+              status: "finalized",
+              finalizedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(payrollRuns.id, payrollRunId));
 
-          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, { finalized: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs,
+            { finalized: true },
+            true
+          );
 
-          return { status: "success", message: `Payroll run finalized with journal entries created` };
+          return {
+            status: "success",
+            message: `Payroll run finalized with journal entries created`,
+          };
         } catch (error) {
           logger.error({ error }, "finalizePayrollRun failed");
           return { error: "Failed to finalize payroll run" };
@@ -6162,14 +8807,20 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
       description: "Mark a finalized payroll run as paid.",
       inputSchema: z.object({
         payrollRunId: z.string().describe("The payroll run ID to mark as paid"),
-        paymentDate: z.string().optional().describe("Payment date (YYYY-MM-DD), defaults to today"),
+        paymentDate: z
+          .string()
+          .optional()
+          .describe("Payment date (YYYY-MM-DD), defaults to today"),
       }),
       execute: async ({ payrollRunId, paymentDate }) => {
         const toolArgs = { payrollRunId, paymentDate };
 
         try {
           const payrollRun = await db.query.payrollRuns.findFirst({
-            where: and(eq(payrollRuns.id, payrollRunId), eq(payrollRuns.userId, user.id)),
+            where: and(
+              eq(payrollRuns.id, payrollRunId),
+              eq(payrollRuns.userId, user.id)
+            ),
           });
 
           if (!payrollRun) {
@@ -6177,34 +8828,66 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           }
 
           if (payrollRun.status !== "finalized") {
-            return { error: `Payroll must be finalized before marking as paid. Current: ${payrollRun.status}` };
+            return {
+              error: `Payroll must be finalized before marking as paid. Current: ${payrollRun.status}`,
+            };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Marking payroll paid requires approval" };
+            return {
+              status: "approval_required",
+              message: "Marking payroll paid requires approval",
+            };
           }
 
           // Create payment journal entry
-          const actualPaymentDate = paymentDate || new Date().toISOString().split("T")[0];
-          const { createPayrollPaymentEntry } = await import("../services/payroll/payroll-journal.service");
-          await createPayrollPaymentEntry(user.id, payrollRun, actualPaymentDate);
+          const actualPaymentDate =
+            paymentDate || new Date().toISOString().split("T")[0];
+          const { createPayrollPaymentEntry } =
+            await import("../services/payroll/payroll-journal.service");
+          await createPayrollPaymentEntry(
+            user.id,
+            payrollRun,
+            actualPaymentDate
+          );
 
           // Update payroll run and all pay slips to paid
-          await db.update(payrollRuns).set({
-            status: "paid",
-            paidAt: new Date(actualPaymentDate),
-            updatedAt: new Date(),
-          }).where(eq(payrollRuns.id, payrollRunId));
+          await db
+            .update(payrollRuns)
+            .set({
+              status: "paid",
+              paidAt: new Date(actualPaymentDate),
+              updatedAt: new Date(),
+            })
+            .where(eq(payrollRuns.id, payrollRunId));
 
-          await db.update(paySlips).set({
-            status: "paid",
-            updatedAt: new Date(),
-          }).where(eq(paySlips.payrollRunId, payrollRunId));
+          await db
+            .update(paySlips)
+            .set({
+              status: "paid",
+              updatedAt: new Date(),
+            })
+            .where(eq(paySlips.payrollRunId, payrollRunId));
 
-          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, { paid: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs,
+            { paid: true },
+            true
+          );
 
-          return { status: "success", message: `Payroll marked as paid. Total: ${formatCurrency(Number(payrollRun.totalNetSalary || 0))}` };
+          return {
+            status: "success",
+            message: `Payroll marked as paid. Total: ${formatCurrency(Number(payrollRun.totalNetSalary || 0))}`,
+          };
         } catch (error) {
           logger.error({ error }, "markPayrollPaid failed");
           return { error: "Failed to mark payroll as paid" };
@@ -6213,7 +8896,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     terminateEmployee: tool({
-      description: "Terminate an employee (set status to terminated with resignation date).",
+      description:
+        "Terminate an employee (set status to terminated with resignation date).",
       inputSchema: z.object({
         employeeId: z.string().describe("The employee ID"),
         terminationDate: z.string().describe("Termination date (YYYY-MM-DD)"),
@@ -6224,31 +8908,58 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
         try {
           const employee = await db.query.employees.findFirst({
-            where: and(eq(employees.id, employeeId), eq(employees.userId, user.id)),
+            where: and(
+              eq(employees.id, employeeId),
+              eq(employees.userId, user.id)
+            ),
           });
 
           if (!employee) {
             return { error: "Employee not found" };
           }
 
-          if (employee.status === "terminated" || employee.status === "resigned") {
+          if (
+            employee.status === "terminated" ||
+            employee.status === "resigned"
+          ) {
             return { error: "Employee is already terminated or resigned" };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateVendor", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "updateVendor",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Terminating employee requires approval" };
+            return {
+              status: "approval_required",
+              message: "Terminating employee requires approval",
+            };
           }
 
-          await db.update(employees).set({
-            status: "terminated",
-            dateResigned: terminationDate,
-            updatedAt: new Date(),
-          }).where(eq(employees.id, employeeId));
+          await db
+            .update(employees)
+            .set({
+              status: "terminated",
+              dateResigned: terminationDate,
+              updatedAt: new Date(),
+            })
+            .where(eq(employees.id, employeeId));
 
-          await logToolAudit(user.id, session?.id, "updateVendor", toolArgs, { terminated: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "updateVendor",
+            toolArgs,
+            { terminated: true },
+            true
+          );
 
-          return { status: "success", message: `Employee ${employee.firstName} ${employee.lastName || ""} has been terminated effective ${terminationDate}` };
+          return {
+            status: "success",
+            message: `Employee ${employee.firstName} ${employee.lastName || ""} has been terminated effective ${terminationDate}`,
+          };
         } catch (error) {
           logger.error({ error }, "terminateEmployee failed");
           return { error: "Failed to terminate employee" };
@@ -6268,16 +8979,27 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
         try {
           const employee = await db.query.employees.findFirst({
-            where: and(eq(employees.id, employeeId), eq(employees.userId, user.id)),
+            where: and(
+              eq(employees.id, employeeId),
+              eq(employees.userId, user.id)
+            ),
           });
 
           if (!employee) {
             return { error: "Employee not found" };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateVendor", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "updateVendor",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Updating salary requires approval" };
+            return {
+              status: "approval_required",
+              message: "Updating salary requires approval",
+            };
           }
 
           // End the current salary record (set effectiveTo to day before new effective date)
@@ -6286,15 +9008,18 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           effectiveToDate.setDate(effectiveToDate.getDate() - 1);
 
           // End current salary if exists
-          await db.update(employeeSalaries).set({
-            effectiveTo: effectiveToDate.toISOString().split("T")[0],
-            updatedAt: new Date(),
-          }).where(
-            and(
-              eq(employeeSalaries.employeeId, employeeId),
-              isNull(employeeSalaries.effectiveTo)
-            )
-          );
+          await db
+            .update(employeeSalaries)
+            .set({
+              effectiveTo: effectiveToDate.toISOString().split("T")[0],
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(employeeSalaries.employeeId, employeeId),
+                isNull(employeeSalaries.effectiveTo)
+              )
+            );
 
           // Create new salary record
           await db.insert(employeeSalaries).values({
@@ -6306,7 +9031,14 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             payFrequency: "monthly",
           });
 
-          await logToolAudit(user.id, session?.id, "updateVendor", toolArgs, { updated: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "updateVendor",
+            toolArgs,
+            { updated: true },
+            true
+          );
 
           return {
             status: "success",
@@ -6328,7 +9060,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
       execute: async ({ payrollRunId }) => {
         try {
           const payrollRun = await db.query.payrollRuns.findFirst({
-            where: and(eq(payrollRuns.id, payrollRunId), eq(payrollRuns.userId, user.id)),
+            where: and(
+              eq(payrollRuns.id, payrollRunId),
+              eq(payrollRuns.userId, user.id)
+            ),
           });
 
           if (!payrollRun) {
@@ -6352,10 +9087,13 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             },
             paySlips: slips.map((slip) => ({
               id: slip.id,
-              employee: `${slip.employee?.firstName || ""} ${slip.employee?.lastName || ""}`.trim(),
+              employee:
+                `${slip.employee?.firstName || ""} ${slip.employee?.lastName || ""}`.trim(),
               employeeCode: slip.employee?.employeeCode,
               grossSalary: formatCurrency(Number(slip.grossSalary || 0)),
-              totalDeductions: formatCurrency(Number(slip.totalDeductions || 0)),
+              totalDeductions: formatCurrency(
+                Number(slip.totalDeductions || 0)
+              ),
               netSalary: formatCurrency(Number(slip.netSalary || 0)),
               status: slip.status,
               items: slip.items?.map((item) => ({
@@ -6378,17 +9116,24 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     // ============================================
 
     runAssetDepreciation: tool({
-      description: "Run depreciation for a fixed asset. Creates depreciation journal entry.",
+      description:
+        "Run depreciation for a fixed asset. Creates depreciation journal entry.",
       inputSchema: z.object({
         assetId: z.string().describe("The fixed asset ID"),
-        depreciationDate: z.string().optional().describe("Depreciation date (YYYY-MM-DD), defaults to today"),
+        depreciationDate: z
+          .string()
+          .optional()
+          .describe("Depreciation date (YYYY-MM-DD), defaults to today"),
       }),
       execute: async ({ assetId, depreciationDate }) => {
         const toolArgs = { assetId, depreciationDate };
 
         try {
           const asset = await db.query.fixedAssets.findFirst({
-            where: and(eq(fixedAssets.id, assetId), eq(fixedAssets.userId, user.id)),
+            where: and(
+              eq(fixedAssets.id, assetId),
+              eq(fixedAssets.userId, user.id)
+            ),
           });
 
           if (!asset) {
@@ -6396,16 +9141,28 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           }
 
           if (asset.status !== "active") {
-            return { error: `Cannot depreciate asset in ${asset.status} status` };
+            return {
+              error: `Cannot depreciate asset in ${asset.status} status`,
+            };
           }
 
-          if (Number(asset.netBookValue || 0) <= Number(asset.salvageValue || 0)) {
+          if (
+            Number(asset.netBookValue || 0) <= Number(asset.salvageValue || 0)
+          ) {
             return { error: "Asset is fully depreciated" };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "createJournalEntry", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Running depreciation requires approval" };
+            return {
+              status: "approval_required",
+              message: "Running depreciation requires approval",
+            };
           }
 
           // Calculate depreciation (straight-line method)
@@ -6420,7 +9177,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
           // Ensure we don't depreciate below salvage value
           const maxDepreciation = currentNBV - salvageValue;
-          const actualDepreciation = Math.min(monthlyDepreciation, maxDepreciation);
+          const actualDepreciation = Math.min(
+            monthlyDepreciation,
+            maxDepreciation
+          );
 
           if (actualDepreciation <= 0) {
             return { error: "Asset is fully depreciated" };
@@ -6428,7 +9188,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
           const newAccumulated = currentAccumulated + actualDepreciation;
           const newNetBookValue = acquisitionCost - newAccumulated;
-          const depDate = depreciationDate || new Date().toISOString().split("T")[0];
+          const depDate =
+            depreciationDate || new Date().toISOString().split("T")[0];
           const depYear = new Date(depDate).getFullYear();
 
           // Insert depreciation record
@@ -6445,19 +9206,29 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           });
 
           // Update the asset
-          await db.update(fixedAssets).set({
-            accumulatedDepreciation: newAccumulated.toFixed(2),
-            netBookValue: newNetBookValue.toFixed(2),
-            lastDepreciationDate: depDate,
-            updatedAt: new Date(),
-          }).where(eq(fixedAssets.id, assetId));
+          await db
+            .update(fixedAssets)
+            .set({
+              accumulatedDepreciation: newAccumulated.toFixed(2),
+              netBookValue: newNetBookValue.toFixed(2),
+              lastDepreciationDate: depDate,
+              updatedAt: new Date(),
+            })
+            .where(eq(fixedAssets.id, assetId));
 
           const result = {
             depreciationAmount: actualDepreciation.toFixed(2),
             newNetBookValue: newNetBookValue.toFixed(2),
           };
 
-          await logToolAudit(user.id, session?.id, "createJournalEntry", toolArgs, result, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "createJournalEntry",
+            toolArgs,
+            result,
+            true
+          );
 
           return {
             status: "success",
@@ -6473,9 +9244,13 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     getPendingAssetDepreciations: tool({
-      description: "Get list of assets that have pending depreciation entries to process.",
+      description:
+        "Get list of assets that have pending depreciation entries to process.",
       inputSchema: z.object({
-        asOfDate: z.string().optional().describe("Check pending as of date (YYYY-MM-DD), defaults to today"),
+        asOfDate: z
+          .string()
+          .optional()
+          .describe("Check pending as of date (YYYY-MM-DD), defaults to today"),
       }),
       execute: async ({ asOfDate }) => {
         try {
@@ -6497,14 +9272,22 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
 
             if (netBookValue > salvageValue) {
               // Calculate if depreciation is due
-              const lastDepDate = asset.lastDepreciationDate ? new Date(asset.lastDepreciationDate) : new Date(asset.depreciationStartDate || asset.acquisitionDate);
-              const monthsSinceLast = Math.floor((checkDate.getTime() - lastDepDate.getTime()) / (30 * 24 * 60 * 60 * 1000));
+              const lastDepDate = asset.lastDepreciationDate
+                ? new Date(asset.lastDepreciationDate)
+                : new Date(
+                    asset.depreciationStartDate || asset.acquisitionDate
+                  );
+              const monthsSinceLast = Math.floor(
+                (checkDate.getTime() - lastDepDate.getTime()) /
+                  (30 * 24 * 60 * 60 * 1000)
+              );
 
               if (monthsSinceLast >= 1) {
                 // Calculate monthly depreciation
                 const acquisitionCost = Number(asset.acquisitionCost || 0);
                 const usefulLifeMonths = asset.usefulLifeMonths || 60;
-                const monthlyDepreciation = (acquisitionCost - salvageValue) / usefulLifeMonths;
+                const monthlyDepreciation =
+                  (acquisitionCost - salvageValue) / usefulLifeMonths;
 
                 pendingDepreciations.push({
                   assetId: asset.id,
@@ -6536,7 +9319,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     // ============================================
 
     deleteQuotation: tool({
-      description: "Delete a quotation (soft delete). Only draft quotations can be deleted.",
+      description:
+        "Delete a quotation (soft delete). Only draft quotations can be deleted.",
       inputSchema: z.object({
         quotationId: z.string().describe("The quotation ID to delete"),
       }),
@@ -6547,7 +9331,10 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           const { quotations } = await import("@open-bookkeeping/db");
 
           const quotation = await db.query.quotations.findFirst({
-            where: and(eq(quotations.id, quotationId), eq(quotations.userId, user.id)),
+            where: and(
+              eq(quotations.id, quotationId),
+              eq(quotations.userId, user.id)
+            ),
             with: {
               quotationFields: {
                 with: {
@@ -6562,23 +9349,46 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           }
 
           if (quotation.status !== "draft") {
-            return { error: `Cannot delete quotation in ${quotation.status} status. Only draft quotations can be deleted.` };
+            return {
+              error: `Cannot delete quotation in ${quotation.status} status. Only draft quotations can be deleted.`,
+            };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateQuotation", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "updateQuotation",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Deleting quotation requires approval" };
+            return {
+              status: "approval_required",
+              message: "Deleting quotation requires approval",
+            };
           }
 
-          await db.update(quotations).set({
-            deletedAt: new Date(),
-            updatedAt: new Date(),
-          }).where(eq(quotations.id, quotationId));
+          await db
+            .update(quotations)
+            .set({
+              deletedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(quotations.id, quotationId));
 
-          await logToolAudit(user.id, session?.id, "updateQuotation", toolArgs, { deleted: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "updateQuotation",
+            toolArgs,
+            { deleted: true },
+            true
+          );
 
           const quotationNumber = `${quotation.quotationFields?.quotationDetails?.prefix ?? ""}${quotation.quotationFields?.quotationDetails?.serialNumber ?? ""}`;
-          return { status: "success", message: `Quotation #${quotationNumber || quotationId} has been deleted` };
+          return {
+            status: "success",
+            message: `Quotation #${quotationNumber || quotationId} has been deleted`,
+          };
         } catch (error) {
           logger.error({ error }, "deleteQuotation failed");
           return { error: "Failed to delete quotation" };
@@ -6587,7 +9397,8 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     deleteBill: tool({
-      description: "Delete a bill (soft delete). Only draft or pending bills can be deleted.",
+      description:
+        "Delete a bill (soft delete). Only draft or pending bills can be deleted.",
       inputSchema: z.object({
         billId: z.string().describe("The bill ID to delete"),
       }),
@@ -6607,19 +9418,40 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             return { error: "Cannot delete a paid bill" };
           }
 
-          const approvalCheck = await checkToolApproval(user.id, session?.id, "updateBill", toolArgs);
+          const approvalCheck = await checkToolApproval(
+            user.id,
+            session?.id,
+            "updateBill",
+            toolArgs
+          );
           if (approvalCheck && approvalCheck.requiresApproval) {
-            return { status: "approval_required", message: "Deleting bill requires approval" };
+            return {
+              status: "approval_required",
+              message: "Deleting bill requires approval",
+            };
           }
 
-          await db.update(bills).set({
-            deletedAt: new Date(),
-            updatedAt: new Date(),
-          }).where(eq(bills.id, billId));
+          await db
+            .update(bills)
+            .set({
+              deletedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(bills.id, billId));
 
-          await logToolAudit(user.id, session?.id, "updateBill", toolArgs, { deleted: true }, true);
+          await logToolAudit(
+            user.id,
+            session?.id,
+            "updateBill",
+            toolArgs,
+            { deleted: true },
+            true
+          );
 
-          return { status: "success", message: `Bill #${bill.billNumber} has been deleted` };
+          return {
+            status: "success",
+            message: `Bill #${bill.billNumber} has been deleted`,
+          };
         } catch (error) {
           logger.error({ error }, "deleteBill failed");
           return { error: "Failed to delete bill" };
@@ -6628,9 +9460,13 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
     }),
 
     getBillAgingReport: tool({
-      description: "Get accounts payable aging report showing outstanding bills by age.",
+      description:
+        "Get accounts payable aging report showing outstanding bills by age.",
       inputSchema: z.object({
-        asOfDate: z.string().optional().describe("Report as of date (YYYY-MM-DD), defaults to today"),
+        asOfDate: z
+          .string()
+          .optional()
+          .describe("Report as of date (YYYY-MM-DD), defaults to today"),
       }),
       execute: async ({ asOfDate }) => {
         try {
@@ -6648,16 +9484,65 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
           });
 
           const aging = {
-            current: { count: 0, total: 0, bills: [] as { billNumber: string; vendor: string; amount: number; dueDate: string }[] },
-            days1to30: { count: 0, total: 0, bills: [] as { billNumber: string; vendor: string; amount: number; dueDate: string }[] },
-            days31to60: { count: 0, total: 0, bills: [] as { billNumber: string; vendor: string; amount: number; dueDate: string }[] },
-            days61to90: { count: 0, total: 0, bills: [] as { billNumber: string; vendor: string; amount: number; dueDate: string }[] },
-            over90: { count: 0, total: 0, bills: [] as { billNumber: string; vendor: string; amount: number; dueDate: string }[] },
+            current: {
+              count: 0,
+              total: 0,
+              bills: [] as {
+                billNumber: string;
+                vendor: string;
+                amount: number;
+                dueDate: string;
+              }[],
+            },
+            days1to30: {
+              count: 0,
+              total: 0,
+              bills: [] as {
+                billNumber: string;
+                vendor: string;
+                amount: number;
+                dueDate: string;
+              }[],
+            },
+            days31to60: {
+              count: 0,
+              total: 0,
+              bills: [] as {
+                billNumber: string;
+                vendor: string;
+                amount: number;
+                dueDate: string;
+              }[],
+            },
+            days61to90: {
+              count: 0,
+              total: 0,
+              bills: [] as {
+                billNumber: string;
+                vendor: string;
+                amount: number;
+                dueDate: string;
+              }[],
+            },
+            over90: {
+              count: 0,
+              total: 0,
+              bills: [] as {
+                billNumber: string;
+                vendor: string;
+                amount: number;
+                dueDate: string;
+              }[],
+            },
           };
 
           for (const bill of unpaidBills) {
-            const dueDate = bill.dueDate ? new Date(bill.dueDate) : new Date(bill.billDate);
-            const daysOverdue = Math.floor((reportDate.getTime() - dueDate.getTime()) / (24 * 60 * 60 * 1000));
+            const dueDate = bill.dueDate
+              ? new Date(bill.dueDate)
+              : new Date(bill.billDate);
+            const daysOverdue = Math.floor(
+              (reportDate.getTime() - dueDate.getTime()) / (24 * 60 * 60 * 1000)
+            );
             const amount = Number(bill.total || 0);
 
             const billInfo = {
@@ -6690,16 +9575,36 @@ For common transactions, prefer: recordSalesRevenue, recordExpense, recordPaymen
             }
           }
 
-          const grandTotal = aging.current.total + aging.days1to30.total + aging.days31to60.total + aging.days61to90.total + aging.over90.total;
+          const grandTotal =
+            aging.current.total +
+            aging.days1to30.total +
+            aging.days31to60.total +
+            aging.days61to90.total +
+            aging.over90.total;
 
           return {
             asOfDate: reportDate.toISOString().split("T")[0],
             summary: {
-              current: { count: aging.current.count, total: formatCurrency(aging.current.total) },
-              "1-30 days": { count: aging.days1to30.count, total: formatCurrency(aging.days1to30.total) },
-              "31-60 days": { count: aging.days31to60.count, total: formatCurrency(aging.days31to60.total) },
-              "61-90 days": { count: aging.days61to90.count, total: formatCurrency(aging.days61to90.total) },
-              "Over 90 days": { count: aging.over90.count, total: formatCurrency(aging.over90.total) },
+              current: {
+                count: aging.current.count,
+                total: formatCurrency(aging.current.total),
+              },
+              "1-30 days": {
+                count: aging.days1to30.count,
+                total: formatCurrency(aging.days1to30.total),
+              },
+              "31-60 days": {
+                count: aging.days31to60.count,
+                total: formatCurrency(aging.days31to60.total),
+              },
+              "61-90 days": {
+                count: aging.days61to90.count,
+                total: formatCurrency(aging.days61to90.total),
+              },
+              "Over 90 days": {
+                count: aging.over90.count,
+                total: formatCurrency(aging.over90.total),
+              },
               grandTotal: formatCurrency(grandTotal),
             },
             totalBills: unpaidBills.length,
@@ -6773,67 +9678,104 @@ SUMMARY TABLE FORMAT (for multiple documents):
 
 Be concise. Use proper accounting format. Verify data before acting.`;
 
-  logger.info({ userId: user.id, messageCount: messages.length }, "Starting streamText with multi-step tool calling");
+  logger.info(
+    { userId: user.id, messageCount: messages.length },
+    "Starting streamText with multi-step tool calling"
+  );
 
   // Limit message history to prevent exceeding OpenAI token limits (30k TPM)
   const limitedMessages = limitMessageHistory(messages, 8);
-  logger.debug({ original: messages.length, limited: limitedMessages.length }, "Message history limited");
+  logger.debug(
+    { original: messages.length, limited: limitedMessages.length },
+    "Message history limited"
+  );
+
+  // Create an AbortController with a 5-minute timeout to prevent hanging streams
+  const STREAM_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+  const streamAbortController = new AbortController();
+  const streamTimeoutId = setTimeout(() => {
+    logger.warn({ userId: user.id }, "AI stream timed out after 5 minutes");
+    streamAbortController.abort();
+  }, STREAM_TIMEOUT_MS);
 
   const result = streamText({
     model: openai("gpt-4o"),
     system: systemPrompt,
     messages: convertToModelMessages(limitedMessages),
     tools,
+    abortSignal: streamAbortController.signal,
     // AI SDK v5: Use stopWhen instead of maxSteps for multi-step tool calling
     // Default is stepCountIs(1) which stops after first tool call
     // This allows the AI to: call tool → get result → continue (call more tools or generate text)
     stopWhen: stepCountIs(10),
     onStepFinish: async ({ text, toolCalls, toolResults, usage }) => {
-      logger.info({
-        stepText: text?.substring(0, 200) ?? "(no text)",
-        toolCallsCount: toolCalls?.length ?? 0,
-        toolResultsCount: toolResults?.length ?? 0,
-        hasText: !!text,
-        usage,
-      }, "=== AI STEP FINISHED ===");
+      logger.info(
+        {
+          stepText: text?.substring(0, 200) ?? "(no text)",
+          toolCallsCount: toolCalls?.length ?? 0,
+          toolResultsCount: toolResults?.length ?? 0,
+          hasText: !!text,
+          usage,
+        },
+        "=== AI STEP FINISHED ==="
+      );
 
       // Track token usage after each step
       if (usage) {
-        const totalTokens = (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
+        const totalTokens =
+          (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
         if (totalTokens > 0) {
-          agentSafetyService.recordUsage(user.id, {
-            action: "analyze_data", // Generic action for chat
-            tokens: totalTokens,
-            promptTokens: usage.inputTokens ?? 0,
-            completionTokens: usage.outputTokens ?? 0,
-          }).catch((err) => logger.error({ err }, "Failed to record token usage"));
+          agentSafetyService
+            .recordUsage(user.id, {
+              action: "analyze_data", // Generic action for chat
+              tokens: totalTokens,
+              promptTokens: usage.inputTokens ?? 0,
+              completionTokens: usage.outputTokens ?? 0,
+            })
+            .catch((err) =>
+              logger.error({ err }, "Failed to record token usage")
+            );
         }
       }
     },
   });
 
-  logger.debug({ userId: user.id, sessionId: session?.id }, "AI chat request processed");
+  logger.debug(
+    { userId: user.id, sessionId: session?.id },
+    "AI chat request processed"
+  );
 
   // Save user message to session if we have one
+  // IMPORTANT: We await these operations to prevent data loss
   if (session && messages.length > 0) {
     const lastUserMessage = messages[messages.length - 1];
     if (lastUserMessage.role === "user") {
       // Extract text content from the message
-      const textContent = lastUserMessage.parts
-        ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
-        .map((p) => p.text)
-        .join("\n") ?? "";
+      const textContent =
+        lastUserMessage.parts
+          ?.filter(
+            (p): p is { type: "text"; text: string } => p.type === "text"
+          )
+          .map((p) => p.text)
+          .join("\n") ?? "";
 
-      agentMemoryService.saveMessage(session.id, {
-        role: "user",
-        content: textContent,
-      }).catch((err) => logger.error({ err }, "Failed to save user message"));
+      try {
+        await agentMemoryService.saveMessage(session.id, {
+          role: "user",
+          content: textContent,
+        });
 
-      // Update session title from first message
-      if (messages.length === 1 && textContent) {
-        const title = textContent.slice(0, 100);
-        agentMemoryService.updateSessionTitle(session.id, title).catch((err) =>
-          logger.error({ err }, "Failed to update session title")
+        // Update session title from first message
+        if (messages.length === 1 && textContent) {
+          const title = textContent.slice(0, 100);
+          await agentMemoryService.updateSessionTitle(session.id, title);
+        }
+      } catch (err) {
+        // Log but don't fail the request - the message save is important but
+        // shouldn't block the AI response from being sent
+        logger.error(
+          { err, sessionId: session.id },
+          "Failed to save user message or update session title"
         );
       }
     }
@@ -6842,6 +9784,32 @@ Be concise. Use proper accounting format. Verify data before acting.`;
   // Create response with sessionId header
   const response = result.toUIMessageStreamResponse();
   response.headers.set("X-Session-Id", session?.id ?? "");
+
+  // Clean up the timeout when response completes (via TransformStream)
+  // Note: The timeout will be cleared when the stream ends naturally
+  // or when it's aborted. We wrap the response to handle cleanup.
+  const originalBody = response.body;
+  if (originalBody) {
+    const transformStream = new TransformStream({
+      flush() {
+        // Stream completed - clear timeout
+        clearTimeout(streamTimeoutId);
+        logger.debug(
+          { userId: user.id },
+          "AI stream completed, timeout cleared"
+        );
+      },
+    });
+    const newBody = originalBody.pipeThrough(transformStream);
+    return new Response(newBody, {
+      headers: response.headers,
+      status: response.status,
+      statusText: response.statusText,
+    });
+  }
+
+  // Fallback: clear timeout immediately if no body
+  clearTimeout(streamTimeoutId);
   return response;
 });
 
@@ -6995,29 +9963,67 @@ aiRoutes.post("/onboarding", async (c) => {
   }
 
   // Check if onboarding is already completed
-  const onboardingStatus = await subscriptionService.getOnboardingStatus(user.id);
+  const onboardingStatus = await subscriptionService.getOnboardingStatus(
+    user.id
+  );
   if (onboardingStatus?.isCompleted) {
-    return c.json({
-      error: "Onboarding already completed",
-      redirectTo: "/invoices"
-    }, 400);
+    return c.json(
+      {
+        error: "Onboarding already completed",
+        redirectTo: "/invoices",
+      },
+      400
+    );
   }
 
   // Define onboarding tool
   const onboardingTools = {
     saveOnboardingData: tool({
-      description: "Save collected onboarding data to the database. Call this after gathering information from the user.",
+      description:
+        "Save collected onboarding data to the database. Call this after gathering information from the user.",
       inputSchema: z.object({
-        companyName: z.string().optional().describe("The user's company or business name"),
-        industryType: z.string().optional().describe("The industry they operate in"),
-        businessSize: z.enum(["solo", "2-10", "11-50", "50+"]).optional().describe("Number of employees"),
-        isMalaysiaBased: z.boolean().optional().describe("Whether they're based in Malaysia"),
-        accountingMethod: z.enum(["cash", "accrual"]).optional().describe("Preferred accounting method"),
-        fiscalYearEndMonth: z.number().min(1).max(12).optional().describe("Month number when fiscal year ends (1-12)"),
-        isSstRegistered: z.boolean().optional().describe("Whether registered for SST"),
-        mainPainPoints: z.string().optional().describe("Their bookkeeping pain points"),
-        referralSource: z.string().optional().describe("How they heard about us"),
-        isComplete: z.boolean().optional().describe("Set to true when onboarding is finished"),
+        companyName: z
+          .string()
+          .optional()
+          .describe("The user's company or business name"),
+        industryType: z
+          .string()
+          .optional()
+          .describe("The industry they operate in"),
+        businessSize: z
+          .enum(["solo", "2-10", "11-50", "50+"])
+          .optional()
+          .describe("Number of employees"),
+        isMalaysiaBased: z
+          .boolean()
+          .optional()
+          .describe("Whether they're based in Malaysia"),
+        accountingMethod: z
+          .enum(["cash", "accrual"])
+          .optional()
+          .describe("Preferred accounting method"),
+        fiscalYearEndMonth: z
+          .number()
+          .min(1)
+          .max(12)
+          .optional()
+          .describe("Month number when fiscal year ends (1-12)"),
+        isSstRegistered: z
+          .boolean()
+          .optional()
+          .describe("Whether registered for SST"),
+        mainPainPoints: z
+          .string()
+          .optional()
+          .describe("Their bookkeeping pain points"),
+        referralSource: z
+          .string()
+          .optional()
+          .describe("How they heard about us"),
+        isComplete: z
+          .boolean()
+          .optional()
+          .describe("Set to true when onboarding is finished"),
       }),
       execute: async ({
         companyName,
@@ -7057,12 +10063,18 @@ aiRoutes.post("/onboarding", async (c) => {
 
           // Update onboarding data
           if (Object.keys(onboardingData).length > 0) {
-            await subscriptionService.updateOnboardingData(user.id, onboardingData);
+            await subscriptionService.updateOnboardingData(
+              user.id,
+              onboardingData
+            );
           }
 
           // If completed, mark onboarding as complete
           if (isComplete) {
-            await subscriptionService.completeOnboarding(user.id, onboardingData);
+            await subscriptionService.completeOnboarding(
+              user.id,
+              onboardingData
+            );
 
             // Sync company name to user settings if provided
             if (onboardingData.companyName) {
@@ -7078,20 +10090,23 @@ aiRoutes.post("/onboarding", async (c) => {
             return {
               success: true,
               message: "Onboarding completed! Redirecting to dashboard...",
-              redirectTo: "/invoices"
+              redirectTo: "/invoices",
             };
           }
 
           return {
             success: true,
             message: "Data saved",
-            savedFields: Object.keys(onboardingData)
+            savedFields: Object.keys(onboardingData),
           };
         } catch (error) {
-          logger.error({ error, userId: user.id }, "Failed to save onboarding data");
+          logger.error(
+            { error, userId: user.id },
+            "Failed to save onboarding data"
+          );
           return {
             success: false,
-            error: "Failed to save data"
+            error: "Failed to save data",
           };
         }
       },
@@ -7108,7 +10123,9 @@ aiRoutes.post("/onboarding", async (c) => {
     temperature: 0.7,
   });
 
-  return result.toTextStreamResponse();
+  // Use toUIMessageStreamResponse() for AI SDK v5 useChat compatibility
+  // (toTextStreamResponse() doesn't work with useChat's message parts format)
+  return result.toUIMessageStreamResponse();
 });
 
 export { aiRoutes };

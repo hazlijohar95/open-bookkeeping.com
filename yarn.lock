@@ -160,14 +160,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@asteasolutions/zod-to-openapi@npm:7.3.0":
-  version: 7.3.0
-  resolution: "@asteasolutions/zod-to-openapi@npm:7.3.0"
+"@asteasolutions/zod-to-openapi@npm:^8.2.0":
+  version: 8.2.0
+  resolution: "@asteasolutions/zod-to-openapi@npm:8.2.0"
   dependencies:
     openapi3-ts: "npm:^4.1.2"
   peerDependencies:
-    zod: ^3.20.2
-  checksum: 10c0/f0a68a89929cdeaa3e21d2027489689f982824d676a9332c680e119f60881dd39b571324b24ad4837fda49bf6fe7c3e2af2199268b281bf1aec923d7a7cbfc40
+    zod: ^4.0.0
+  checksum: 10c0/cfef2f2a78a451dc3c5c4a47808c7e0287076c4d8690ffd1f90025b14ce225be1acd76c76a3505f87423b951ed6f8d90f6ecaf116e46d50a4947a5d004cae21c
   languageName: node
   linkType: hard
 
@@ -2532,7 +2532,7 @@ __metadata:
     "@ai-sdk/anthropic": "npm:^2.0.53"
     "@ai-sdk/openai": "npm:^2.0.76"
     "@ai-sdk/react": "npm:^2.0.106"
-    "@asteasolutions/zod-to-openapi": "npm:7.3.0"
+    "@asteasolutions/zod-to-openapi": "npm:^8.2.0"
     "@hono/node-server": "npm:^1.19.6"
     "@hono/swagger-ui": "npm:^0.5.2"
     "@hono/trpc-server": "npm:^0.3.2"
@@ -2555,7 +2555,7 @@ __metadata:
     typescript: "npm:^5.8.2"
     uuid: "npm:^13.0.0"
     vitest: "npm:^4.0.15"
-    zod: "npm:^3.25.7"
+    zod: "npm:^4.1.13"
   languageName: unknown
   linkType: soft
 
@@ -2563,6 +2563,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@open-bookkeeping/db@workspace:packages/db"
   dependencies:
+    "@upstash/redis": "npm:^1.34.4"
     decimal.js: "npm:^10.5.0"
     drizzle-kit: "npm:^0.31.1"
     drizzle-orm: "npm:^0.43.1"
@@ -2592,7 +2593,7 @@ __metadata:
   dependencies:
     pino: "npm:^10.1.0"
     pino-pretty: "npm:^13.1.3"
-    zod: "npm:^3.25.7"
+    zod: "npm:^4.1.13"
   languageName: unknown
   linkType: soft
 
@@ -6005,6 +6006,15 @@ __metadata:
   version: 1.3.0
   resolution: "@ungap/structured-clone@npm:1.3.0"
   checksum: 10c0/0fc3097c2540ada1fc340ee56d58d96b5b536a2a0dab6e3ec17d4bfc8c4c86db345f61a375a8185f9da96f01c69678f836a2b57eeaa9e4b8eeafd26428e57b0a
+  languageName: node
+  linkType: hard
+
+"@upstash/redis@npm:^1.34.4":
+  version: 1.35.8
+  resolution: "@upstash/redis@npm:1.35.8"
+  dependencies:
+    uncrypto: "npm:^0.1.3"
+  checksum: 10c0/50b695f33990d3e26ddf4d56d002b13b369bbaeaa3664563b14b1f5e51fe788b9bb839886fee508e1a6821b855efad18992446c6920f9b730c5c275e6894ac18
   languageName: node
   linkType: hard
 
@@ -15011,13 +15021,6 @@ __metadata:
   version: 3.2.1
   resolution: "yoga-layout@npm:3.2.1"
   checksum: 10c0/9001e51be993c85e03757e5a04a2b61b8b30c9e5a7865d0156ca87a6431a3b717d51eb4990bfe588189fcfeac688dd9c3de707bbd50d1c344a84e63974cc54a8
-  languageName: node
-  linkType: hard
-
-"zod@npm:^3.25.7":
-  version: 3.25.76
-  resolution: "zod@npm:3.25.76"
-  checksum: 10c0/5718ec35e3c40b600316c5b4c5e4976f7fee68151bc8f8d90ec18a469be9571f072e1bbaace10f1e85cf8892ea12d90821b200e980ab46916a6166a4260a983c
   languageName: node
   linkType: hard
 

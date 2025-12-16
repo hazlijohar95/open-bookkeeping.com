@@ -36,6 +36,7 @@ export const LINKS = {
   DEVELOPER: "/developer",
   DEVELOPER_API_KEYS: "/developer/api-keys",
   DEVELOPER_WEBHOOKS: "/developer/webhooks",
+  DATA_FLOW: "/data-flow",
   FIXED_ASSETS: "/fixed-assets",
   AGENT: "/agent",
   EMPLOYEES: "/employees",
@@ -45,5 +46,19 @@ export const LINKS = {
     QUOTATION: "/create/quotation",
     CREDIT_NOTE: "/create/credit-note",
     DEBIT_NOTE: "/create/debit-note",
+  },
+  // Superadmin routes
+  SUPERADMIN: {
+    DASHBOARD: "/superadmin",
+    USERS: "/superadmin/users",
+    USER_DETAIL: "/superadmin/users/:id",
+    ORGANIZATIONS: "/superadmin/organizations",
+    ORGANIZATION_DETAIL: "/superadmin/organizations/:id",
+    ANALYTICS: "/superadmin/analytics",
+    AGENT: "/superadmin/agent",
+    SUBSCRIPTIONS: "/superadmin/subscriptions",
+    REVENUE: "/superadmin/revenue",
+    SETTINGS: "/superadmin/settings",
+    AUDIT_LOGS: "/superadmin/audit",
   },
 };

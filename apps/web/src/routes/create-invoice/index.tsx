@@ -6,6 +6,7 @@ import {
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 import { invoiceTabAtom, type InvoiceTab } from "@/global/atoms/invoice-atom";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { zodResolver } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCallback, useRef } from "react";
@@ -32,6 +33,9 @@ export function CreateInvoicePage({ defaultInvoice }: InvoicePageProps) {
     resolver: zodResolver(createInvoiceSchema),
     defaultValues: defaultInvoice || createInvoiceSchemaDefaultValues,
   });
+
+  // Warn user about unsaved changes before leaving
+  useUnsavedChanges(form.formState.isDirty);
 
   // Handle tab change and panel resize in the same event handler
   // This avoids the useEffect anti-pattern of "reacting to state changes"
@@ -83,7 +87,11 @@ export function CreateInvoicePage({ defaultInvoice }: InvoicePageProps) {
     <div className="flex h-full flex-col">
       <InvoiceOptions form={form} onTabChange={handleTabChange} />
       <ResizablePanelGroup direction="horizontal" className="divide-x">
-        <ResizablePanel collapsible={true} defaultSize={50} ref={invoiceFormPanelRef}>
+        <ResizablePanel
+          collapsible={true}
+          defaultSize={50}
+          ref={invoiceFormPanelRef}
+        >
           <InvoiceForm form={form} />
         </ResizablePanel>
         <ResizablePanel

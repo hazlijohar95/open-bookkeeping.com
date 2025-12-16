@@ -28,7 +28,7 @@ import { relations } from "drizzle-orm";
 import { users } from "./users";
 import { customers } from "./customers";
 import { vendors } from "./vendors";
-import { invoiceStatusEnum } from "./enums";
+import { invoiceStatusV2Enum } from "./enums";
 
 // ============================================
 // TYPE DEFINITIONS FOR JSONB COLUMNS
@@ -95,7 +95,7 @@ export const invoicesV2 = pgTable(
 
     // Type and Status
     type: varchar("type", { length: 20 }).default("server").notNull(),
-    status: invoiceStatusEnum("status").default("pending").notNull(),
+    status: invoiceStatusV2Enum("status").default("draft").notNull(),
     einvoiceStatus: varchar("einvoice_status", { length: 20 }),
 
     // Invoice identification (queryable)
@@ -109,20 +109,34 @@ export const invoicesV2 = pgTable(
     paymentTerms: text("payment_terms"),
 
     // Calculated totals for efficient queries (denormalized)
-    subtotal: numeric("subtotal", { precision: 15, scale: 2 }).default("0").notNull(),
-    taxTotal: numeric("tax_total", { precision: 15, scale: 2 }).default("0").notNull(),
-    discountTotal: numeric("discount_total", { precision: 15, scale: 2 }).default("0").notNull(),
+    subtotal: numeric("subtotal", { precision: 15, scale: 2 })
+      .default("0")
+      .notNull(),
+    taxTotal: numeric("tax_total", { precision: 15, scale: 2 })
+      .default("0")
+      .notNull(),
+    discountTotal: numeric("discount_total", { precision: 15, scale: 2 })
+      .default("0")
+      .notNull(),
     total: numeric("total", { precision: 15, scale: 2 }).default("0").notNull(),
-    amountPaid: numeric("amount_paid", { precision: 15, scale: 2 }).default("0").notNull(),
-    amountDue: numeric("amount_due", { precision: 15, scale: 2 }).default("0").notNull(),
+    amountPaid: numeric("amount_paid", { precision: 15, scale: 2 })
+      .default("0")
+      .notNull(),
+    amountDue: numeric("amount_due", { precision: 15, scale: 2 })
+      .default("0")
+      .notNull(),
 
     // Theme
     theme: jsonb("theme").$type<InvoiceTheme>(),
 
     // JSONB for flexible data (reduces tables from 11 to 1)
-    companyDetails: jsonb("company_details").$type<CompanyDetailsV2>().notNull(),
+    companyDetails: jsonb("company_details")
+      .$type<CompanyDetailsV2>()
+      .notNull(),
     clientDetails: jsonb("client_details").$type<ClientDetailsV2>().notNull(),
-    billingDetails: jsonb("billing_details").$type<BillingDetailV2[]>().default([]),
+    billingDetails: jsonb("billing_details")
+      .$type<BillingDetailV2[]>()
+      .default([]),
     metadata: jsonb("metadata").$type<InvoiceMetadataV2>().default({}),
 
     // Timestamps
@@ -148,11 +162,18 @@ export const invoicesV2 = pgTable(
     index("invoices_v2_prefix_serial_idx").on(table.prefix, table.serialNumber),
 
     // Financial reports
-    index("invoices_v2_user_invoice_date_idx").on(table.userId, table.invoiceDate),
+    index("invoices_v2_user_invoice_date_idx").on(
+      table.userId,
+      table.invoiceDate
+    ),
     index("invoices_v2_user_due_date_idx").on(table.userId, table.dueDate),
 
     // Dashboard queries
-    index("invoices_v2_user_status_total_idx").on(table.userId, table.status, table.total),
+    index("invoices_v2_user_status_total_idx").on(
+      table.userId,
+      table.status,
+      table.total
+    ),
   ]
 );
 
@@ -186,9 +207,7 @@ export const invoiceItemsV2 = pgTable(
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (table) => [
-    index("invoice_items_v2_invoice_id_idx").on(table.invoiceId),
-  ]
+  (table) => [index("invoice_items_v2_invoice_id_idx").on(table.invoiceId)]
 );
 
 // ============================================
@@ -234,7 +253,8 @@ export const invoiceActivitiesV2 = pgTable(
 
     action: varchar("action", { length: 50 }).notNull(), // created, updated, sent, viewed, paid, etc.
     description: text("description"),
-    changes: jsonb("changes").$type<Record<string, { old: unknown; new: unknown }>>(),
+    changes:
+      jsonb("changes").$type<Record<string, { old: unknown; new: unknown }>>(),
 
     performedBy: uuid("performed_by").references(() => users.id),
     performedAt: timestamp("performed_at").defaultNow().notNull(),
@@ -278,24 +298,30 @@ export const invoiceItemsV2Relations = relations(invoiceItemsV2, ({ one }) => ({
   }),
 }));
 
-export const invoicePaymentsV2Relations = relations(invoicePaymentsV2, ({ one }) => ({
-  invoice: one(invoicesV2, {
-    fields: [invoicePaymentsV2.invoiceId],
-    references: [invoicesV2.id],
-  }),
-  createdByUser: one(users, {
-    fields: [invoicePaymentsV2.createdBy],
-    references: [users.id],
-  }),
-}));
+export const invoicePaymentsV2Relations = relations(
+  invoicePaymentsV2,
+  ({ one }) => ({
+    invoice: one(invoicesV2, {
+      fields: [invoicePaymentsV2.invoiceId],
+      references: [invoicesV2.id],
+    }),
+    createdByUser: one(users, {
+      fields: [invoicePaymentsV2.createdBy],
+      references: [users.id],
+    }),
+  })
+);
 
-export const invoiceActivitiesV2Relations = relations(invoiceActivitiesV2, ({ one }) => ({
-  invoice: one(invoicesV2, {
-    fields: [invoiceActivitiesV2.invoiceId],
-    references: [invoicesV2.id],
-  }),
-  performer: one(users, {
-    fields: [invoiceActivitiesV2.performedBy],
-    references: [users.id],
-  }),
-}));
+export const invoiceActivitiesV2Relations = relations(
+  invoiceActivitiesV2,
+  ({ one }) => ({
+    invoice: one(invoicesV2, {
+      fields: [invoiceActivitiesV2.invoiceId],
+      references: [invoicesV2.id],
+    }),
+    performer: one(users, {
+      fields: [invoiceActivitiesV2.performedBy],
+      references: [users.id],
+    }),
+  })
+);

@@ -84,6 +84,7 @@ export function OnboardingChat({ onComplete, onSkip }: OnboardingChatProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [input, setInput] = useState("");
   const [quickReplies, setQuickReplies] = useState<string[] | null>(null);
+  const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
 
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
@@ -94,11 +95,20 @@ export function OnboardingChat({ onComplete, onSkip }: OnboardingChatProps) {
     }),
     onFinish: ({ message }) => {
       const content = extractTextContent(message as ChatMessage);
-      // Check if onboarding is complete (look for redirect signal in message)
-      if (content.includes("Redirecting") || content.includes("all set")) {
-        setTimeout(() => {
-          onComplete();
-        }, 2000);
+      const lowerContent = content.toLowerCase();
+
+      // Check if onboarding is complete (look for completion signals in message)
+      const isComplete =
+        lowerContent.includes("onboarding is complete") ||
+        lowerContent.includes("all set") ||
+        lowerContent.includes("you're all set") ||
+        lowerContent.includes("head to your dashboard") ||
+        lowerContent.includes("redirecting");
+
+      if (isComplete) {
+        setIsOnboardingComplete(true);
+        setQuickReplies(null); // Clear quick replies on completion
+        return; // Don't detect quick replies for completion message
       }
 
       // Detect quick replies for the last assistant message
@@ -280,9 +290,9 @@ export function OnboardingChat({ onComplete, onSkip }: OnboardingChatProps) {
             )}
           </div>
 
-          {/* Quick replies */}
+          {/* Quick replies - hide when onboarding is complete */}
           <AnimatePresence>
-            {quickReplies && quickReplies.length > 0 && !isLoading && (
+            {quickReplies && quickReplies.length > 0 && !isLoading && !isOnboardingComplete && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
@@ -307,38 +317,59 @@ export function OnboardingChat({ onComplete, onSkip }: OnboardingChatProps) {
             )}
           </AnimatePresence>
 
-          {/* Input */}
-          <form
-            id="onboarding-form"
-            onSubmit={onSubmit}
-            className="p-4 border-t border-border/50 bg-card/50"
-          >
-            <div className="flex items-center gap-2">
-              <Input
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type your response..."
-                disabled={isLoading}
-                className="flex-1 bg-background/50 border-border/50 focus-visible:ring-primary/50"
-              />
+          {/* Completion CTA or Input */}
+          {isOnboardingComplete ? (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 border-t border-border/50 bg-card/50"
+            >
               <Button
-                type="submit"
-                size="icon"
-                disabled={!input.trim() || isLoading}
-                className="shrink-0"
+                onClick={onComplete}
+                className="w-full h-12 text-base font-medium"
+                size="lg"
               >
-                {isLoading ? (
-                  <Loader2Icon className="h-4 w-4 animate-spin" />
-                ) : (
-                  <SendIcon className="h-4 w-4" />
-                )}
+                <Sparkles className="h-5 w-5 mr-2" />
+                Go to Dashboard
+                <ChevronRightIcon className="h-5 w-5 ml-2" />
               </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2 text-center">
-              Type "skip" to skip any question
-            </p>
-          </form>
+              <p className="text-xs text-muted-foreground mt-3 text-center">
+                Your account is ready! Start managing your business finances.
+              </p>
+            </motion.div>
+          ) : (
+            <form
+              id="onboarding-form"
+              onSubmit={onSubmit}
+              className="p-4 border-t border-border/50 bg-card/50"
+            >
+              <div className="flex items-center gap-2">
+                <Input
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Type your response..."
+                  disabled={isLoading}
+                  className="flex-1 bg-background/50 border-border/50 focus-visible:ring-primary/50"
+                />
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={!input.trim() || isLoading}
+                  className="shrink-0"
+                >
+                  {isLoading ? (
+                    <Loader2Icon className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <SendIcon className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2 text-center">
+                Type "skip" to skip any question
+              </p>
+            </form>
+          )}
         </Card>
 
         {/* Trial banner below card */}

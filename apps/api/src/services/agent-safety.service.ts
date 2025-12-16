@@ -408,6 +408,181 @@ export const agentSafetyService = {
   },
 
   /**
+   * Atomic check and increment quota to prevent race conditions.
+   * This method checks if an action is allowed AND increments usage in a single operation.
+   * This prevents the race condition where two concurrent requests both pass the check
+   * before either increments the counter.
+   */
+  checkAndIncrementQuota: async (
+    userId: string,
+    action: AgentActionType,
+    amount?: number
+  ): Promise<QuotaCheckResult> => {
+    const quotas = await agentSafetyService.getEffectiveQuotas(userId);
+
+    // Check emergency stop first (no increment needed)
+    if (quotas.emergencyStopEnabled) {
+      return {
+        allowed: false,
+        reason: "Emergency stop is enabled. AI agent actions are blocked.",
+      };
+    }
+
+    // Check per-minute rate limit (no increment needed)
+    const rateLimitResult = await agentSafetyService.checkRateLimit(userId);
+    if (!rateLimitResult.allowed) {
+      return rateLimitResult;
+    }
+
+    const today = new Date().toISOString().split("T")[0]!;
+    await agentSafetyService.getTodayUsage(userId); // Ensure record exists
+
+    // Determine which counter to check and increment based on action
+    let columnToCheck: string | null = null;
+    let limit: number | null = null;
+    let columnName = "";
+
+    if (action === "create_invoice") {
+      columnToCheck = "invoices_created";
+      limit = quotas.dailyInvoiceLimit;
+      columnName = "invoicesCreated";
+    } else if (action === "create_bill") {
+      columnToCheck = "bills_created";
+      limit = quotas.dailyBillLimit;
+      columnName = "billsCreated";
+    } else if (action === "create_journal_entry") {
+      columnToCheck = "journal_entries_created";
+      limit = quotas.dailyJournalEntryLimit;
+      columnName = "journalEntriesCreated";
+    } else if (action === "create_quotation") {
+      columnToCheck = "quotations_created";
+      limit = quotas.dailyQuotationLimit;
+      columnName = "quotationsCreated";
+    }
+
+    // For actions with limits, use atomic increment with check
+    if (columnToCheck && limit !== null) {
+      // Check single item amount limits before atomic increment
+      if (action === "create_invoice" && amount !== undefined && quotas.maxSingleInvoiceAmount !== null) {
+        if (amount > parseFloat(quotas.maxSingleInvoiceAmount)) {
+          return {
+            allowed: false,
+            reason: `Invoice amount exceeds maximum allowed (${quotas.maxSingleInvoiceAmount})`,
+            limit: parseFloat(quotas.maxSingleInvoiceAmount),
+          };
+        }
+      }
+      if (action === "create_bill" && amount !== undefined && quotas.maxSingleBillAmount !== null) {
+        if (amount > parseFloat(quotas.maxSingleBillAmount)) {
+          return {
+            allowed: false,
+            reason: `Bill amount exceeds maximum allowed (${quotas.maxSingleBillAmount})`,
+            limit: parseFloat(quotas.maxSingleBillAmount),
+          };
+        }
+      }
+      if (action === "create_journal_entry" && amount !== undefined && quotas.maxSingleJournalAmount !== null) {
+        if (amount > parseFloat(quotas.maxSingleJournalAmount)) {
+          return {
+            allowed: false,
+            reason: `Journal entry amount exceeds maximum allowed (${quotas.maxSingleJournalAmount})`,
+            limit: parseFloat(quotas.maxSingleJournalAmount),
+          };
+        }
+      }
+
+      // Atomic increment with limit check using raw SQL
+      // This increments the counter only if it's below the limit, returning the new value
+      const result = await db.execute(sql`
+        UPDATE agent_usage
+        SET ${sql.identifier(columnToCheck)} = ${sql.identifier(columnToCheck)} + 1,
+            total_actions = total_actions + 1,
+            total_mutations = total_mutations + 1,
+            updated_at = NOW()
+        WHERE user_id = ${userId}
+          AND date = ${today}
+          AND ${sql.identifier(columnToCheck)} < ${limit}
+        RETURNING ${sql.identifier(columnToCheck)} as new_count
+      `);
+
+      // Cast result to array (Drizzle's db.execute returns RowList which is array-like)
+      const rows = result as unknown as Array<{ new_count: number }>;
+
+      // If no rows were updated, the limit was reached
+      if (rows.length === 0) {
+        // Get current count for the error message
+        const usage = await agentSafetyService.getTodayUsage(userId);
+        const current = usage[columnName as keyof typeof usage] as number;
+        return {
+          allowed: false,
+          reason: `Daily ${action.replace("create_", "")} creation limit reached`,
+          limit,
+          current,
+          remaining: 0,
+        };
+      }
+
+      // Check daily total amount limit if applicable
+      if (amount !== undefined && quotas.maxDailyTotalAmount !== null) {
+        const usage = await agentSafetyService.getTodayUsage(userId);
+        const currentTotal = parseFloat(usage.totalAmountProcessed ?? "0");
+        const maxTotal = parseFloat(quotas.maxDailyTotalAmount);
+
+        if (currentTotal + amount > maxTotal) {
+          // Rollback the increment we just did
+          await db.execute(sql`
+            UPDATE agent_usage
+            SET ${sql.identifier(columnToCheck)} = ${sql.identifier(columnToCheck)} - 1,
+                total_actions = total_actions - 1,
+                total_mutations = total_mutations - 1
+            WHERE user_id = ${userId} AND date = ${today}
+          `);
+          return {
+            allowed: false,
+            reason: `Daily total amount limit would be exceeded`,
+            limit: maxTotal,
+            current: currentTotal,
+            remaining: maxTotal - currentTotal,
+          };
+        }
+
+        // Update amount processed
+        await db.execute(sql`
+          UPDATE agent_usage
+          SET total_amount_processed = total_amount_processed + ${amount}
+          WHERE user_id = ${userId} AND date = ${today}
+        `);
+      }
+
+      logger.debug({ userId, action, limit }, "Quota check passed, usage incremented atomically");
+      return { allowed: true };
+    }
+
+    // For read actions and other non-limited actions, just check token limit
+    const usage = await agentSafetyService.getTodayUsage(userId);
+    if (usage.tokensUsed >= quotas.dailyTokenLimit) {
+      return {
+        allowed: false,
+        reason: "Daily token limit reached",
+        limit: quotas.dailyTokenLimit,
+        current: usage.tokensUsed,
+        remaining: 0,
+      };
+    }
+
+    // Increment total actions for non-limited actions
+    await db.execute(sql`
+      UPDATE agent_usage
+      SET total_actions = total_actions + 1,
+          total_reads = total_reads + 1,
+          updated_at = NOW()
+      WHERE user_id = ${userId} AND date = ${today}
+    `);
+
+    return { allowed: true };
+  },
+
+  /**
    * Record usage after an action
    */
   recordUsage: async (userId: string, update: UsageUpdate) => {
@@ -578,5 +753,39 @@ export const agentSafetyService = {
       },
       emergencyStopEnabled: quotas.emergencyStopEnabled,
     };
+  },
+
+  /**
+   * Reset daily usage counters for a user (superadmin only)
+   * This resets all usage counters for today back to zero
+   */
+  resetDailyUsage: async (userId: string) => {
+    const today = new Date().toISOString().split("T")[0]!;
+
+    await db
+      .update(agentUsage)
+      .set({
+        invoicesCreated: 0,
+        billsCreated: 0,
+        journalEntriesCreated: 0,
+        quotationsCreated: 0,
+        tokensUsed: 0,
+        promptTokensUsed: 0,
+        completionTokensUsed: 0,
+        totalActions: 0,
+        totalMutations: 0,
+        totalReads: 0,
+        totalAmountProcessed: "0",
+        workflowsStarted: 0,
+        workflowsCompleted: 0,
+        workflowsFailed: 0,
+        approvalsRequested: 0,
+        approvalsGranted: 0,
+        approvalsRejected: 0,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(agentUsage.userId, userId), eq(agentUsage.date, today)));
+
+    return { success: true, date: today };
   },
 };

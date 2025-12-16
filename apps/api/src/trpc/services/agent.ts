@@ -41,14 +41,18 @@ const createWorkflowSchema = z.object({
   description: z.string().optional(),
   templateId: z.string().optional(),
   sessionId: z.string().uuid().optional(),
-  steps: z.array(z.object({
-    stepNumber: z.number(),
-    action: z.string(),
-    description: z.string(),
-    parameters: z.record(z.unknown()),
-    dependsOn: z.array(z.number()).optional(),
-    requiresApproval: z.boolean().optional(),
-  })).optional(),
+  steps: z
+    .array(
+      z.object({
+        stepNumber: z.number(),
+        action: z.string(),
+        description: z.string(),
+        parameters: z.record(z.string(), z.unknown()),
+        dependsOn: z.array(z.number()).optional(),
+        requiresApproval: z.boolean().optional(),
+      })
+    )
+    .optional(),
 });
 
 export const agentRouter = router({
@@ -83,10 +87,12 @@ export const agentRouter = router({
     }),
 
   approveAction: protectedProcedure
-    .input(z.object({
-      approvalId: z.string().uuid(),
-      notes: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        approvalId: z.string().uuid(),
+        notes: z.string().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       return approvalService.approveAction(
         input.approvalId,
@@ -96,10 +102,12 @@ export const agentRouter = router({
     }),
 
   rejectAction: protectedProcedure
-    .input(z.object({
-      approvalId: z.string().uuid(),
-      notes: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        approvalId: z.string().uuid(),
+        notes: z.string().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       return approvalService.rejectAction(
         input.approvalId,
@@ -109,11 +117,15 @@ export const agentRouter = router({
     }),
 
   getApprovalHistory: protectedProcedure
-    .input(z.object({
-      status: z.string().optional(),
-      limit: z.number().optional(),
-      offset: z.number().optional(),
-    }).optional())
+    .input(
+      z
+        .object({
+          status: z.string().optional(),
+          limit: z.number().optional(),
+          offset: z.number().optional(),
+        })
+        .optional()
+    )
     .query(async ({ ctx, input }) => {
       return approvalService.getApprovalHistory(ctx.user.id, input);
     }),
@@ -161,18 +173,22 @@ export const agentRouter = router({
   // ==========================================
 
   getAuditLogs: protectedProcedure
-    .input(z.object({
-      sessionId: z.string().uuid().optional(),
-      workflowId: z.string().uuid().optional(),
-      action: z.string().optional(),
-      resourceType: z.string().optional(),
-      resourceId: z.string().uuid().optional(),
-      startDate: z.string().optional(),
-      endDate: z.string().optional(),
-      success: z.boolean().optional(),
-      limit: z.number().optional(),
-      offset: z.number().optional(),
-    }).optional())
+    .input(
+      z
+        .object({
+          sessionId: z.string().uuid().optional(),
+          workflowId: z.string().uuid().optional(),
+          action: z.string().optional(),
+          resourceType: z.string().optional(),
+          resourceId: z.string().uuid().optional(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          success: z.boolean().optional(),
+          limit: z.number().optional(),
+          offset: z.number().optional(),
+        })
+        .optional()
+    )
     .query(async ({ ctx, input }) => {
       return agentAuditService.getAuditLogs(ctx.user.id, input as any);
     }),
@@ -184,10 +200,12 @@ export const agentRouter = router({
     }),
 
   getAuditTrail: protectedProcedure
-    .input(z.object({
-      resourceType: z.string(),
-      resourceId: z.string().uuid(),
-    }))
+    .input(
+      z.object({
+        resourceType: z.string(),
+        resourceId: z.string().uuid(),
+      })
+    )
     .query(async ({ ctx, input }) => {
       return agentAuditService.getAuditTrail(
         ctx.user.id,
@@ -197,20 +215,28 @@ export const agentRouter = router({
     }),
 
   getAuditStats: protectedProcedure
-    .input(z.object({
-      startDate: z.string().optional(),
-      endDate: z.string().optional(),
-    }).optional())
+    .input(
+      z
+        .object({
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+        })
+        .optional()
+    )
     .query(async ({ ctx, input }) => {
       return agentAuditService.getStats(ctx.user.id, input);
     }),
 
   exportAuditLogs: protectedProcedure
-    .input(z.object({
-      startDate: z.string().optional(),
-      endDate: z.string().optional(),
-      format: z.enum(["json", "csv"]).optional(),
-    }).optional())
+    .input(
+      z
+        .object({
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          format: z.enum(["json", "csv"]).optional(),
+        })
+        .optional()
+    )
     .mutation(async ({ ctx, input }) => {
       return agentAuditService.exportLogs(ctx.user.id, input);
     }),
@@ -262,11 +288,15 @@ export const agentRouter = router({
     }),
 
   getWorkflows: protectedProcedure
-    .input(z.object({
-      status: z.string().optional(),
-      limit: z.number().optional(),
-      offset: z.number().optional(),
-    }).optional())
+    .input(
+      z
+        .object({
+          status: z.string().optional(),
+          limit: z.number().optional(),
+          offset: z.number().optional(),
+        })
+        .optional()
+    )
     .query(async ({ ctx, input }) => {
       return workflowEngineService.getWorkflows(ctx.user.id, input);
     }),
@@ -286,14 +316,19 @@ export const agentRouter = router({
   resumeWorkflow: protectedProcedure
     .input(z.object({ workflowId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      return workflowEngineService.resumeWorkflow(input.workflowId, ctx.user.id);
+      return workflowEngineService.resumeWorkflow(
+        input.workflowId,
+        ctx.user.id
+      );
     }),
 
   cancelWorkflow: protectedProcedure
-    .input(z.object({
-      workflowId: z.string().uuid(),
-      reason: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        workflowId: z.string().uuid(),
+        reason: z.string().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       return workflowEngineService.cancelWorkflow(
         input.workflowId,
@@ -318,10 +353,14 @@ export const agentRouter = router({
 
   // List user's chat sessions
   getSessions: protectedProcedure
-    .input(z.object({
-      limit: z.number().min(1).max(100).optional(),
-      offset: z.number().min(0).optional(),
-    }).optional())
+    .input(
+      z
+        .object({
+          limit: z.number().min(1).max(100).optional(),
+          offset: z.number().min(0).optional(),
+        })
+        .optional()
+    )
     .query(async ({ ctx, input }) => {
       const sessions = await db
         .select()
@@ -363,26 +402,40 @@ export const agentRouter = router({
 
   // Sync a thread from IndexedDB to PostgreSQL
   syncSession: protectedProcedure
-    .input(z.object({
-      localThreadId: z.string(),
-      title: z.string().nullable().optional(),
-      messages: z.array(z.object({
-        localId: z.string(),
-        role: z.string(),
-        content: z.string().nullable(),
-        toolCalls: z.array(z.object({
-          id: z.string(),
-          name: z.string(),
-          arguments: z.record(z.unknown()),
-        })).nullable().optional(),
-        toolResults: z.array(z.object({
-          toolCallId: z.string(),
-          result: z.unknown(),
-          error: z.string().optional(),
-        })).nullable().optional(),
-        createdAt: z.string(),
-      })),
-    }))
+    .input(
+      z.object({
+        localThreadId: z.string(),
+        title: z.string().nullable().optional(),
+        messages: z.array(
+          z.object({
+            localId: z.string(),
+            role: z.string(),
+            content: z.string().nullable(),
+            toolCalls: z
+              .array(
+                z.object({
+                  id: z.string(),
+                  name: z.string(),
+                  arguments: z.record(z.string(), z.unknown()),
+                })
+              )
+              .nullable()
+              .optional(),
+            toolResults: z
+              .array(
+                z.object({
+                  toolCallId: z.string(),
+                  result: z.unknown(),
+                  error: z.string().optional(),
+                })
+              )
+              .nullable()
+              .optional(),
+            createdAt: z.string(),
+          })
+        ),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       // Create or update session
       const existingSession = await db

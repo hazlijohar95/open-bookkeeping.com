@@ -5,6 +5,7 @@
 
 export interface IDBAgentThread {
   id: string;
+  userId: string; // REQUIRED: User isolation for security
   title: string | null;
   createdAt: string;
   updatedAt: string;

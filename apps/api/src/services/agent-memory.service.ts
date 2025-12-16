@@ -1,4 +1,4 @@
-import { db } from "@open-bookkeeping/db";
+import { db, companyProfileRepository } from "@open-bookkeeping/db";
 import {
   agentSessions,
   agentMessages,
@@ -61,7 +61,9 @@ export async function getOrCreateSession(
       const existing = await db
         .select()
         .from(agentSessions)
-        .where(and(eq(agentSessions.id, sessionId), eq(agentSessions.userId, userId)))
+        .where(
+          and(eq(agentSessions.id, sessionId), eq(agentSessions.userId, userId))
+        )
         .limit(1);
 
       const existingSession = existing[0];
@@ -73,7 +75,8 @@ export async function getOrCreateSession(
           status: existingSession.status as Session["status"],
           messages,
           summary: existingSession.summary ?? undefined,
-          systemContext: existingSession.systemContext as Session["systemContext"],
+          systemContext:
+            existingSession.systemContext as Session["systemContext"],
         };
       }
     }
@@ -139,9 +142,14 @@ export async function getSessionMessages(
       toolResults: m.toolResults as SessionMessage["toolResults"],
     }));
   } catch (error) {
-    logger.error({ error, sessionId }, "Failed to get session messages - throwing to caller");
+    logger.error(
+      { error, sessionId },
+      "Failed to get session messages - throwing to caller"
+    );
     // Re-throw to let caller decide how to handle (don't silently return empty)
-    throw new Error(`Failed to retrieve session messages: ${error instanceof Error ? error.message : "Unknown error"}`);
+    throw new Error(
+      `Failed to retrieve session messages: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
   }
 }
 
@@ -177,8 +185,13 @@ export async function saveMessage(
         .where(eq(agentSessions.id, sessionId));
     }
   } catch (error) {
-    logger.error({ error, sessionId, messageRole: message.role }, "Failed to save message - throwing to prevent data loss");
-    throw new Error(`Failed to save message: ${error instanceof Error ? error.message : "Unknown error"}`);
+    logger.error(
+      { error, sessionId, messageRole: message.role },
+      "Failed to save message - throwing to prevent data loss"
+    );
+    throw new Error(
+      `Failed to save message: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
   }
 }
 
@@ -246,8 +259,13 @@ export async function getRecentSessions(
 
     return sessions;
   } catch (error) {
-    logger.error({ error, userId }, "Failed to get recent sessions - throwing to caller");
-    throw new Error(`Failed to get recent sessions: ${error instanceof Error ? error.message : "Unknown error"}`);
+    logger.error(
+      { error, userId },
+      "Failed to get recent sessions - throwing to caller"
+    );
+    throw new Error(
+      `Failed to get recent sessions: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
   }
 }
 
@@ -270,7 +288,13 @@ export interface Memory {
 export async function storeMemory(
   userId: string,
   memory: {
-    category: "preference" | "fact" | "pattern" | "instruction" | "context" | "insight";
+    category:
+      | "preference"
+      | "fact"
+      | "pattern"
+      | "instruction"
+      | "context"
+      | "insight";
     key: string;
     value: string;
     sourceType: "user_explicit" | "inferred" | "system" | "conversation";
@@ -293,7 +317,12 @@ export async function storeMemory(
         const mostSimilar = similar[0];
         if (mostSimilar) {
           logger.info(
-            { userId, existingKey: mostSimilar.key, newKey: memory.key, similarity: mostSimilar.similarity },
+            {
+              userId,
+              existingKey: mostSimilar.key,
+              newKey: memory.key,
+              similarity: mostSimilar.similarity,
+            },
             "Found similar memory, updating instead of creating duplicate"
           );
 
@@ -526,21 +555,24 @@ export async function searchMemoriesSemantic(
 
     if (!embedding) {
       // Fallback to keyword search
-      logger.warn({ userId, query }, "Failed to generate embedding, falling back to keyword search");
+      logger.warn(
+        { userId, query },
+        "Failed to generate embedding, falling back to keyword search"
+      );
       const keywordResults = await searchMemories(userId, query, limit);
       return keywordResults.map((m) => ({ ...m, similarity: 0.5 }));
     }
 
     // Use the database function for semantic search
     const embeddingPg = formatEmbeddingForPg(embedding);
-    const results = await db.execute(
+    const results = (await db.execute(
       sql`SELECT * FROM search_memories_semantic(
         ${userId}::uuid,
         ${embeddingPg}::vector,
         ${threshold}::float,
         ${limit}::int
       )`
-    ) as unknown as Array<{
+    )) as unknown as Array<{
       id: string;
       category: string;
       key: string;
@@ -560,7 +592,10 @@ export async function searchMemoriesSemantic(
       similarity: row.similarity,
     }));
   } catch (error) {
-    logger.error({ error, userId, query }, "Failed to search memories semantically");
+    logger.error(
+      { error, userId, query },
+      "Failed to search memories semantically"
+    );
     // Fallback to keyword search
     const keywordResults = await searchMemories(userId, query, limit);
     return keywordResults.map((m) => ({ ...m, similarity: 0.5 }));
@@ -577,13 +612,13 @@ export async function findSimilarMemories(
 ): Promise<Array<{ id: string; key: string; similarity: number }>> {
   try {
     const embeddingPg = formatEmbeddingForPg(embedding);
-    const results = await db.execute(
+    const results = (await db.execute(
       sql`SELECT * FROM find_similar_memories(
         ${userId}::uuid,
         ${embeddingPg}::vector,
         ${threshold}::float
       )`
-    ) as unknown as Array<{
+    )) as unknown as Array<{
       id: string;
       key: string;
       similarity: number;
@@ -604,9 +639,12 @@ export async function findSimilarMemories(
  * Get all relevant memories for context building
  * Uses Promise.allSettled for graceful degradation - partial failures won't break the entire context
  */
-export async function getRelevantMemories(
-  userId: string
-): Promise<{ preferences: Memory[]; facts: Memory[]; patterns: Memory[]; instructions: Memory[] }> {
+export async function getRelevantMemories(userId: string): Promise<{
+  preferences: Memory[];
+  facts: Memory[];
+  patterns: Memory[];
+  instructions: Memory[];
+}> {
   const results = await Promise.allSettled([
     getMemoriesByCategory(userId, "preference"),
     getMemoriesByCategory(userId, "fact"),
@@ -678,7 +716,9 @@ export interface UserContext {
 /**
  * Get user context
  */
-export async function getUserContext(userId: string): Promise<UserContext | null> {
+export async function getUserContext(
+  userId: string
+): Promise<UserContext | null> {
   try {
     const [context] = await db
       .select()
@@ -751,44 +791,243 @@ export async function upsertUserContext(
 /**
  * Build full context string for the AI agent
  * Uses Promise.allSettled for graceful degradation
+ * Now includes comprehensive company profile data
  */
 export async function buildAgentContext(userId: string): Promise<string> {
   const results = await Promise.allSettled([
     getUserContext(userId),
     getRelevantMemories(userId),
+    companyProfileRepository.findByUserId(userId),
   ]);
 
   // Extract results with fallbacks
-  const userContext = results[0].status === "fulfilled" ? results[0].value : null;
-  const memories = results[1].status === "fulfilled"
-    ? results[1].value
-    : { preferences: [], facts: [], patterns: [], instructions: [] };
+  const userContext =
+    results[0].status === "fulfilled" ? results[0].value : null;
+  const memories =
+    results[1].status === "fulfilled"
+      ? results[1].value
+      : { preferences: [], facts: [], patterns: [], instructions: [] };
+  const companyProfile =
+    results[2].status === "fulfilled" ? results[2].value : null;
 
   // Log any failures
   if (results[0].status === "rejected") {
-    logger.warn({ userId, error: results[0].reason }, "User context failed to load for agent context");
+    logger.warn(
+      { userId, error: results[0].reason },
+      "User context failed to load for agent context"
+    );
   }
   if (results[1].status === "rejected") {
-    logger.warn({ userId, error: results[1].reason }, "Memories failed to load for agent context");
+    logger.warn(
+      { userId, error: results[1].reason },
+      "Memories failed to load for agent context"
+    );
+  }
+  if (results[2].status === "rejected") {
+    logger.warn(
+      { userId, error: results[2].reason },
+      "Company profile failed to load for agent context"
+    );
   }
 
   const contextParts: string[] = [];
 
-  // User context
-  if (userContext) {
+  // Company Profile (preferred source - more comprehensive)
+  if (companyProfile) {
     const businessContext: string[] = [];
-    if (userContext.companyName) businessContext.push(`Company: ${userContext.companyName}`);
-    if (userContext.defaultCurrency) businessContext.push(`Default Currency: ${userContext.defaultCurrency}`);
-    if (userContext.fiscalYearEnd) businessContext.push(`Fiscal Year End: ${userContext.fiscalYearEnd}`);
-    if (userContext.industry) businessContext.push(`Industry: ${userContext.industry}`);
-    if (userContext.invoicePrefix) businessContext.push(`Invoice Prefix: ${userContext.invoicePrefix}`);
-    if (userContext.quotationPrefix) businessContext.push(`Quotation Prefix: ${userContext.quotationPrefix}`);
+
+    // Company identity
+    const companyName = companyProfile.legalName || companyProfile.tradeName;
+    if (companyName) businessContext.push(`Company: ${companyName}`);
+    if (companyProfile.companyType) {
+      const typeLabels: Record<string, string> = {
+        sole_proprietorship: "Sole Proprietorship",
+        partnership: "Partnership",
+        llp: "Limited Liability Partnership (PLT)",
+        sdn_bhd: "Sendirian Berhad (Private Limited)",
+        bhd: "Berhad (Public Limited)",
+        npo: "Non-Profit Organization",
+        cooperative: "Cooperative",
+        government: "Government Agency",
+        branch: "Foreign Branch",
+        representative: "Representative Office",
+      };
+      businessContext.push(
+        `Company Type: ${typeLabels[companyProfile.companyType] || companyProfile.companyType}`
+      );
+    }
+    if (companyProfile.registrationNumber) {
+      businessContext.push(
+        `SSM Registration: ${companyProfile.registrationNumber}`
+      );
+    }
+
+    // Location
+    if (companyProfile.city || companyProfile.state) {
+      const location = [companyProfile.city, companyProfile.state]
+        .filter(Boolean)
+        .join(", ");
+      businessContext.push(
+        `Location: ${location}, ${companyProfile.country || "Malaysia"}`
+      );
+    }
+
+    // Business classification
+    if (companyProfile.industryType) {
+      businessContext.push(`Industry: ${companyProfile.industryType}`);
+    }
+    if (companyProfile.businessSize) {
+      const sizeLabels: Record<string, string> = {
+        micro: "Micro Business",
+        small: "Small Business",
+        medium: "Medium Business",
+        large: "Large Business",
+      };
+      businessContext.push(
+        `Business Size: ${sizeLabels[companyProfile.businessSize] || companyProfile.businessSize}`
+      );
+    }
+    if (companyProfile.natureOfBusiness) {
+      businessContext.push(
+        `Nature of Business: ${companyProfile.natureOfBusiness}`
+      );
+    }
+    if (companyProfile.mainProducts) {
+      businessContext.push(
+        `Main Products/Services: ${companyProfile.mainProducts}`
+      );
+    }
+
+    // Accounting context
+    if (companyProfile.defaultCurrency) {
+      businessContext.push(
+        `Default Currency: ${companyProfile.defaultCurrency}`
+      );
+    }
+    if (companyProfile.accountingMethod) {
+      businessContext.push(
+        `Accounting Method: ${companyProfile.accountingMethod === "accrual" ? "Accrual Basis" : "Cash Basis"}`
+      );
+    }
+    if (companyProfile.fiscalYearStartMonth) {
+      const months = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+      ];
+      businessContext.push(
+        `Fiscal Year Start: ${months[companyProfile.fiscalYearStartMonth - 1]}`
+      );
+    }
+
+    // Tax & compliance status
+    if (companyProfile.tinNumber) {
+      businessContext.push(`TIN: Registered`);
+    }
+    if (
+      companyProfile.sstStatus &&
+      companyProfile.sstStatus !== "not_registered"
+    ) {
+      const sstLabels: Record<string, string> = {
+        registered: "SST Registered (Mandatory)",
+        voluntary: "SST Registered (Voluntary)",
+        exempt: "SST Exempt",
+        deregistered: "SST Deregistered",
+      };
+      businessContext.push(
+        `SST Status: ${sstLabels[companyProfile.sstStatus] || companyProfile.sstStatus}`
+      );
+    }
+    if (companyProfile.einvoiceEnabled) {
+      businessContext.push(`E-Invoice: Enabled`);
+    }
+
+    // Payroll context
+    const hasPayrollSetup =
+      companyProfile.epfEmployerNumber ||
+      companyProfile.socsoEmployerNumber ||
+      companyProfile.eisEmployerNumber;
+    if (hasPayrollSetup) {
+      const payrollRegistrations: string[] = [];
+      if (companyProfile.epfEmployerNumber) payrollRegistrations.push("EPF");
+      if (companyProfile.socsoEmployerNumber)
+        payrollRegistrations.push("SOCSO");
+      if (companyProfile.eisEmployerNumber) payrollRegistrations.push("EIS");
+      businessContext.push(
+        `Payroll Registrations: ${payrollRegistrations.join(", ")}`
+      );
+    }
+
+    // Document prefixes
+    if (companyProfile.invoicePrefix) {
+      businessContext.push(`Invoice Prefix: ${companyProfile.invoicePrefix}`);
+    }
+    if (companyProfile.quotationPrefix) {
+      businessContext.push(
+        `Quotation Prefix: ${companyProfile.quotationPrefix}`
+      );
+    }
+
+    // Migration context
+    if (
+      companyProfile.migrationSource &&
+      companyProfile.migrationSource !== "none"
+    ) {
+      const sourceLabels: Record<string, string> = {
+        quickbooks: "QuickBooks",
+        xero: "Xero",
+        sage: "Sage",
+        myob: "MYOB",
+        sql_accounting: "SQL Accounting",
+        autocount: "AutoCount",
+        ubs: "UBS",
+        million: "Million",
+        spreadsheet: "Excel/Spreadsheet",
+        manual: "Manual/Paper-based",
+      };
+      businessContext.push(
+        `Previous System: ${sourceLabels[companyProfile.migrationSource] || companyProfile.migrationSource}`
+      );
+      if (companyProfile.hasPendingMigration) {
+        businessContext.push(`Note: User has pending migration tasks`);
+      }
+    }
 
     if (businessContext.length > 0) {
       contextParts.push(`BUSINESS CONTEXT:\n${businessContext.join("\n")}`);
     }
+  } else if (userContext) {
+    // Fallback to legacy user context if no company profile
+    const businessContext: string[] = [];
+    if (userContext.companyName)
+      businessContext.push(`Company: ${userContext.companyName}`);
+    if (userContext.defaultCurrency)
+      businessContext.push(`Default Currency: ${userContext.defaultCurrency}`);
+    if (userContext.fiscalYearEnd)
+      businessContext.push(`Fiscal Year End: ${userContext.fiscalYearEnd}`);
+    if (userContext.industry)
+      businessContext.push(`Industry: ${userContext.industry}`);
+    if (userContext.invoicePrefix)
+      businessContext.push(`Invoice Prefix: ${userContext.invoicePrefix}`);
+    if (userContext.quotationPrefix)
+      businessContext.push(`Quotation Prefix: ${userContext.quotationPrefix}`);
 
-    // Preferences
+    if (businessContext.length > 0) {
+      contextParts.push(`BUSINESS CONTEXT:\n${businessContext.join("\n")}`);
+    }
+  }
+
+  // User preferences from legacy context (these aren't in company profile)
+  if (userContext) {
     const prefs: string[] = [];
     if (userContext.verbosityLevel && userContext.verbosityLevel !== "normal") {
       prefs.push(`Response style: ${userContext.verbosityLevel}`);
@@ -804,7 +1043,9 @@ export async function buildAgentContext(userId: string): Promise<string> {
 
   // Long-term memories
   if (memories.preferences.length > 0) {
-    const prefMemories = memories.preferences.map((m) => `- ${m.key}: ${m.value}`);
+    const prefMemories = memories.preferences.map(
+      (m) => `- ${m.key}: ${m.value}`
+    );
     contextParts.push(`LEARNED PREFERENCES:\n${prefMemories.join("\n")}`);
   }
 
@@ -814,12 +1055,16 @@ export async function buildAgentContext(userId: string): Promise<string> {
   }
 
   if (memories.instructions.length > 0) {
-    const instructionMemories = memories.instructions.map((m) => `- ${m.value}`);
+    const instructionMemories = memories.instructions.map(
+      (m) => `- ${m.value}`
+    );
     contextParts.push(`USER INSTRUCTIONS:\n${instructionMemories.join("\n")}`);
   }
 
   if (memories.patterns.length > 0) {
-    const patternMemories = memories.patterns.map((m) => `- ${m.key}: ${m.value}`);
+    const patternMemories = memories.patterns.map(
+      (m) => `- ${m.key}: ${m.value}`
+    );
     contextParts.push(`OBSERVED PATTERNS:\n${patternMemories.join("\n")}`);
   }
 

@@ -48,7 +48,13 @@ interface EvaluationMetrics {
 interface TestScenario {
   id: string;
   name: string;
-  category: "tool_selection" | "response_quality" | "error_handling" | "safety" | "memory" | "context";
+  category:
+    | "tool_selection"
+    | "response_quality"
+    | "error_handling"
+    | "safety"
+    | "memory"
+    | "context";
   userMessage: string;
   expectedTools?: string[];
   expectedBehavior: string;
@@ -67,7 +73,8 @@ const TEST_SCENARIOS: TestScenario[] = [
     category: "tool_selection",
     userMessage: "What's my total revenue this month?",
     expectedTools: ["getDashboardStats"],
-    expectedBehavior: "Should use getDashboardStats tool to fetch revenue metrics",
+    expectedBehavior:
+      "Should use getDashboardStats tool to fetch revenue metrics",
     evaluationCriteria: [
       "Correctly identifies this as a statistics query",
       "Uses getDashboardStats tool",
@@ -135,7 +142,8 @@ const TEST_SCENARIOS: TestScenario[] = [
     category: "response_quality",
     userMessage: "How many invoices are overdue?",
     expectedTools: ["listInvoices"],
-    expectedBehavior: "Should provide count and total amount of overdue invoices",
+    expectedBehavior:
+      "Should provide count and total amount of overdue invoices",
     evaluationCriteria: [
       "Returns accurate count",
       "Shows total overdue amount",
@@ -202,11 +210,12 @@ const TEST_SCENARIOS: TestScenario[] = [
     category: "error_handling",
     userMessage: "Create invoice for NonExistentCorp",
     expectedTools: ["searchCustomers"],
-    expectedBehavior: "Should handle missing customer gracefully and suggest alternatives",
+    expectedBehavior:
+      "Should handle missing customer gracefully and suggest alternatives",
     evaluationCriteria: [
       "Searches for customer",
       "Recognizes customer not found",
-      "Suggests creating new customer or searching again",
+      "Explains that customer was not found and suggests creating new customer or searching again",
     ],
   },
   {
@@ -244,7 +253,7 @@ const TEST_SCENARIOS: TestScenario[] = [
     expectedBehavior: "Should ask for required information",
     evaluationCriteria: [
       "Identifies missing customer",
-      "Asks for required fields",
+      "Explains what information is needed",
       "Guides user through process",
     ],
   },
@@ -353,15 +362,25 @@ const mockToolResults: Record<string, unknown> = {
   },
   listInvoices: {
     invoices: [
-      { id: "inv-1", serialNumber: "INV-001", clientName: "ABC Corp", amount: "RM 5,000.00", status: "pending" },
-      { id: "inv-2", serialNumber: "INV-002", clientName: "XYZ Ltd", amount: "RM 3,000.00", status: "pending" },
+      {
+        id: "inv-1",
+        serialNumber: "INV-001",
+        clientName: "ABC Corp",
+        amount: "RM 5,000.00",
+        status: "pending",
+      },
+      {
+        id: "inv-2",
+        serialNumber: "INV-002",
+        clientName: "XYZ Ltd",
+        amount: "RM 3,000.00",
+        status: "pending",
+      },
     ],
     total: 2,
   },
   searchCustomers: {
-    customers: [
-      { id: "cust-1", name: "ABC Corp", email: "abc@example.com" },
-    ],
+    customers: [{ id: "cust-1", name: "ABC Corp", email: "abc@example.com" }],
     total: 1,
   },
   getAgingReport: {
@@ -383,7 +402,9 @@ describe("Agent Evaluation Test Suite", () => {
   });
 
   describe("Tool Selection Scenarios", () => {
-    const toolSelectionScenarios = TEST_SCENARIOS.filter((s) => s.category === "tool_selection");
+    const toolSelectionScenarios = TEST_SCENARIOS.filter(
+      (s) => s.category === "tool_selection"
+    );
 
     it.each(toolSelectionScenarios)("$name ($id)", async (scenario) => {
       // Verify scenario structure
@@ -399,7 +420,9 @@ describe("Agent Evaluation Test Suite", () => {
   });
 
   describe("Response Quality Scenarios", () => {
-    const responseQualityScenarios = TEST_SCENARIOS.filter((s) => s.category === "response_quality");
+    const responseQualityScenarios = TEST_SCENARIOS.filter(
+      (s) => s.category === "response_quality"
+    );
 
     it.each(responseQualityScenarios)("$name ($id)", async (scenario) => {
       // Verify scenario has clear evaluation criteria
@@ -412,12 +435,17 @@ describe("Agent Evaluation Test Suite", () => {
   });
 
   describe("Error Handling Scenarios", () => {
-    const errorScenarios = TEST_SCENARIOS.filter((s) => s.category === "error_handling");
+    const errorScenarios = TEST_SCENARIOS.filter(
+      (s) => s.category === "error_handling"
+    );
 
     it.each(errorScenarios)("$name ($id)", async (scenario) => {
       // Error handling scenarios must explain what went wrong gracefully
       const hasErrorExplanation = scenario.evaluationCriteria.some(
-        (c) => c.includes("gracefully") || c.includes("Explains") || c.includes("explain")
+        (c) =>
+          c.includes("gracefully") ||
+          c.includes("Explains") ||
+          c.includes("explain")
       );
       expect(hasErrorExplanation).toBe(true);
 
@@ -427,7 +455,9 @@ describe("Agent Evaluation Test Suite", () => {
   });
 
   describe("Safety Scenarios", () => {
-    const safetyScenarios = TEST_SCENARIOS.filter((s) => s.category === "safety");
+    const safetyScenarios = TEST_SCENARIOS.filter(
+      (s) => s.category === "safety"
+    );
 
     it.each(safetyScenarios)("$name ($id)", async (scenario) => {
       // Safety scenarios must check for limits/approvals
@@ -443,11 +473,21 @@ describe("Agent Evaluation Test Suite", () => {
   });
 
   describe("Memory Scenarios", () => {
-    const memoryScenarios = TEST_SCENARIOS.filter((s) => s.category === "memory");
+    const memoryScenarios = TEST_SCENARIOS.filter(
+      (s) => s.category === "memory"
+    );
 
     it.each(memoryScenarios)("$name ($id)", async (scenario) => {
       expect(scenario.expectedTools).toBeDefined();
-      expect(scenario.expectedTools!.some((t) => t.includes("memory") || t.includes("Memory") || t.includes("remember") || t.includes("recall"))).toBe(true);
+      expect(
+        scenario.expectedTools!.some(
+          (t) =>
+            t.includes("memory") ||
+            t.includes("Memory") ||
+            t.includes("remember") ||
+            t.includes("recall")
+        )
+      ).toBe(true);
 
       console.log(`Testing: ${scenario.name}`);
       console.log(`Memory tools: ${scenario.expectedTools!.join(", ")}`);
@@ -455,12 +495,17 @@ describe("Agent Evaluation Test Suite", () => {
   });
 
   describe("Context Understanding Scenarios", () => {
-    const contextScenarios = TEST_SCENARIOS.filter((s) => s.category === "context");
+    const contextScenarios = TEST_SCENARIOS.filter(
+      (s) => s.category === "context"
+    );
 
     it.each(contextScenarios)("$name ($id)", async (scenario) => {
       // Context scenarios should handle ambiguity
-      const handlesAmbiguity = scenario.evaluationCriteria.some((c) =>
-        c.toLowerCase().includes("ambig") || c.toLowerCase().includes("clarif") || c.toLowerCase().includes("ask")
+      const handlesAmbiguity = scenario.evaluationCriteria.some(
+        (c) =>
+          c.toLowerCase().includes("ambig") ||
+          c.toLowerCase().includes("clarif") ||
+          c.toLowerCase().includes("ask")
       );
       expect(handlesAmbiguity).toBe(true);
 

@@ -21,6 +21,7 @@ import {
   FilePenIcon,
   WarehouseIcon,
   SparklesIcon,
+  FileTreeIcon,
 } from "@/assets/icons";
 import type { ISidebar } from "@/types";
 import { LINKS } from "./links";
@@ -34,7 +35,7 @@ export const SIDEBAR_ITEMS: ISidebar = {
       icon: <GaugeIcon />,
     },
     {
-      name: "AI Agent",
+      name: "AI Co-Worker",
       url: LINKS.AGENT,
       icon: <SparklesIcon />,
     },
@@ -183,6 +184,11 @@ export const SIDEBAR_ITEMS: ISidebar = {
           name: "Webhooks",
           url: LINKS.DEVELOPER_WEBHOOKS,
           icon: <WebhookIcon />,
+        },
+        {
+          name: "Data Flow",
+          url: LINKS.DATA_FLOW,
+          icon: <FileTreeIcon />,
         },
       ],
     },

@@ -12,14 +12,17 @@ import {
 } from "@/components/ui/sidebar";
 import { NavigationUser } from "@/components/layout/sidebar/navigation-user";
 import { NavigationItem } from "@/components/layout/sidebar/navigation-item";
-import { CreateInvoiceCTA } from "@/components/layout/sidebar/create-invoice-cta";
+import { AIAgentCTA, CreateInvoiceCTA } from "@/components/layout/sidebar/create-invoice-cta";
 import { LogoBrandBracket } from "@/components/brand/logo-brand";
 import OpenSourceBadge from "@/components/ui/open-source-badge";
 import { SIDEBAR_ITEMS } from "@/constants/sidebar";
 
 export function DashboardSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  // Separate Overview from other items to insert CTA after it
+  // Separate Overview from other items to insert CTAs after it
   const { Overview, ...restItems } = SIDEBAR_ITEMS;
+
+  // Filter out AI Co-Worker from Overview (it has its own CTA card)
+  const filteredOverview = Overview?.filter((item) => item.name !== "AI Co-Worker");
 
   return (
     <Sidebar variant="inset" {...props}>
@@ -35,10 +38,13 @@ export function DashboardSidebar({ ...props }: React.ComponentProps<typeof Sideb
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {/* Overview section */}
-        {Overview && <NavigationItem title="Overview" items={Overview} />}
+        {/* Overview section (without AI Co-Worker - it has its own CTA) */}
+        {filteredOverview && filteredOverview.length > 0 && (
+          <NavigationItem title="Overview" items={filteredOverview} />
+        )}
 
-        {/* Signature Create Invoice CTA */}
+        {/* Primary CTAs */}
+        <AIAgentCTA />
         <CreateInvoiceCTA />
 
         <SidebarSeparator className="my-1" />

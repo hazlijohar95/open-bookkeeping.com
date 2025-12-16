@@ -1,10 +1,38 @@
-export { customerRepository, type CustomerRepository } from "./customer.repository";
+export {
+  customerRepository,
+  type CustomerRepository,
+} from "./customer.repository";
 export { vendorRepository, type VendorRepository } from "./vendor.repository";
-export { invoiceRepository, type InvoiceRepository, type InvoiceWithDetails } from "./invoice.repository";
-export { quotationRepository, type QuotationRepository } from "./quotation.repository";
-export { einvoiceRepository, type EInvoiceRepository } from "./einvoice.repository";
+export {
+  invoiceRepository,
+  type InvoiceRepository,
+  type InvoiceWithDetails,
+} from "./invoice.repository";
+// Invoice V2 Repository - consolidated schema with status state machine
+export {
+  invoiceV2Repository,
+  isValidStatusTransition,
+  getValidNextStatuses,
+  type InvoiceV2Repository,
+  type CreateInvoiceV2Input,
+  type UpdateInvoiceV2Input,
+  type InvoiceV2ListItem,
+  type InvoiceItemInput,
+  type RecordPaymentInput,
+} from "./invoice-v2.repository";
+export {
+  quotationRepository,
+  type QuotationRepository,
+} from "./quotation.repository";
+export {
+  einvoiceRepository,
+  type EInvoiceRepository,
+} from "./einvoice.repository";
 export { billRepository, type BillRepository } from "./bill.repository";
-export { bankFeedRepository, type BankFeedRepository } from "./bankFeed.repository";
+export {
+  bankFeedRepository,
+  type BankFeedRepository,
+} from "./bankFeed.repository";
 // Chart of Accounts - split into separate repositories
 export {
   chartOfAccountsRepository,
@@ -79,7 +107,10 @@ export type {
   AccountTreeNode,
 } from "./chartOfAccounts.repository";
 
-export { dashboardRepository, type DashboardRepository } from "./dashboard.repository";
+export {
+  dashboardRepository,
+  type DashboardRepository,
+} from "./dashboard.repository";
 export type {
   DashboardStats,
   InvoiceStatusBreakdown,
@@ -103,7 +134,10 @@ export type {
   CashFlowResult,
 } from "./ledger.repository";
 
-export { accountingPeriodRepository, type AccountingPeriodRepository } from "./accountingPeriod.repository";
+export {
+  accountingPeriodRepository,
+  type AccountingPeriodRepository,
+} from "./accountingPeriod.repository";
 export type {
   AccountingPeriodInfo,
   PeriodCloseResult,
@@ -111,7 +145,11 @@ export type {
 } from "./accountingPeriod.repository";
 
 // API Keys & Webhooks
-export { apiKeyRepository, hashApiKey, type ApiKeyRepository } from "./apiKey.repository";
+export {
+  apiKeyRepository,
+  hashApiKey,
+  type ApiKeyRepository,
+} from "./apiKey.repository";
 export type {
   CreateApiKeyInput,
   UpdateApiKeyInput,
@@ -119,7 +157,10 @@ export type {
   UsageQueryOptions,
 } from "./apiKey.repository";
 
-export { webhookRepository, type WebhookRepository } from "./webhook.repository";
+export {
+  webhookRepository,
+  type WebhookRepository,
+} from "./webhook.repository";
 export type {
   CreateWebhookInput,
   UpdateWebhookInput,
@@ -193,7 +234,10 @@ export {
 } from "./migration.repository";
 
 // Payments (AR/AP)
-export { paymentRepository, type PaymentRepository } from "./payment.repository";
+export {
+  paymentRepository,
+  type PaymentRepository,
+} from "./payment.repository";
 export type {
   CreatePaymentInput,
   PaymentAllocationInput,
@@ -201,10 +245,20 @@ export type {
 } from "./payment.repository";
 
 // SST (Sales & Service Tax) Reports
-export { sstReportRepository, type SstReportRepository } from "./sstReport.repository";
+export {
+  sstReportRepository,
+  type SstReportRepository,
+} from "./sstReport.repository";
 export type {
   SstTransactionSummary,
   Sst02LineItem,
   Sst02ReturnData,
   SstReturnSubmission,
 } from "./sstReport.repository";
+
+// Company Profile
+export {
+  companyProfileRepository,
+  type CompanyProfileRepository,
+} from "./companyProfile.repository";
+export type { UpdateCompanyProfileInput } from "./companyProfile.repository";

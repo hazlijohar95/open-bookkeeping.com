@@ -16,15 +16,17 @@ if (!supabaseUrl || !supabaseServiceKey) {
 }
 
 // Shared Supabase client instance
-export const supabase: SupabaseClient | null = supabaseUrl && supabaseServiceKey
-  ? createClient(supabaseUrl, supabaseServiceKey)
-  : null;
+export const supabase: SupabaseClient | null =
+  supabaseUrl && supabaseServiceKey
+    ? createClient(supabaseUrl, supabaseServiceKey)
+    : null;
 
 // Authenticated user type
 export interface AuthenticatedUser {
   id: string;
   email: string;
   name: string | null;
+  allowedSavingData: boolean;
 }
 
 /**
@@ -42,7 +44,10 @@ export async function authenticateRequest(
   if (!token) return null;
 
   try {
-    const { data: { user: supabaseUser }, error } = await supabase.auth.getUser(token);
+    const {
+      data: { user: supabaseUser },
+      error,
+    } = await supabase.auth.getUser(token);
     if (error || !supabaseUser) return null;
 
     const user = await db.query.users.findFirst({
@@ -55,6 +60,7 @@ export async function authenticateRequest(
       id: user.id,
       email: user.email,
       name: user.name,
+      allowedSavingData: user.allowedSavingData ?? true,
     };
   } catch {
     return null;

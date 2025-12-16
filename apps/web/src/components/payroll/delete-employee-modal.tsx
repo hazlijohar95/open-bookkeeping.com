@@ -3,16 +3,7 @@
  * Confirmation dialog for deleting employees
  */
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDeleteModal } from "@/components/ui/confirm-delete-modal";
 import type { Employee } from "@/api/payroll";
 import { useDeleteEmployee } from "@/api/payroll";
 import { toast } from "sonner";
@@ -23,7 +14,11 @@ interface DeleteEmployeeModalProps {
   employee: Employee | null;
 }
 
-export function DeleteEmployeeModal({ isOpen, onClose, employee }: DeleteEmployeeModalProps) {
+export function DeleteEmployeeModal({
+  isOpen,
+  onClose,
+  employee,
+}: DeleteEmployeeModalProps) {
   const deleteMutation = useDeleteEmployee();
 
   const handleDelete = () => {
@@ -45,31 +40,26 @@ export function DeleteEmployeeModal({ isOpen, onClose, employee }: DeleteEmploye
 
   if (!employee) return null;
 
+  const employeeName = `${employee.firstName} ${employee.lastName}`;
+
   return (
-    <AlertDialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete Employee</AlertDialogTitle>
-          <AlertDialogDescription>
-            Are you sure you want to delete{" "}
-            <span className="font-medium text-foreground">
-              {employee.firstName} {employee.lastName}
-            </span>{" "}
-            ({employee.employeeCode})? This action cannot be undone and will remove all associated
-            payroll records.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={handleDelete}
-            disabled={deleteMutation.isPending}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
-            {deleteMutation.isPending ? "Deleting..." : "Delete Employee"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDeleteModal
+      isOpen={isOpen}
+      onClose={onClose}
+      onConfirm={handleDelete}
+      title="Delete Employee"
+      description={
+        <>
+          Are you sure you want to delete{" "}
+          <strong>
+            {employeeName} ({employee.employeeCode})
+          </strong>
+          ? This action cannot be undone and will remove all associated payroll
+          records.
+        </>
+      }
+      isLoading={deleteMutation.isPending}
+      confirmText="Delete Employee"
+    />
   );
 }

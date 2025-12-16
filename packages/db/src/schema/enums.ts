@@ -4,6 +4,8 @@ import { pgEnum } from "drizzle-orm/pg-core";
 
 // Invoice enums
 export const invoiceTypeEnum = pgEnum("invoice_type", ["local", "server"]);
+
+// Legacy invoice status - kept for backward compatibility during migration
 export const invoiceStatusEnum = pgEnum("invoice_status", [
   "pending",
   "success",
@@ -11,6 +13,25 @@ export const invoiceStatusEnum = pgEnum("invoice_status", [
   "expired",
   "refunded",
 ]);
+
+// New invoice status enum (V2) - follows Stripe's invoice lifecycle model
+// draft: Being prepared, fully editable
+// open: Finalized and awaiting payment (limited editing)
+// paid: Fully paid (terminal state)
+// void: Cancelled/voided (terminal state)
+// uncollectible: Bad debt, unlikely to be paid
+// refunded: Payment refunded (terminal state)
+export const invoiceStatusV2Enum = pgEnum("invoice_status_v2", [
+  "draft",
+  "open",
+  "paid",
+  "void",
+  "uncollectible",
+  "refunded",
+]);
+
+export type InvoiceStatusV2 = (typeof invoiceStatusV2Enum.enumValues)[number];
+
 export const billingDetailTypeEnum = pgEnum("billing_detail_type", [
   "fixed",
   "percentage",
@@ -28,7 +49,10 @@ export const quotationStatusEnum = pgEnum("quotation_status", [
 ]);
 
 // Credit Note enums
-export const creditNoteTypeEnum = pgEnum("credit_note_type", ["local", "server"]);
+export const creditNoteTypeEnum = pgEnum("credit_note_type", [
+  "local",
+  "server",
+]);
 export const creditNoteStatusEnum = pgEnum("credit_note_status", [
   "draft",
   "issued",
@@ -205,11 +229,14 @@ export const disposalMethodEnum = pgEnum("disposal_method", [
   "trade_in", // Exchanged for new asset
 ]);
 
-export const depreciationScheduleStatusEnum = pgEnum("depreciation_schedule_status", [
-  "scheduled", // Planned but not posted
-  "posted", // Journal entry created
-  "skipped", // Manually skipped
-]);
+export const depreciationScheduleStatusEnum = pgEnum(
+  "depreciation_schedule_status",
+  [
+    "scheduled", // Planned but not posted
+    "posted", // Journal entry created
+    "skipped", // Manually skipped
+  ]
+);
 
 // AI Agent enums
 export const agentSessionStatusEnum = pgEnum("agent_session_status", [
@@ -236,13 +263,16 @@ export const agentWorkflowStatusEnum = pgEnum("agent_workflow_status", [
   "cancelled", // User cancelled
 ]);
 
-export const agentWorkflowStepStatusEnum = pgEnum("agent_workflow_step_status", [
-  "pending", // Not yet executed
-  "running", // Currently executing
-  "completed", // Finished successfully
-  "failed", // Encountered error
-  "skipped", // Skipped due to conditions
-]);
+export const agentWorkflowStepStatusEnum = pgEnum(
+  "agent_workflow_step_status",
+  [
+    "pending", // Not yet executed
+    "running", // Currently executing
+    "completed", // Finished successfully
+    "failed", // Encountered error
+    "skipped", // Skipped due to conditions
+  ]
+);
 
 export const agentActionTypeEnum = pgEnum("agent_action_type", [
   // Invoice actions
@@ -341,14 +371,17 @@ export const paySlipStatusEnum = pgEnum("pay_slip_status", [
   "cancelled", // Cancelled/voided
 ]);
 
-export const statutoryContributionTypeEnum = pgEnum("statutory_contribution_type", [
-  "epf_employer", // EPF employer contribution
-  "epf_employee", // EPF employee contribution
-  "socso_employer", // SOCSO employer contribution
-  "socso_employee", // SOCSO employee contribution
-  "eis_employer", // EIS employer contribution
-  "eis_employee", // EIS employee contribution
-]);
+export const statutoryContributionTypeEnum = pgEnum(
+  "statutory_contribution_type",
+  [
+    "epf_employer", // EPF employer contribution
+    "epf_employee", // EPF employee contribution
+    "socso_employer", // SOCSO employer contribution
+    "socso_employee", // SOCSO employee contribution
+    "eis_employer", // EIS employer contribution
+    "eis_employee", // EIS employee contribution
+  ]
+);
 
 export const maritalStatusEnum = pgEnum("marital_status", [
   "single", // Never married
@@ -356,6 +389,76 @@ export const maritalStatusEnum = pgEnum("marital_status", [
   "divorced", // Divorced
   "widowed", // Widowed
 ]);
+
+// Subscription enums (for organizations)
+export const subscriptionPlanEnum = pgEnum("subscription_plan", [
+  "trial", // Free trial period
+  "free", // Free tier
+  "starter", // Starter plan
+  "professional", // Professional plan
+  "enterprise", // Enterprise plan
+]);
+
+export const subscriptionStatusEnum = pgEnum("subscription_status", [
+  "active", // Subscription is active
+  "trialing", // In trial period
+  "past_due", // Payment past due
+  "canceled", // Subscription canceled
+  "unpaid", // Payment failed
+  "paused", // Subscription paused
+]);
+
+// User role enums (platform-wide roles)
+export const userRoleEnum = pgEnum("user_role", [
+  "superadmin", // Full platform access - can manage all orgs
+  "admin", // Organization admin - deprecated, use org_role instead
+  "user", // Regular user
+  "viewer", // Read-only access
+]);
+
+// Organization role enums (role within an organization)
+export const orgRoleEnum = pgEnum("org_role", [
+  "owner", // Organization owner - full control
+  "admin", // Organization admin - can manage members
+  "member", // Regular member - can create/edit content
+  "viewer", // View-only access
+]);
+
+// Admin action types for superadmin audit logs
+export const adminActionTypeEnum = pgEnum("admin_action_type", [
+  // User management
+  "user_role_changed",
+  "user_suspended",
+  "user_unsuspended",
+  "user_deleted",
+  // Organization management
+  "org_created",
+  "org_updated",
+  "org_deleted",
+  "org_subscription_changed",
+  // System settings
+  "system_setting_updated",
+  "feature_flag_toggled",
+  "maintenance_mode_toggled",
+  // Quota management
+  "quota_override_set",
+  "quota_override_removed",
+  // Security
+  "api_key_revoked",
+  "session_terminated",
+]);
+
+// ============================================
+// TYPE EXPORTS
+// ============================================
+
+// Export TypeScript types for the enums
+export type UserRole = (typeof userRoleEnum.enumValues)[number];
+export type OrgRole = (typeof orgRoleEnum.enumValues)[number];
+export type AdminActionType = (typeof adminActionTypeEnum.enumValues)[number];
+export type SubscriptionPlan = (typeof subscriptionPlanEnum.enumValues)[number];
+export type SubscriptionStatus =
+  (typeof subscriptionStatusEnum.enumValues)[number];
 
 // User action audit enums
 export const userActionTypeEnum = pgEnum("user_action_type", [

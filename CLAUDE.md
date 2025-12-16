@@ -34,7 +34,8 @@
 | Layer | Technologies |
 |-------|-------------|
 | **Frontend** | React 19, Vite, TypeScript, Tailwind CSS 4, Radix UI, Jotai |
-| **Backend** | Hono, tRPC 11, Node.js, AI SDK |
+| **Backend** | Hono, tRPC 11, Node.js |
+| **AI** | Vercel AI SDK 5, OpenAI GPT-4o/GPT-4o-mini |
 | **Database** | PostgreSQL (Supabase), Drizzle ORM |
 | **Auth** | Supabase Auth + API Keys |
 | **Queue** | BullMQ + Redis |
@@ -421,28 +422,45 @@ The AI Agent is an intelligent assistant built on the **ReAct (Reasoning + Actin
 |                           AI AGENT (ReAct Framework)                   |
 +------------------------------------------------------------------------+
 |                                                                        |
-|   +---------+    +----------+    +-----------+    +----------+         |
-|   |  Chat   |--->| Session  |--->|  Think &  |--->|  Tools   |         |
-|   |Interface|    | Memory   |    |   Plan    |    |  (29+)   |         |
-|   +---------+    +----------+    +-----------+    +----+-----+         |
-|                       |                                |               |
-|                       v                                v               |
-|              +----------------+              +------------------+      |
-|              |  Long-term     |              |     Actions      |      |
-|              |    Memory      |              |                  |      |
-|              | (Preferences,  |              +--------+---------+      |
-|              |  Facts, Rules) |                       |               |
-|              +----------------+                       |               |
-|                                     +-----------------+-------+       |
-|                                     |                 |       |       |
-|                                     v                 v       v       |
-|                               +---------+      +----------+ +-----+   |
-|                               |Approval |      |  Audit   | |Safety|  |
-|                               | Queue   |      |   Logs   | |Ctrls |  |
-|                               +---------+      +----------+ +-----+   |
+|   +---------+    +------------+    +-----------+    +----------+       |
+|   |  Chat   |--->|   Intent   |--->|  Think &  |--->|  Tools   |       |
+|   |Interface|    |  Detection |    |   Plan    |    |  (113+)  |       |
+|   +---------+    +------+-----+    +-----------+    +----+-----+       |
+|                         |                                |             |
+|            +------------+------------+                   |             |
+|            |                         |                   v             |
+|            v                         v          +------------------+   |
+|     +------------+           +------------+     |     Actions      |   |
+|     | Fast Path  |           | Full Agent |     |                  |   |
+|     | (gpt-4o-   |           | (gpt-4o +  |     +--------+---------+   |
+|     |   mini)    |           |   tools)   |              |             |
+|     +------------+           +------------+              |             |
+|                                     |      +-------------+-------+    |
+|                                     v      |             |       |    |
+|                              +---------+ +----------+ +-----+        |
+|                              |Approval | |  Audit   | |Safety|        |
+|                              | Queue   | |   Logs   | |Ctrls |        |
+|                              +---------+ +----------+ +-----+        |
 |                                                                        |
 +------------------------------------------------------------------------+
 ```
+
+### Performance Optimization
+
+The AI agent uses **intent detection** to route messages efficiently:
+
+| Message Type | Model | Tools | Response Time |
+|--------------|-------|-------|---------------|
+| Greetings ("hey", "hi", "hello") | GPT-4o-mini | None | ~1-2s |
+| Thanks/acknowledgments | GPT-4o-mini | None | ~1-2s |
+| Help requests | GPT-4o-mini | None | ~1-2s |
+| Business queries | GPT-4o | 113 tools | ~3-12s |
+
+**Fast Path Detection** (`apps/api/src/routes/ai.ts`):
+- Messages under 50 characters matching greeting/thanks patterns skip tool loading
+- Uses GPT-4o-mini for faster, cheaper responses
+- Only loads last 3 messages for context
+- Reduces token usage from ~10,000 to ~200 tokens
 
 ### ReAct Framework
 
@@ -529,62 +547,54 @@ const memories = await recallMemories({
 });
 ```
 
-### Available Tools
+### Available Tools (113+)
 
-#### Reasoning Tools (ReAct)
+The agent has access to 113+ tools organized by category:
 
-| Tool | Description |
-|------|-------------|
-| `thinkStep` | Record explicit thinking/reasoning before acting |
-| `validateAction` | Validate planned action before execution |
+#### Tool Categories
 
-#### Memory Tools
+| Category | Count | Description |
+|----------|-------|-------------|
+| **Dashboard & Stats** | 5 | Revenue metrics, aging reports, statements |
+| **Invoices** | 12 | CRUD, status updates, aging, posting |
+| **Quotations** | 8 | CRUD, conversion to invoice |
+| **Credit/Debit Notes** | 10 | Create from invoice, void, status updates |
+| **Bills** | 10 | CRUD, aging, payment tracking |
+| **Customers** | 8 | CRUD, search, statements, invoice history |
+| **Vendors** | 8 | CRUD, search, statements, bill history |
+| **Accounts** | 8 | Chart of accounts, balances, CRUD |
+| **Journal Entries** | 6 | Create, post, reverse, list |
+| **Smart Accounting** | 5 | Auto-posting: sales, expenses, payments |
+| **Bank Transactions** | 6 | List, match, reconcile, unmatch |
+| **Fixed Assets** | 8 | CRUD, depreciation, disposal |
+| **Payroll** | 12 | Employees, runs, pay slips, statutory |
+| **Documents** | 5 | Vault processing, OCR extraction |
+| **Migration** | 6 | Opening balances, account mapping |
+| **Memory** | 3 | Remember, recall, update context |
+| **Reasoning** | 2 | Think step, validate action |
 
-| Tool | Description |
-|------|-------------|
-| `rememberPreference` | Store user preferences/facts/patterns |
-| `recallMemories` | Retrieve relevant memories for context |
-| `updateUserContext` | Update business context information |
+#### Key Tools by Function
 
-#### Read Operations
+**Read Operations:**
+- `getDashboardStats`, `getAgingReport`, `getTrialBalance`, `getProfitAndLoss`, `getBalanceSheet`
+- `listInvoices`, `listBills`, `listCustomers`, `listVendors`, `listQuotations`
+- `getCustomerStatement`, `getVendorStatement`, `getSSTReport`
 
-| Tool | Description |
-|------|-------------|
-| `getDashboardStats` | Revenue, expenses, profit metrics |
-| `listInvoices` | Query invoices with filters |
-| `getInvoiceDetails` | Full invoice with line items |
-| `getAgingReport` | Receivables aging analysis |
-| `listCustomers` | Customer directory |
-| `searchCustomers` | Find customers by name/email |
-| `getCustomerInvoices` | Customer invoice history |
-| `listQuotations` | Active quotations |
-| `listBills` | Payables listing |
-| `getBillDetails` | Full bill information |
-| `listVendors` | Vendor directory |
-| `getAccountBalance` | Account balances |
-| `getTrialBalance` | Trial balance report |
-| `getProfitLoss` | P&L statement |
-| `getBalanceSheet` | Balance sheet report |
-| `listAccounts` | Chart of accounts |
+**Smart Accounting (Auto-posting):**
+- `recordSalesRevenue` - Auto DR/CR for sales
+- `recordExpense` - Auto DR/CR for expenses
+- `recordPaymentReceived` - Customer payment with correct entries
+- `recordPaymentMade` - Vendor payment with correct entries
+- `postInvoiceToLedger` - Invoice to accounting entries
 
-#### Write Operations
+**Write Operations:**
 
-| Tool | Description | Approval |
-|------|-------------|----------|
-| `createInvoice` | Generate new invoice | Threshold |
-| `updateInvoice` | Update existing invoice | Threshold |
-| `createBill` | Record new bill | Threshold |
-| `updateBill` | Update existing bill | Threshold |
-| `createJournalEntry` | Manual journal entry | Threshold |
-| `postJournalEntry` | Post to ledger | Required |
-| `reverseJournalEntry` | Reverse posted entry | Required |
-| `createCustomer` | Add new customer | Auto |
-| `updateCustomer` | Update customer details | Auto |
-| `createVendor` | Add new vendor | Auto |
-| `updateVendor` | Update vendor details | Auto |
-| `createQuotation` | Create price quotation | Auto |
-| `updateQuotation` | Update quotation | Auto |
-| `convertQuotation` | Convert quotation to invoice | Threshold |
+| Tool | Approval |
+|------|----------|
+| `createInvoice`, `createBill` | Threshold-based |
+| `createJournalEntry`, `postJournalEntry` | Required |
+| `createCustomer`, `createVendor` | Auto |
+| `createQuotation`, `updateQuotation` | Auto |
 
 ### Approval Workflow
 
@@ -1079,7 +1089,7 @@ function AgentChat() {
 **Auth:** Supabase Bearer Token
 **Used By:** Web app, Mobile app
 
-#### Available Routers
+#### Available Routers (28)
 
 | Router | Description |
 |--------|-------------|
@@ -1090,8 +1100,8 @@ function AgentChat() {
 | `bill` | Bill management |
 | `customer` | Customer CRUD |
 | `vendor` | Vendor CRUD |
-| `account` | Chart of accounts |
-| `journalEntry` | Journal entries |
+| `chartOfAccounts` | Chart of accounts |
+| `ledger` | Journal entries & ledger |
 | `bankFeed` | Bank transaction import |
 | `dashboard` | Analytics & stats |
 | `settings` | User preferences |
@@ -1099,6 +1109,18 @@ function AgentChat() {
 | `apiKey` | API key management |
 | `webhook` | Webhook configuration |
 | `fixedAsset` | Asset management |
+| `payroll` | Employee & payroll management |
+| `vault` | Document storage & processing |
+| `storage` | File storage operations |
+| `subscription` | Subscription management |
+| `sst` | SST tax reports |
+| `statements` | Customer/vendor statements |
+| `einvoice` | MyInvois e-invoice integration |
+| `migration` | Data migration tools |
+| `companyProfile` | Company settings |
+| `dataFlow` | Data flow visualization |
+| `admin` | Superadmin operations |
+| `blog` | Blog/content management |
 
 ### Public REST API
 
@@ -1230,7 +1252,7 @@ invoicely-v2/
 |   |   |   +-- offline.html    # Offline fallback page
 |   |   |   +-- robots.txt      # SEO configuration
 |   |   +-- src/
-|   |       +-- api/            # React Query hooks (21 modules)
+|   |       +-- api/            # React Query hooks (27 modules)
 |   |       +-- assets/         # Icons, images
 |   |       +-- components/
 |   |       |   +-- agent/      # AI Agent UI components
@@ -1255,6 +1277,7 @@ invoicely-v2/
 |   |       |   +-- use-pwa.ts  # PWA functionality hook
 |   |       +-- providers/      # React context providers
 |   |       +-- routes/         # Page components
+|   |       |   +-- superadmin/ # Superadmin dashboard pages
 |   |       +-- types/          # TypeScript declarations
 |   |       |   +-- pwa.d.ts    # PWA virtual module types
 |   |       +-- zod-schemas/    # Validation schemas
@@ -1262,18 +1285,21 @@ invoicely-v2/
 |   +-- api/                    # Hono Backend (port 3001)
 |       +-- src/
 |           +-- routes/
-|           |   +-- ai.ts       # AI chat endpoint
+|           |   +-- ai.ts       # AI chat endpoint (10k+ lines, 113 tools)
 |           |   +-- v1/         # Public REST API
 |           |   +-- [feature]/  # Feature routes
 |           +-- trpc/
 |           |   +-- router.ts   # Root router
 |           |   +-- services/   # tRPC procedures
-|           +-- services/       # Business logic
-|           |   +-- approval.service.ts
-|           |   +-- agent-audit.service.ts
-|           |   +-- agent-safety.service.ts
+|           +-- services/       # Business logic (25+ services)
 |           |   +-- agent-memory.service.ts   # Session & long-term memory
+|           |   +-- agent-safety.service.ts   # Quotas, emergency stop
+|           |   +-- agent-audit.service.ts    # Action logging
+|           |   +-- approval.service.ts       # Approval workflows
 |           |   +-- workflow-engine.service.ts
+|           |   +-- document-processor.service.ts  # OCR & extraction
+|           |   +-- subscription.service.ts
+|           |   +-- admin.service.ts          # Superadmin operations
 |           +-- middleware/     # Auth, rate limiting
 |           +-- workers/        # Background jobs
 |           +-- lib/            # Utilities
@@ -1282,7 +1308,7 @@ invoicely-v2/
 |   |
 |   +-- db/                     # Database Package
 |   |   +-- src/
-|   |   |   +-- schema/         # Drizzle schemas (21 files)
+|   |   |   +-- schema/         # Drizzle schemas (41 files)
 |   |   |   |   +-- agentMemory.ts  # Agent memory tables
 |   |   |   +-- repositories/   # Data access layer
 |   |   +-- migrations/         # SQL migrations
@@ -1471,39 +1497,38 @@ export function InvoicePDF({ invoice }) {
 
 ### Core Tables
 
-| Table | Description |
-|-------|-------------|
-| `users` | User accounts |
-| `organizations` | Business entities |
-| `invoices` | Sales invoices |
-| `invoice_items` | Invoice line items |
-| `quotations` | Price quotations |
-| `credit_notes` | Credit adjustments |
-| `debit_notes` | Debit adjustments |
-| `bills` | Purchase bills |
-| `customers` | Customer records |
-| `vendors` | Vendor records |
-| `accounts` | Chart of accounts |
-| `journal_entries` | Accounting entries |
-| `journal_entry_lines` | Entry line items |
-| `bank_feeds` | Bank transactions |
-| `fixed_assets` | Asset register |
+| Category | Tables |
+|----------|--------|
+| **Users & Auth** | `users`, `user_settings`, `user_audit_logs`, `organizations`, `company_profiles` |
+| **Sales** | `invoices`, `invoices_v2`, `quotations`, `quotations_v2`, `credit_notes`, `credit_notes_v2`, `debit_notes`, `debit_notes_v2` |
+| **Purchases** | `bills`, `vendors`, `payments` |
+| **Customers** | `customers` |
+| **Accounting** | `chart_of_accounts`, `journal_entries`, `journal_entry_lines`, `sst_transactions` |
+| **Banking** | `bank_accounts`, `bank_transactions`, `bank_feeds` |
+| **Assets** | `fixed_assets`, `fixed_asset_categories`, `fixed_asset_depreciations` |
+| **Payroll** | `employees`, `employee_salaries`, `payroll_runs`, `pay_slips` |
+| **Documents** | `vault_documents`, `vault_processing_jobs` |
+| **E-Invoice** | `einvoice_submissions`, `einvoice_logs` |
+| **Subscriptions** | `subscriptions`, `subscription_plans` |
+| **System** | `api_keys`, `webhooks`, `blogs`, `system_settings`, `aggregations` |
 
 ### AI Agent Tables
 
 | Table | Description |
 |-------|-------------|
-| `agent_approval_settings` | User approval preferences |
-| `agent_pending_approvals` | Actions awaiting approval |
-| `agent_audit_logs` | Action history with reasoning |
+| `agent_approval_settings` | User approval preferences & thresholds |
+| `agent_pending_approvals` | Actions awaiting user approval |
+| `agent_audit_logs` | Full action history with reasoning |
 | `agent_quotas` | Usage limits and safety settings |
-| `agent_usage` | Daily usage tracking |
+| `agent_usage` | Daily token & action tracking |
 | `agent_workflows` | Multi-step workflow definitions |
 | `agent_workflow_steps` | Workflow step configurations |
 | `agent_sessions` | Chat session tracking |
 | `agent_messages` | Conversation message history |
-| `agent_memories` | Long-term memory storage (preferences, facts, patterns) |
+| `agent_memories` | Long-term memory (preferences, facts, patterns) |
 | `agent_user_context` | Business context per user |
+| `agent_traces` | Detailed execution traces |
+| `admin_audit_logs` | Superadmin action logs |
 
 ---
 

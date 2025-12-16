@@ -1,11 +1,12 @@
 /**
  * Customer REST Routes
  * Provides REST API endpoints for customer CRUD operations
+ * Uses customerBusiness service for all operations (includes webhooks)
  */
 
 import { Hono } from "hono";
 import { z } from "zod";
-import { customerRepository } from "@open-bookkeeping/db";
+import { customerBusiness } from "../services/business";
 import { metadataItemSchema } from "../schemas/common";
 import {
   HTTP_STATUS,
@@ -38,14 +39,21 @@ customerRoutes.get("/", async (c) => {
   try {
     const query = c.req.query();
     const { limit, offset } = paginationQuerySchema.parse(query);
-    const customers = await customerRepository.findMany(user.id, { limit, offset });
+    const customers = await customerBusiness.list(
+      { userId: user.id },
+      { limit, offset }
+    );
     return c.json(customers);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return handleValidationError(c, error);
     }
     console.error("Error fetching customers:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to fetch customers");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to fetch customers"
+    );
   }
 });
 
@@ -57,11 +65,15 @@ customerRoutes.get("/search", async (c) => {
 
   try {
     const query = c.req.query("q") ?? "";
-    const customers = await customerRepository.search(user.id, query);
+    const customers = await customerBusiness.search({ userId: user.id }, query);
     return c.json(customers);
   } catch (error) {
     console.error("Error searching customers:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to search customers");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to search customers"
+    );
   }
 });
 
@@ -73,18 +85,26 @@ customerRoutes.get("/:id", async (c) => {
 
   const id = c.req.param("id");
   if (!uuidParamSchema.safeParse(id).success) {
-    return errorResponse(c, HTTP_STATUS.BAD_REQUEST, "Invalid customer ID format");
+    return errorResponse(
+      c,
+      HTTP_STATUS.BAD_REQUEST,
+      "Invalid customer ID format"
+    );
   }
 
   try {
-    const customer = await customerRepository.findById(id, user.id);
+    const customer = await customerBusiness.getById({ userId: user.id }, id);
     if (!customer) {
       return errorResponse(c, HTTP_STATUS.NOT_FOUND, "Customer not found");
     }
     return c.json(customer);
   } catch (error) {
     console.error("Error fetching customer:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to fetch customer");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to fetch customer"
+    );
   }
 });
 
@@ -102,19 +122,34 @@ customerRoutes.post("/", async (c) => {
     }
 
     const input = parseResult.data;
-    const customer = await customerRepository.create({
-      userId: user.id,
-      name: input.name,
-      email: input.email ?? null,
-      phone: input.phone ?? null,
-      address: input.address ?? null,
-      metadata: input.metadata,
-    });
+    const customer = await customerBusiness.create(
+      {
+        userId: user.id,
+        allowedSavingData: user.allowedSavingData,
+      },
+      {
+        name: input.name,
+        email: input.email ?? null,
+        phone: input.phone ?? null,
+        address: input.address ?? null,
+        metadata: input.metadata,
+      }
+    );
 
     return c.json(customer, HTTP_STATUS.CREATED);
   } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "You have disabled data saving"
+    ) {
+      return errorResponse(c, HTTP_STATUS.FORBIDDEN, error.message);
+    }
     console.error("Error creating customer:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to create customer");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to create customer"
+    );
   }
 });
 
@@ -126,7 +161,11 @@ customerRoutes.patch("/:id", async (c) => {
 
   const id = c.req.param("id");
   if (!uuidParamSchema.safeParse(id).success) {
-    return errorResponse(c, HTTP_STATUS.BAD_REQUEST, "Invalid customer ID format");
+    return errorResponse(
+      c,
+      HTTP_STATUS.BAD_REQUEST,
+      "Invalid customer ID format"
+    );
   }
 
   try {
@@ -137,21 +176,39 @@ customerRoutes.patch("/:id", async (c) => {
     }
 
     const input = parseResult.data;
-    const customer = await customerRepository.update(id, user.id, {
-      name: input.name,
-      email: input.email !== undefined ? (input.email ?? null) : undefined,
-      phone: input.phone !== undefined ? (input.phone ?? null) : undefined,
-      address: input.address !== undefined ? (input.address ?? null) : undefined,
-      metadata: input.metadata,
-    });
+    const customer = await customerBusiness.update(
+      {
+        userId: user.id,
+        allowedSavingData: user.allowedSavingData,
+      },
+      id,
+      {
+        name: input.name,
+        email: input.email !== undefined ? (input.email ?? null) : undefined,
+        phone: input.phone !== undefined ? (input.phone ?? null) : undefined,
+        address:
+          input.address !== undefined ? (input.address ?? null) : undefined,
+        metadata: input.metadata,
+      }
+    );
 
     if (!customer) {
       return errorResponse(c, HTTP_STATUS.NOT_FOUND, "Customer not found");
     }
     return c.json(customer);
   } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "You have disabled data saving"
+    ) {
+      return errorResponse(c, HTTP_STATUS.FORBIDDEN, error.message);
+    }
     console.error("Error updating customer:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to update customer");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to update customer"
+    );
   }
 });
 
@@ -163,17 +220,25 @@ customerRoutes.delete("/:id", async (c) => {
 
   const id = c.req.param("id");
   if (!uuidParamSchema.safeParse(id).success) {
-    return errorResponse(c, HTTP_STATUS.BAD_REQUEST, "Invalid customer ID format");
+    return errorResponse(
+      c,
+      HTTP_STATUS.BAD_REQUEST,
+      "Invalid customer ID format"
+    );
   }
 
   try {
-    const deleted = await customerRepository.delete(id, user.id);
+    const deleted = await customerBusiness.delete({ userId: user.id }, id);
     if (!deleted) {
       return errorResponse(c, HTTP_STATUS.NOT_FOUND, "Customer not found");
     }
     return c.json({ success: true });
   } catch (error) {
     console.error("Error deleting customer:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to delete customer");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to delete customer"
+    );
   }
 });

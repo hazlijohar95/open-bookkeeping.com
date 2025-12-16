@@ -452,3 +452,36 @@ export type {
   CreateWorkflowInput,
   WorkflowStats,
 } from "./agent";
+
+// Company Profile
+export {
+  useCompanyProfile,
+  useProfileCompleteness,
+  useMissingFields,
+  useEInvoiceReadiness,
+  usePayrollReadiness,
+  useReferenceData,
+  useCompanyProfileForAI,
+  useUpdateCompanyProfile as useUpdateCompanyProfileV2,
+  useUpdateLegalIdentity,
+  useUpdateAddress,
+  useUpdateContact,
+  useUpdateBusinessClassification,
+  useUpdateAccountingSettings,
+  useUpdateTaxCompliance,
+  useUpdateEmployerRegistrations,
+  useUpdateBankAccounts,
+  useUpdateBranding,
+  useUpdateDocumentDefaults,
+  useUpdateMigration,
+  useCompleteOnboarding,
+  useSkipOnboarding,
+  companyProfileKeys,
+} from "./company-profile";
+export type {
+  CompanyProfile,
+  ReferenceData,
+  MissingFields,
+  EInvoiceReadiness,
+  PayrollReadiness,
+} from "./company-profile";

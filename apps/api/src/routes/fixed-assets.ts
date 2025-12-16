@@ -73,15 +73,21 @@ const createAssetSchema = z.object({
   invoiceReference: z.string().max(100).optional(),
   depreciationMethod: depreciationMethodSchema.optional(),
   usefulLifeMonths: z.number().int().min(1).max(600),
-  salvageValue: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  salvageValue: z
+    .string()
+    .regex(/^\d+(\.\d{1,2})?$/)
+    .optional(),
   depreciationStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   assetAccountId: z.string().uuid(),
   depreciationExpenseAccountId: z.string().uuid(),
   accumulatedDepreciationAccountId: z.string().uuid(),
   location: z.string().max(200).optional(),
   serialNumber: z.string().max(100).optional(),
-  warrantyExpiry: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  metadata: z.record(z.string()).optional(),
+  warrantyExpiry: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
 });
 
 const updateAssetSchema = z.object({
@@ -89,7 +95,7 @@ const updateAssetSchema = z.object({
   description: z.string().max(1000).optional().nullable(),
   location: z.string().max(200).optional(),
   serialNumber: z.string().max(100).optional(),
-  metadata: z.record(z.string()).optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
 });
 
 const assetQuerySchema = paginationQuerySchema.extend({
@@ -101,18 +107,26 @@ const assetQuerySchema = paginationQuerySchema.extend({
 const disposeAssetSchema = z.object({
   disposalDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   disposalMethod: disposalMethodSchema,
-  proceeds: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
-  buyerInfo: z.object({
-    name: z.string().max(200).optional(),
-    contact: z.string().max(200).optional(),
-    reference: z.string().max(100).optional(),
-  }).optional(),
+  proceeds: z
+    .string()
+    .regex(/^\d+(\.\d{1,2})?$/)
+    .optional(),
+  buyerInfo: z
+    .object({
+      name: z.string().max(200).optional(),
+      contact: z.string().max(200).optional(),
+      reference: z.string().max(100).optional(),
+    })
+    .optional(),
   notes: z.string().max(1000).optional(),
 });
 
 const previewDepreciationSchema = z.object({
   acquisitionCost: z.string().regex(/^\d+(\.\d{1,2})?$/),
-  salvageValue: z.string().regex(/^\d+(\.\d{1,2})?$/).default("0"),
+  salvageValue: z
+    .string()
+    .regex(/^\d+(\.\d{1,2})?$/)
+    .default("0"),
   usefulLifeMonths: z.number().int().min(1).max(600),
   depreciationMethod: depreciationMethodSchema,
   depreciationStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -149,7 +163,11 @@ fixedAssetRoutes.get("/", async (c) => {
       return handleValidationError(c, error);
     }
     console.error("Error fetching fixed assets:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to fetch assets");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to fetch assets"
+    );
   }
 });
 
@@ -164,7 +182,11 @@ fixedAssetRoutes.get("/summary", async (c) => {
     return c.json(summary);
   } catch (error) {
     console.error("Error fetching asset summary:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to fetch summary");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to fetch summary"
+    );
   }
 });
 
@@ -176,11 +198,18 @@ fixedAssetRoutes.get("/pending-depreciations", async (c) => {
 
   try {
     const beforeDate = c.req.query("beforeDate");
-    const pending = await fixedAssetRepository.getPendingDepreciations(user.id, beforeDate);
+    const pending = await fixedAssetRepository.getPendingDepreciations(
+      user.id,
+      beforeDate
+    );
     return c.json(pending);
   } catch (error) {
     console.error("Error fetching pending depreciations:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to fetch pending depreciations");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to fetch pending depreciations"
+    );
   }
 });
 
@@ -207,7 +236,11 @@ fixedAssetRoutes.post("/preview-depreciation", async (c) => {
       return handleValidationError(c, error);
     }
     console.error("Error previewing depreciation:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to preview depreciation");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to preview depreciation"
+    );
   }
 });
 
@@ -227,11 +260,19 @@ fixedAssetRoutes.get("/categories", async (c) => {
     const limit = query.limit ? Number(query.limit) : 50;
     const offset = query.offset ? Number(query.offset) : 0;
 
-    const categories = await fixedAssetCategoryRepository.findMany(user.id, limit, offset);
+    const categories = await fixedAssetCategoryRepository.findMany(
+      user.id,
+      limit,
+      offset
+    );
     return c.json(categories);
   } catch (error) {
     console.error("Error fetching categories:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to fetch categories");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to fetch categories"
+    );
   }
 });
 
@@ -243,7 +284,11 @@ fixedAssetRoutes.get("/categories/:id", async (c) => {
 
   const id = c.req.param("id");
   if (!uuidParamSchema.safeParse(id).success) {
-    return errorResponse(c, HTTP_STATUS.BAD_REQUEST, "Invalid category ID format");
+    return errorResponse(
+      c,
+      HTTP_STATUS.BAD_REQUEST,
+      "Invalid category ID format"
+    );
   }
 
   try {
@@ -254,7 +299,11 @@ fixedAssetRoutes.get("/categories/:id", async (c) => {
     return c.json(category);
   } catch (error) {
     console.error("Error fetching category:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to fetch category");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to fetch category"
+    );
   }
 });
 
@@ -279,7 +328,11 @@ fixedAssetRoutes.post("/categories", async (c) => {
       return handleValidationError(c, error);
     }
     console.error("Error creating category:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to create category");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to create category"
+    );
   }
 });
 
@@ -291,14 +344,22 @@ fixedAssetRoutes.patch("/categories/:id", async (c) => {
 
   const id = c.req.param("id");
   if (!uuidParamSchema.safeParse(id).success) {
-    return errorResponse(c, HTTP_STATUS.BAD_REQUEST, "Invalid category ID format");
+    return errorResponse(
+      c,
+      HTTP_STATUS.BAD_REQUEST,
+      "Invalid category ID format"
+    );
   }
 
   try {
     const body = await c.req.json();
     const parsed = updateCategorySchema.parse(body);
 
-    const category = await fixedAssetCategoryRepository.update(id, user.id, parsed);
+    const category = await fixedAssetCategoryRepository.update(
+      id,
+      user.id,
+      parsed
+    );
     if (!category) {
       return errorResponse(c, HTTP_STATUS.NOT_FOUND, "Category not found");
     }
@@ -308,7 +369,11 @@ fixedAssetRoutes.patch("/categories/:id", async (c) => {
       return handleValidationError(c, error);
     }
     console.error("Error updating category:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to update category");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to update category"
+    );
   }
 });
 
@@ -320,7 +385,11 @@ fixedAssetRoutes.delete("/categories/:id", async (c) => {
 
   const id = c.req.param("id");
   if (!uuidParamSchema.safeParse(id).success) {
-    return errorResponse(c, HTTP_STATUS.BAD_REQUEST, "Invalid category ID format");
+    return errorResponse(
+      c,
+      HTTP_STATUS.BAD_REQUEST,
+      "Invalid category ID format"
+    );
   }
 
   try {
@@ -331,7 +400,11 @@ fixedAssetRoutes.delete("/categories/:id", async (c) => {
     return c.json({ success: true });
   } catch (error) {
     console.error("Error deleting category:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to delete category");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to delete category"
+    );
   }
 });
 
@@ -358,7 +431,11 @@ fixedAssetRoutes.get("/:id", async (c) => {
     return c.json(asset);
   } catch (error) {
     console.error("Error fetching asset:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to fetch asset");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to fetch asset"
+    );
   }
 });
 
@@ -383,7 +460,11 @@ fixedAssetRoutes.post("/", async (c) => {
       return handleValidationError(c, error);
     }
     console.error("Error creating asset:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to create asset");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to create asset"
+    );
   }
 });
 
@@ -412,7 +493,11 @@ fixedAssetRoutes.patch("/:id", async (c) => {
       return handleValidationError(c, error);
     }
     console.error("Error updating asset:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to update asset");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to update asset"
+    );
   }
 });
 
@@ -430,12 +515,20 @@ fixedAssetRoutes.delete("/:id", async (c) => {
   try {
     const deleted = await fixedAssetRepository.delete(id, user.id);
     if (!deleted) {
-      return errorResponse(c, HTTP_STATUS.BAD_REQUEST, "Asset not found or cannot be deleted");
+      return errorResponse(
+        c,
+        HTTP_STATUS.BAD_REQUEST,
+        "Asset not found or cannot be deleted"
+      );
     }
     return c.json({ success: true });
   } catch (error) {
     console.error("Error deleting asset:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to delete asset");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to delete asset"
+    );
   }
 });
 
@@ -453,7 +546,11 @@ fixedAssetRoutes.post("/:id/activate", async (c) => {
   try {
     const asset = await fixedAssetRepository.activate(id, user.id);
     if (!asset) {
-      return errorResponse(c, HTTP_STATUS.BAD_REQUEST, "Asset not found or not in draft status");
+      return errorResponse(
+        c,
+        HTTP_STATUS.BAD_REQUEST,
+        "Asset not found or not in draft status"
+      );
     }
 
     // Generate depreciation schedule
@@ -462,7 +559,11 @@ fixedAssetRoutes.post("/:id/activate", async (c) => {
     return c.json(asset);
   } catch (error) {
     console.error("Error activating asset:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to activate asset");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to activate asset"
+    );
   }
 });
 
@@ -488,7 +589,11 @@ fixedAssetRoutes.get("/:id/depreciation-schedule", async (c) => {
     return c.json(schedule);
   } catch (error) {
     console.error("Error fetching depreciation schedule:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to fetch schedule");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to fetch schedule"
+    );
   }
 });
 
@@ -511,7 +616,11 @@ fixedAssetRoutes.post("/:id/dispose", async (c) => {
     }
 
     if (asset.status === "disposed") {
-      return errorResponse(c, HTTP_STATUS.BAD_REQUEST, "Asset already disposed");
+      return errorResponse(
+        c,
+        HTTP_STATUS.BAD_REQUEST,
+        "Asset already disposed"
+      );
     }
 
     const body = await c.req.json();
@@ -528,7 +637,11 @@ fixedAssetRoutes.post("/:id/dispose", async (c) => {
       return handleValidationError(c, error);
     }
     console.error("Error disposing asset:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to dispose asset");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to dispose asset"
+    );
   }
 });
 
@@ -540,24 +653,40 @@ fixedAssetRoutes.post("/depreciation/:id/run", async (c) => {
 
   const depreciationId = c.req.param("id");
   if (!uuidParamSchema.safeParse(depreciationId).success) {
-    return errorResponse(c, HTTP_STATUS.BAD_REQUEST, "Invalid depreciation ID format");
+    return errorResponse(
+      c,
+      HTTP_STATUS.BAD_REQUEST,
+      "Invalid depreciation ID format"
+    );
   }
 
   try {
     // Get depreciation record
-    const schedule = await fixedAssetRepository.getDepreciationSchedule(depreciationId);
+    const schedule =
+      await fixedAssetRepository.getDepreciationSchedule(depreciationId);
     const depreciation = schedule.find((s) => s.id === depreciationId);
 
     if (!depreciation) {
-      return errorResponse(c, HTTP_STATUS.NOT_FOUND, "Depreciation record not found");
+      return errorResponse(
+        c,
+        HTTP_STATUS.NOT_FOUND,
+        "Depreciation record not found"
+      );
     }
 
     if (depreciation.status !== "scheduled") {
-      return errorResponse(c, HTTP_STATUS.BAD_REQUEST, "Depreciation already processed");
+      return errorResponse(
+        c,
+        HTTP_STATUS.BAD_REQUEST,
+        "Depreciation already processed"
+      );
     }
 
     // Get asset details
-    const asset = await fixedAssetRepository.findById(depreciation.fixedAssetId, user.id);
+    const asset = await fixedAssetRepository.findById(
+      depreciation.fixedAssetId,
+      user.id
+    );
     if (!asset) {
       return errorResponse(c, HTTP_STATUS.NOT_FOUND, "Asset not found");
     }
@@ -589,12 +718,19 @@ fixedAssetRoutes.post("/depreciation/:id/run", async (c) => {
     await journalEntryRepository.post(journalEntry.id, user.id);
 
     // Link depreciation to journal entry
-    await fixedAssetRepository.postDepreciation(depreciationId, journalEntry.id);
+    await fixedAssetRepository.postDepreciation(
+      depreciationId,
+      journalEntry.id
+    );
 
     return c.json({ success: true, journalEntryId: journalEntry.id });
   } catch (error) {
     console.error("Error running depreciation:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to run depreciation");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to run depreciation"
+    );
   }
 });
 
@@ -605,20 +741,35 @@ fixedAssetRoutes.post("/depreciation/:id/skip", async (c) => {
 
   const depreciationId = c.req.param("id");
   if (!uuidParamSchema.safeParse(depreciationId).success) {
-    return errorResponse(c, HTTP_STATUS.BAD_REQUEST, "Invalid depreciation ID format");
+    return errorResponse(
+      c,
+      HTTP_STATUS.BAD_REQUEST,
+      "Invalid depreciation ID format"
+    );
   }
 
   try {
     const body = await c.req.json().catch(() => ({}));
     const notes = body.notes as string | undefined;
 
-    const updated = await fixedAssetRepository.skipDepreciation(depreciationId, notes);
+    const updated = await fixedAssetRepository.skipDepreciation(
+      depreciationId,
+      notes
+    );
     if (!updated) {
-      return errorResponse(c, HTTP_STATUS.NOT_FOUND, "Depreciation record not found");
+      return errorResponse(
+        c,
+        HTTP_STATUS.NOT_FOUND,
+        "Depreciation record not found"
+      );
     }
     return c.json(updated);
   } catch (error) {
     console.error("Error skipping depreciation:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to skip depreciation");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to skip depreciation"
+    );
   }
 });

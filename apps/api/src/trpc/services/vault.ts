@@ -1,7 +1,14 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
-import { db, vaultDocuments, vaultDocumentTags, vaultProcessingJobs, vendors, determineCategory } from "@open-bookkeeping/db";
+import {
+  db,
+  vaultDocuments,
+  vaultDocumentTags,
+  vaultProcessingJobs,
+  vendors,
+  determineCategory,
+} from "@open-bookkeeping/db";
 import { eq, and, ilike, or, desc } from "drizzle-orm";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { documentProcessorService } from "../../services/document-processor.service";
@@ -14,15 +21,25 @@ const VAULT_BUCKET = "vault";
 const ASSETS_BUCKET = "assets";
 
 const categoryEnum = z.enum([
-  "contracts", "receipts", "images", "invoices",
-  "bills", "statements", "tax_documents", "other"
+  "contracts",
+  "receipts",
+  "images",
+  "invoices",
+  "bills",
+  "statements",
+  "tax_documents",
+  "other",
 ]);
 
 /**
  * Ensure the vault bucket exists, create if not
  */
-async function ensureBucketExists(supabase: SupabaseClient, bucketName: string): Promise<boolean> {
-  const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+async function ensureBucketExists(
+  supabase: SupabaseClient,
+  bucketName: string
+): Promise<boolean> {
+  const { data: buckets, error: listError } =
+    await supabase.storage.listBuckets();
 
   if (listError) {
     console.error("[Vault] Failed to list buckets:", listError.message);
@@ -32,10 +49,13 @@ async function ensureBucketExists(supabase: SupabaseClient, bucketName: string):
   const exists = buckets?.some((b) => b.name === bucketName);
 
   if (!exists) {
-    const { error: createError } = await supabase.storage.createBucket(bucketName, {
-      public: false,
-      fileSizeLimit: MAX_FILE_SIZE,
-    });
+    const { error: createError } = await supabase.storage.createBucket(
+      bucketName,
+      {
+        public: false,
+        fileSizeLimit: MAX_FILE_SIZE,
+      }
+    );
 
     if (createError) {
       console.error("[Vault] Failed to create bucket:", createError.message);
@@ -51,9 +71,11 @@ export const vaultRouter = router({
   // List all documents (optionally filtered by category)
   list: protectedProcedure
     .input(
-      z.object({
-        category: categoryEnum.optional(),
-      }).optional()
+      z
+        .object({
+          category: categoryEnum.optional(),
+        })
+        .optional()
     )
     .query(async ({ ctx, input }) => {
       const conditions = [eq(vaultDocuments.userId, ctx.user.id)];
@@ -128,7 +150,11 @@ export const vaultRouter = router({
       }
 
       // Validate MIME type from actual file content
-      const mimeValidation = validateMimeType(buffer, input.mimeType, input.fileName);
+      const mimeValidation = validateMimeType(
+        buffer,
+        input.mimeType,
+        input.fileName
+      );
       if (!mimeValidation.valid) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -166,7 +192,10 @@ export const vaultRouter = router({
       let uploadSucceeded = false;
 
       // Ensure vault bucket exists before upload
-      const vaultBucketReady = await ensureBucketExists(ctx.supabase, VAULT_BUCKET);
+      const vaultBucketReady = await ensureBucketExists(
+        ctx.supabase,
+        VAULT_BUCKET
+      );
 
       if (vaultBucketReady) {
         // Upload to Supabase Storage (vault bucket)
@@ -180,7 +209,10 @@ export const vaultRouter = router({
         if (!uploadError) {
           uploadSucceeded = true;
         } else {
-          console.warn("[Vault] Upload to vault bucket failed:", uploadError.message);
+          console.warn(
+            "[Vault] Upload to vault bucket failed:",
+            uploadError.message
+          );
         }
       }
 
@@ -199,7 +231,9 @@ export const vaultRouter = router({
         if (fallbackError) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
-            message: "Failed to upload document: " + (fallbackError.message ?? "Unknown error"),
+            message:
+              "Failed to upload document: " +
+              (fallbackError.message ?? "Unknown error"),
           });
         }
       }
@@ -311,7 +345,9 @@ export const vaultRouter = router({
       }
 
       // Delete existing tags
-      await db.delete(vaultDocumentTags).where(eq(vaultDocumentTags.documentId, input.id));
+      await db
+        .delete(vaultDocumentTags)
+        .where(eq(vaultDocumentTags.documentId, input.id));
 
       // Insert new tags
       if (input.tags.length) {
@@ -393,7 +429,10 @@ export const vaultRouter = router({
         .remove([document.storagePath]);
 
       if (deleteError) {
-        console.warn("[Vault] Failed to delete from storage:", deleteError.message);
+        console.warn(
+          "[Vault] Failed to delete from storage:",
+          deleteError.message
+        );
         // Continue to delete from DB even if storage delete fails
       }
 
@@ -490,12 +529,16 @@ export const vaultRouter = router({
       }
 
       // Generate a signed URL that Reducto can access (valid for 1 hour)
-      const { data: signedUrlData, error: signedUrlError } = await ctx.supabase.storage
-        .from(doc.storageBucket)
-        .createSignedUrl(doc.storagePath, 3600); // 1 hour expiry
+      const { data: signedUrlData, error: signedUrlError } =
+        await ctx.supabase.storage
+          .from(doc.storageBucket)
+          .createSignedUrl(doc.storagePath, 3600); // 1 hour expiry
 
       if (signedUrlError || !signedUrlData?.signedUrl) {
-        console.warn("[Vault] Failed to create signed URL:", signedUrlError?.message);
+        console.warn(
+          "[Vault] Failed to create signed URL:",
+          signedUrlError?.message
+        );
         // Fall back to public URL if signed URL fails
       }
 
@@ -532,31 +575,41 @@ export const vaultRouter = router({
       }
 
       // Parse and validate extracted data with Zod schema
-      const extractedDataSchema = z.object({
-        vendor: z.object({
-          name: z.string().optional(),
-          address: z.string().optional(),
-          taxId: z.string().optional(),
-          email: z.string().optional(),
-          phone: z.string().optional(),
-        }).optional(),
-        invoice: z.object({
-          number: z.string().optional(),
-          date: z.string().optional(),
-          dueDate: z.string().optional(),
-          subtotal: z.number().optional(),
-          tax: z.number().optional(),
-          total: z.number().optional(),
-          currency: z.string().optional(),
-        }).optional(),
-        lineItems: z.array(z.object({
-          description: z.string().optional(),
-          quantity: z.number().optional(),
-          unitPrice: z.number().optional(),
-          amount: z.number().optional(),
-        })).optional(),
-        raw: z.record(z.unknown()).optional(),
-      }).passthrough(); // Allow additional fields
+      const extractedDataSchema = z
+        .object({
+          vendor: z
+            .object({
+              name: z.string().optional(),
+              address: z.string().optional(),
+              taxId: z.string().optional(),
+              email: z.string().optional(),
+              phone: z.string().optional(),
+            })
+            .optional(),
+          invoice: z
+            .object({
+              number: z.string().optional(),
+              date: z.string().optional(),
+              dueDate: z.string().optional(),
+              subtotal: z.number().optional(),
+              tax: z.number().optional(),
+              total: z.number().optional(),
+              currency: z.string().optional(),
+            })
+            .optional(),
+          lineItems: z
+            .array(
+              z.object({
+                description: z.string().optional(),
+                quantity: z.number().optional(),
+                unitPrice: z.number().optional(),
+                amount: z.number().optional(),
+              })
+            )
+            .optional(),
+          raw: z.record(z.string(), z.unknown()).optional(),
+        })
+        .passthrough(); // Allow additional fields
 
       let extractedData = null;
       if (job.extractedData) {
@@ -627,7 +680,8 @@ export const vaultRouter = router({
       } catch (error) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: error instanceof Error ? error.message : "Failed to create bill",
+          message:
+            error instanceof Error ? error.message : "Failed to create bill",
         });
       }
     }),
@@ -652,12 +706,16 @@ export const vaultRouter = router({
       }
 
       // Generate a signed URL that Reducto can access (valid for 1 hour)
-      const { data: signedUrlData, error: signedUrlError } = await ctx.supabase.storage
-        .from(doc.storageBucket)
-        .createSignedUrl(doc.storagePath, 3600); // 1 hour expiry
+      const { data: signedUrlData, error: signedUrlError } =
+        await ctx.supabase.storage
+          .from(doc.storageBucket)
+          .createSignedUrl(doc.storagePath, 3600); // 1 hour expiry
 
       if (signedUrlError || !signedUrlData?.signedUrl) {
-        console.warn("[Vault] Failed to create signed URL for reprocess:", signedUrlError?.message);
+        console.warn(
+          "[Vault] Failed to create signed URL for reprocess:",
+          signedUrlError?.message
+        );
         // Fall back to public URL if signed URL fails
       }
 

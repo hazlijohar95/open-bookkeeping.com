@@ -1,15 +1,20 @@
 export * from "./enums";
 export * from "./users";
+export * from "./organizations";
 export * from "./customers";
 export * from "./vendors";
 export * from "./invoices";
 export * from "./invoicesV2";
 export * from "./quotations";
+export * from "./quotationsV2";
 export * from "./creditNotes";
+export * from "./creditNotesV2";
 export * from "./debitNotes";
+export * from "./debitNotesV2";
 export * from "./vault";
 export * from "./blogs";
 export * from "./userSettings";
+export * from "./companyProfiles";
 export * from "./einvoice";
 export * from "./bills";
 export * from "./bankFeeds";
@@ -43,3 +48,7 @@ export * from "./userAuditLogs";
 
 // Subscription & Onboarding schemas
 export * from "./subscriptions";
+
+// Superadmin schemas
+export * from "./adminAuditLogs";
+export * from "./systemSettings";

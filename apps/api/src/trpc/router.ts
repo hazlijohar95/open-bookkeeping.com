@@ -1,4 +1,10 @@
-import { router, publicProcedure, protectedProcedure } from "./trpc";
+import {
+  router,
+  publicProcedure,
+  protectedProcedure,
+  superadminProcedure,
+  adminProcedure,
+} from "./trpc";
 import { invoiceRouter } from "./services/invoice";
 import { customerRouter } from "./services/customer";
 import { vendorRouter } from "./services/vendor";
@@ -24,8 +30,17 @@ import { agentRouter } from "./services/agent";
 import { payrollRouter } from "./services/payroll";
 import { migrationRouter } from "./services/migration";
 import { subscriptionRouter } from "./services/subscription";
+import { adminRouter } from "./services/admin";
+import { dataFlowRouter } from "./services/dataFlow";
+import { companyProfileRouter } from "./services/companyProfile";
 
-export { router, publicProcedure, protectedProcedure };
+export {
+  router,
+  publicProcedure,
+  protectedProcedure,
+  superadminProcedure,
+  adminProcedure,
+};
 
 export const appRouter = router({
   invoice: invoiceRouter,
@@ -53,6 +68,9 @@ export const appRouter = router({
   payroll: payrollRouter,
   migration: migrationRouter,
   subscription: subscriptionRouter,
+  admin: adminRouter,
+  dataFlow: dataFlowRouter,
+  companyProfile: companyProfileRouter,
 });
 
 export type AppRouter = typeof appRouter;

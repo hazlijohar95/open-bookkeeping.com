@@ -1,12 +1,12 @@
 /**
  * Bill REST Routes
  * Provides REST API endpoints for bill (vendor invoice) CRUD operations
+ * Uses billBusiness service for all operations (includes webhooks, journal entries)
  */
 
 import { Hono } from "hono";
 import { z } from "zod";
-import { billRepository } from "@open-bookkeeping/db";
-import { authenticateRequest } from "../lib/auth-helpers";
+import { billBusiness } from "../services/business";
 import {
   HTTP_STATUS,
   errorResponse,
@@ -23,7 +23,13 @@ const billItemSchema = z.object({
   unitPrice: z.string(),
 });
 
-const billStatusSchema = z.enum(["draft", "pending", "paid", "overdue", "cancelled"]);
+const billStatusSchema = z.enum([
+  "draft",
+  "pending",
+  "paid",
+  "overdue",
+  "cancelled",
+]);
 
 const createBillSchema = z.object({
   vendorId: z.string().uuid().nullable().optional(),
@@ -31,11 +37,16 @@ const createBillSchema = z.object({
   description: z.string().nullable().optional(),
   currency: z.string().default("MYR"),
   billDate: z.string().transform((s) => new Date(s)),
-  dueDate: z.string().transform((s) => new Date(s)).nullable().optional(),
+  dueDate: z
+    .string()
+    .transform((s) => new Date(s))
+    .nullable()
+    .optional(),
   status: billStatusSchema.optional(),
   notes: z.string().nullable().optional(),
   attachmentUrl: z.string().url().nullable().optional(),
   items: z.array(billItemSchema).optional(),
+  taxRate: z.string().nullable().optional(),
 });
 
 const updateBillSchema = z.object({
@@ -43,8 +54,15 @@ const updateBillSchema = z.object({
   billNumber: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
   currency: z.string().optional(),
-  billDate: z.string().transform((s) => new Date(s)).optional(),
-  dueDate: z.string().transform((s) => new Date(s)).nullable().optional(),
+  billDate: z
+    .string()
+    .transform((s) => new Date(s))
+    .optional(),
+  dueDate: z
+    .string()
+    .transform((s) => new Date(s))
+    .nullable()
+    .optional(),
   status: billStatusSchema.optional(),
   notes: z.string().nullable().optional(),
   attachmentUrl: z.string().url().nullable().optional(),
@@ -55,8 +73,14 @@ const updateBillSchema = z.object({
 const billQuerySchema = paginationQuerySchema.extend({
   vendorId: z.string().uuid().optional(),
   status: billStatusSchema.optional(),
-  startDate: z.string().transform((s) => new Date(s)).optional(),
-  endDate: z.string().transform((s) => new Date(s)).optional(),
+  startDate: z
+    .string()
+    .transform((s) => new Date(s))
+    .optional(),
+  endDate: z
+    .string()
+    .transform((s) => new Date(s))
+    .optional(),
 });
 
 export const billRoutes = new Hono();
@@ -72,21 +96,21 @@ billRoutes.get("/", async (c) => {
     const parsed = billQuerySchema.parse(query);
     const { limit, offset, vendorId, status, startDate, endDate } = parsed;
 
-    const bills = await billRepository.findMany(user.id, {
-      limit,
-      offset,
-      vendorId,
-      status,
-      startDate,
-      endDate,
-    });
+    const bills = await billBusiness.list(
+      { userId: user.id },
+      { limit, offset, vendorId, status, startDate, endDate }
+    );
     return c.json(bills);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return handleValidationError(c, error);
     }
     console.error("Error fetching bills:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to fetch bills");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to fetch bills"
+    );
   }
 });
 
@@ -102,14 +126,18 @@ billRoutes.get("/:id", async (c) => {
   }
 
   try {
-    const bill = await billRepository.findById(id, user.id);
+    const bill = await billBusiness.getById({ userId: user.id }, id);
     if (!bill) {
       return errorResponse(c, HTTP_STATUS.NOT_FOUND, "Bill not found");
     }
     return c.json(bill);
   } catch (error) {
     console.error("Error fetching bill:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to fetch bill");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to fetch bill"
+    );
   }
 });
 
@@ -127,24 +155,40 @@ billRoutes.post("/", async (c) => {
     }
 
     const input = parseResult.data;
-    const bill = await billRepository.create({
-      userId: user.id,
-      vendorId: input.vendorId,
-      billNumber: input.billNumber,
-      description: input.description,
-      currency: input.currency,
-      billDate: input.billDate,
-      dueDate: input.dueDate,
-      status: input.status,
-      notes: input.notes,
-      attachmentUrl: input.attachmentUrl,
-      items: input.items,
-    });
+    const bill = await billBusiness.create(
+      {
+        userId: user.id,
+        allowedSavingData: user.allowedSavingData,
+      },
+      {
+        vendorId: input.vendorId,
+        billNumber: input.billNumber,
+        description: input.description,
+        currency: input.currency,
+        billDate: input.billDate,
+        dueDate: input.dueDate,
+        status: input.status,
+        notes: input.notes,
+        attachmentUrl: input.attachmentUrl,
+        items: input.items,
+        taxRate: input.taxRate,
+      }
+    );
 
     return c.json(bill, HTTP_STATUS.CREATED);
   } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "You have disabled data saving"
+    ) {
+      return errorResponse(c, HTTP_STATUS.FORBIDDEN, error.message);
+    }
     console.error("Error creating bill:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to create bill");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to create bill"
+    );
   }
 });
 
@@ -166,14 +210,44 @@ billRoutes.patch("/:id", async (c) => {
       return handleValidationError(c, parseResult.error);
     }
 
-    const bill = await billRepository.update(id, user.id, parseResult.data);
+    const input = parseResult.data;
+    const bill = await billBusiness.update(
+      {
+        userId: user.id,
+        allowedSavingData: user.allowedSavingData,
+      },
+      id,
+      {
+        vendorId: input.vendorId,
+        billNumber: input.billNumber,
+        description: input.description,
+        currency: input.currency,
+        billDate: input.billDate,
+        dueDate: input.dueDate,
+        status: input.status,
+        notes: input.notes,
+        attachmentUrl: input.attachmentUrl,
+        items: input.items,
+      }
+    );
+
     if (!bill) {
       return errorResponse(c, HTTP_STATUS.NOT_FOUND, "Bill not found");
     }
     return c.json(bill);
   } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "You have disabled data saving"
+    ) {
+      return errorResponse(c, HTTP_STATUS.FORBIDDEN, error.message);
+    }
     console.error("Error updating bill:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to update bill");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to update bill"
+    );
   }
 });
 
@@ -190,19 +264,37 @@ billRoutes.patch("/:id/status", async (c) => {
 
   try {
     const body = await c.req.json();
-    const parseResult = z.object({ status: billStatusSchema }).safeParse(body);
+    const parseResult = z
+      .object({
+        status: billStatusSchema,
+        paidAt: z
+          .string()
+          .transform((s) => new Date(s))
+          .optional(),
+      })
+      .safeParse(body);
     if (!parseResult.success) {
       return handleValidationError(c, parseResult.error);
     }
 
-    const bill = await billRepository.updateStatus(id, user.id, parseResult.data.status);
+    const bill = await billBusiness.updateStatus(
+      { userId: user.id },
+      id,
+      parseResult.data.status,
+      parseResult.data.paidAt
+    );
+
     if (!bill) {
       return errorResponse(c, HTTP_STATUS.NOT_FOUND, "Bill not found");
     }
     return c.json(bill);
   } catch (error) {
     console.error("Error updating bill status:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to update bill status");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to update bill status"
+    );
   }
 });
 
@@ -218,13 +310,17 @@ billRoutes.delete("/:id", async (c) => {
   }
 
   try {
-    const deleted = await billRepository.delete(id, user.id);
+    const deleted = await billBusiness.delete({ userId: user.id }, id);
     if (!deleted) {
       return errorResponse(c, HTTP_STATUS.NOT_FOUND, "Bill not found");
     }
     return c.json({ success: true });
   } catch (error) {
     console.error("Error deleting bill:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to delete bill");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to delete bill"
+    );
   }
 });

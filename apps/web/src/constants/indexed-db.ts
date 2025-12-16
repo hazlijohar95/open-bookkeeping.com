@@ -1,5 +1,5 @@
 export const IDB_NAME = "open-bookkeeping";
-export const IDB_VERSION = 3; // bump this when schema changes
+export const IDB_VERSION = 4; // v4: Added userId index for user isolation (security fix)
 
 // Schema Names
 export const IDB_SCHEMA_INVOICES = "inv_invoices";

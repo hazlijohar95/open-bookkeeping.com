@@ -33,7 +33,12 @@ import { cn } from "@/lib/utils";
 
 import { type InvoiceTab } from "@/global/atoms/invoice-atom";
 
-type InvoiceOptionsAction = "view-pdf" | "download-pdf" | "download-png" | "save-local" | "save-server";
+type InvoiceOptionsAction =
+  | "view-pdf"
+  | "download-pdf"
+  | "download-png"
+  | "save-local"
+  | "save-server";
 
 interface InvoiceOptionsProps {
   form: UseFormReturn<ZodCreateInvoiceSchema>;
@@ -103,22 +108,13 @@ const InvoiceOptions = ({ form, onTabChange }: InvoiceOptionsProps) => {
     }
     setIsSaving(true);
     try {
-      // Map template types: cynco/classic -> default for server storage
-      const template = formValues.invoiceDetails.theme?.template;
-      const mappedTemplate = template === "cynco" || template === "classic" ? "default" : template;
-
       await createInvoiceMutation.mutateAsync(
         {
           customerId: formValues.customerId,
           items: formValues.items,
           companyDetails: formValues.companyDetails,
           clientDetails: formValues.clientDetails,
-          invoiceDetails: {
-            ...formValues.invoiceDetails,
-            theme: formValues.invoiceDetails.theme
-              ? { ...formValues.invoiceDetails.theme, template: mappedTemplate }
-              : undefined,
-          },
+          invoiceDetails: formValues.invoiceDetails,
           metadata: formValues.metadata,
         },
         {
@@ -139,7 +135,7 @@ const InvoiceOptions = ({ form, onTabChange }: InvoiceOptionsProps) => {
   };
 
   return (
-    <div className="flex h-14 shrink-0 flex-row items-center justify-between gap-3 border-b bg-gradient-to-r from-background via-background to-muted/30 px-4">
+    <div className="from-background via-background to-muted/30 flex h-14 shrink-0 flex-row items-center justify-between gap-3 border-b bg-gradient-to-r px-4">
       {/* Left Side - Errors & Import */}
       <div className="flex flex-row items-center gap-2">
         <InvoiceErrorsModal />
@@ -156,7 +152,7 @@ const InvoiceOptions = ({ form, onTabChange }: InvoiceOptionsProps) => {
           <Button
             variant="ghost"
             size="sm"
-            className="gap-1.5 text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground gap-1.5"
             onClick={() => handleDropDownAction("view-pdf")}
           >
             <Eye className="size-4" />
@@ -170,12 +166,12 @@ const InvoiceOptions = ({ form, onTabChange }: InvoiceOptionsProps) => {
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "gap-1.5 text-muted-foreground hover:text-foreground transition-all",
+                  "text-muted-foreground hover:text-foreground gap-1.5 transition-all",
                   lastAction === "downloaded" && "text-success"
                 )}
               >
                 {lastAction === "downloaded" ? (
-                  <CheckCircle2Icon className="size-4 text-success" />
+                  <CheckCircle2Icon className="text-success size-4" />
                 ) : (
                   <Download className="size-4" />
                 )}
@@ -184,12 +180,16 @@ const InvoiceOptions = ({ form, onTabChange }: InvoiceOptionsProps) => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => handleDropDownAction("download-pdf")}>
-                <FileTextIcon className="size-4 text-destructive" />
+              <DropdownMenuItem
+                onClick={() => handleDropDownAction("download-pdf")}
+              >
+                <FileTextIcon className="text-destructive size-4" />
                 <span>Download PDF</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleDropDownAction("download-png")}>
-                <Image className="size-4 text-info" />
+              <DropdownMenuItem
+                onClick={() => handleDropDownAction("download-png")}
+              >
+                <Image className="text-info size-4" />
                 <span>Download PNG</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -197,16 +197,18 @@ const InvoiceOptions = ({ form, onTabChange }: InvoiceOptionsProps) => {
         </div>
 
         {/* Separator */}
-        <div className="h-6 w-px bg-border" />
+        <div className="bg-border h-6 w-px" />
 
-        {/* SaveIcon Actions */}
+        {/* Save Actions */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               className={cn(
-                "gap-2 min-w-[120px] transition-all shadow-lg shadow-primary/20 hover:shadow-primary/30",
-                lastAction === "saved-local" && "bg-success hover:bg-success/90",
-                lastAction === "saved-server" && "bg-success hover:bg-success/90"
+                "shadow-primary/20 hover:shadow-primary/30 min-w-[120px] gap-2 shadow-lg transition-all",
+                lastAction === "saved-local" &&
+                  "bg-success hover:bg-success/90",
+                lastAction === "saved-server" &&
+                  "bg-success hover:bg-success/90"
               )}
               disabled={isSaving}
             >
@@ -215,7 +217,8 @@ const InvoiceOptions = ({ form, onTabChange }: InvoiceOptionsProps) => {
                   <Loader2Icon className="size-4 animate-spin" />
                   <span>Saving...</span>
                 </>
-              ) : lastAction === "saved-local" || lastAction === "saved-server" ? (
+              ) : lastAction === "saved-local" ||
+                lastAction === "saved-server" ? (
                 <>
                   <CheckCircle2Icon className="size-4" />
                   <span>Saved!</span>
@@ -223,7 +226,7 @@ const InvoiceOptions = ({ form, onTabChange }: InvoiceOptionsProps) => {
               ) : (
                 <>
                   <Sparkles className="size-4" />
-                  <span>SaveIcon Invoice</span>
+                  <span>Save Invoice</span>
                   <ChevronDownIcon className="size-3 opacity-70" />
                 </>
               )}
@@ -234,12 +237,14 @@ const InvoiceOptions = ({ form, onTabChange }: InvoiceOptionsProps) => {
               onClick={() => handleDropDownAction("save-local")}
               className="gap-3 py-2.5"
             >
-              <div className="flex size-8 items-center justify-center rounded-lg bg-warning/10">
-                <SaveIcon className="size-4 text-warning" />
+              <div className="bg-warning/10 flex size-8 items-center justify-center rounded-lg">
+                <SaveIcon className="text-warning size-4" />
               </div>
               <div className="flex flex-col">
-                <span className="font-medium">SaveIcon Locally</span>
-                <span className="text-xs text-muted-foreground">Store in browser</span>
+                <span className="font-medium">Save Locally</span>
+                <span className="text-muted-foreground text-xs">
+                  Store in browser
+                </span>
               </div>
             </DropdownMenuItem>
             {user && (
@@ -247,12 +252,14 @@ const InvoiceOptions = ({ form, onTabChange }: InvoiceOptionsProps) => {
                 onClick={() => handleDropDownAction("save-server")}
                 className="gap-3 py-2.5"
               >
-                <div className="flex size-8 items-center justify-center rounded-lg bg-info/10">
-                  <Cloud className="size-4 text-info" />
+                <div className="bg-info/10 flex size-8 items-center justify-center rounded-lg">
+                  <Cloud className="text-info size-4" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-medium">SaveIcon to Cloud</span>
-                  <span className="text-xs text-muted-foreground">Sync across devices</span>
+                  <span className="font-medium">Save to Cloud</span>
+                  <span className="text-muted-foreground text-xs">
+                    Sync across devices
+                  </span>
                 </div>
               </DropdownMenuItem>
             )}

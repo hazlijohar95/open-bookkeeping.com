@@ -17,10 +17,30 @@ export const sstRoutes = new Hono();
 
 // Static data - Malaysian SST rate presets
 const SST_RATE_PRESETS = [
-  { code: "ST6", label: "Service Tax 6%", rate: 6, taxType: "service_tax" as const },
-  { code: "ST8", label: "Service Tax 8%", rate: 8, taxType: "service_tax" as const },
-  { code: "SA5", label: "Sales Tax 5%", rate: 5, taxType: "sales_tax" as const },
-  { code: "SA10", label: "Sales Tax 10%", rate: 10, taxType: "sales_tax" as const },
+  {
+    code: "ST6",
+    label: "Service Tax 6%",
+    rate: 6,
+    taxType: "service_tax" as const,
+  },
+  {
+    code: "ST8",
+    label: "Service Tax 8%",
+    rate: 8,
+    taxType: "service_tax" as const,
+  },
+  {
+    code: "SA5",
+    label: "Sales Tax 5%",
+    rate: 5,
+    taxType: "sales_tax" as const,
+  },
+  {
+    code: "SA10",
+    label: "Sales Tax 10%",
+    rate: 10,
+    taxType: "sales_tax" as const,
+  },
   { code: "EXEMPT", label: "Exempt", rate: 0, taxType: "sales_tax" as const },
 ];
 
@@ -29,7 +49,11 @@ const BUSINESS_CATEGORIES = [
   { value: "fnb", label: "Food & Beverage", threshold: 1500000 },
   { value: "telecom", label: "Telecommunications", threshold: 500000 },
   { value: "parking", label: "Parking Operations", threshold: 500000 },
-  { value: "other_services", label: "Other Taxable Services", threshold: 500000 },
+  {
+    value: "other_services",
+    label: "Other Taxable Services",
+    threshold: 500000,
+  },
   { value: "manufacturing", label: "Manufacturing", threshold: 500000 },
 ];
 
@@ -86,7 +110,8 @@ sstRoutes.get("/compliance-status", async (c) => {
     });
 
     const businessCategory = settings?.sstBusinessCategory ?? "other_services";
-    const categoryInfo = BUSINESS_CATEGORIES.find((cat) => cat.value === businessCategory) ||
+    const categoryInfo =
+      BUSINESS_CATEGORIES.find((cat) => cat.value === businessCategory) ||
       BUSINESS_CATEGORIES.find((cat) => cat.value === "other_services")!;
 
     // Calculate annual revenue from invoices
@@ -101,7 +126,7 @@ sstRoutes.get("/compliance-status", async (c) => {
       .where(
         and(
           eq(invoicesV2.userId, user.id),
-          eq(invoicesV2.status, "success"),
+          eq(invoicesV2.status, "paid"),
           gte(invoicesV2.createdAt, oneYearAgo)
         )
       );
@@ -110,10 +135,18 @@ sstRoutes.get("/compliance-status", async (c) => {
     const manualRevenue = parseFloat(settings?.sstManualRevenue ?? "0");
     const useManualRevenue = settings?.sstUseManualRevenue || false;
     const currentRevenue = useManualRevenue ? manualRevenue : calculatedRevenue;
-    const progressPercent = Math.min((currentRevenue / categoryInfo.threshold) * 100, 100);
+    const progressPercent = Math.min(
+      (currentRevenue / categoryInfo.threshold) * 100,
+      100
+    );
 
     // Determine status
-    let status: "below" | "voluntary" | "approaching" | "exceeded" | "registered";
+    let status:
+      | "below"
+      | "voluntary"
+      | "approaching"
+      | "exceeded"
+      | "registered";
     if (settings?.sstRegistrationNumber) {
       status = "registered";
     } else if (currentRevenue >= categoryInfo.threshold) {
@@ -144,7 +177,7 @@ sstRoutes.get("/compliance-status", async (c) => {
         .where(
           and(
             eq(invoicesV2.userId, user.id),
-            eq(invoicesV2.status, "success"),
+            eq(invoicesV2.status, "paid"),
             gte(invoicesV2.createdAt, startOfMonth),
             lte(invoicesV2.createdAt, endOfMonth)
           )
@@ -173,7 +206,11 @@ sstRoutes.get("/compliance-status", async (c) => {
     });
   } catch (error) {
     console.error("Error fetching compliance status:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to fetch compliance status");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to fetch compliance status"
+    );
   }
 });
 
@@ -188,10 +225,20 @@ sstRoutes.patch("/compliance-settings", async (c) => {
     const validation = complianceSettingsSchema.safeParse(body);
 
     if (!validation.success) {
-      return errorResponse(c, HTTP_STATUS.BAD_REQUEST, validation.error.message);
+      return errorResponse(
+        c,
+        HTTP_STATUS.BAD_REQUEST,
+        validation.error.message
+      );
     }
 
-    const { businessCategory, manualRevenue, useManualRevenue, registrationNumber, registrationDate } = validation.data;
+    const {
+      businessCategory,
+      manualRevenue,
+      useManualRevenue,
+      registrationNumber,
+      registrationDate,
+    } = validation.data;
 
     const [updated] = await db
       .update(userSettings)
@@ -200,7 +247,9 @@ sstRoutes.patch("/compliance-settings", async (c) => {
         sstManualRevenue: manualRevenue?.toString(),
         sstUseManualRevenue: useManualRevenue,
         sstRegistrationNumber: registrationNumber,
-        sstRegistrationDate: registrationDate ? new Date(registrationDate) : null,
+        sstRegistrationDate: registrationDate
+          ? new Date(registrationDate)
+          : null,
         updatedAt: new Date(),
       })
       .where(eq(userSettings.userId, user.id))
@@ -213,7 +262,11 @@ sstRoutes.patch("/compliance-settings", async (c) => {
     return c.json({ success: true });
   } catch (error) {
     console.error("Error updating compliance settings:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to update compliance settings");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to update compliance settings"
+    );
   }
 });
 
@@ -290,7 +343,11 @@ sstRoutes.get("/summary", async (c) => {
     });
   } catch (error) {
     console.error("Error fetching SST summary:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to fetch SST summary");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to fetch SST summary"
+    );
   }
 });
 
@@ -304,7 +361,12 @@ sstRoutes.get("/trend-chart", async (c) => {
     const period = c.req.query("period") ?? "6m";
     const months = period === "12m" ? 12 : 6;
 
-    const trendData: Array<{ month: string; salesTax: number; serviceTax: number; total: number }> = [];
+    const trendData: Array<{
+      month: string;
+      salesTax: number;
+      serviceTax: number;
+      total: number;
+    }> = [];
 
     for (let i = months - 1; i >= 0; i--) {
       const date = new Date();
@@ -339,7 +401,11 @@ sstRoutes.get("/trend-chart", async (c) => {
     return c.json(trendData);
   } catch (error) {
     console.error("Error fetching trend chart:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to fetch trend chart");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to fetch trend chart"
+    );
   }
 });
 
@@ -393,7 +459,11 @@ sstRoutes.get("/transactions", async (c) => {
     });
   } catch (error) {
     console.error("Error fetching SST transactions:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to fetch SST transactions");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to fetch SST transactions"
+    );
   }
 });
 
@@ -407,10 +477,20 @@ sstRoutes.get("/available-periods", async (c) => {
   const now = new Date();
 
   for (let i = 0; i < 12; i++) {
-    const date = new Date(now.getFullYear(), now.getMonth() - (i * 2), 1);
+    const date = new Date(now.getFullYear(), now.getMonth() - i * 2, 1);
     const month = date.getMonth() + 1;
-    const period = month <= 2 ? "01-02" : month <= 4 ? "03-04" : month <= 6 ? "05-06" :
-      month <= 8 ? "07-08" : month <= 10 ? "09-10" : "11-12";
+    const period =
+      month <= 2
+        ? "01-02"
+        : month <= 4
+          ? "03-04"
+          : month <= 6
+            ? "05-06"
+            : month <= 8
+              ? "07-08"
+              : month <= 10
+                ? "09-10"
+                : "11-12";
     const code = `${date.getFullYear()}-${period}`;
 
     if (!periods.includes(code)) {
@@ -458,8 +538,14 @@ sstRoutes.get("/sst02-return/:taxPeriod", async (c) => {
     const byRate8: typeof periodInvoices = []; // No 8% invoices currently
 
     const calculateTotals = (invs: typeof periodInvoices) => ({
-      taxableAmount: invs.reduce((sum, inv) => sum + parseFloat(inv.subtotal ?? "0"), 0),
-      taxAmount: invs.reduce((sum, inv) => sum + parseFloat(inv.taxTotal ?? "0"), 0),
+      taxableAmount: invs.reduce(
+        (sum, inv) => sum + parseFloat(inv.subtotal ?? "0"),
+        0
+      ),
+      taxAmount: invs.reduce(
+        (sum, inv) => sum + parseFloat(inv.taxTotal ?? "0"),
+        0
+      ),
       transactionCount: invs.length,
     });
 
@@ -487,7 +573,8 @@ sstRoutes.get("/sst02-return/:taxPeriod", async (c) => {
           { rate: 6, ...rate6Totals },
           { rate: 8, ...rate8Totals },
         ].filter((r) => r.transactionCount > 0),
-        totalTaxableAmount: rate6Totals.taxableAmount + rate8Totals.taxableAmount,
+        totalTaxableAmount:
+          rate6Totals.taxableAmount + rate8Totals.taxableAmount,
         totalTaxAmount: totalServiceTax,
       },
       partD: {
@@ -510,7 +597,11 @@ sstRoutes.get("/sst02-return/:taxPeriod", async (c) => {
     });
   } catch (error) {
     console.error("Error fetching SST-02 return:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to fetch SST-02 return");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to fetch SST-02 return"
+    );
   }
 });
 
@@ -533,7 +624,11 @@ sstRoutes.post("/return-submission", async (c) => {
     const validation = saveReturnSchema.safeParse(body);
 
     if (!validation.success) {
-      return errorResponse(c, HTTP_STATUS.BAD_REQUEST, validation.error.message);
+      return errorResponse(
+        c,
+        HTTP_STATUS.BAD_REQUEST,
+        validation.error.message
+      );
     }
 
     // In production, this would save to a database table
@@ -544,6 +639,10 @@ sstRoutes.post("/return-submission", async (c) => {
     });
   } catch (error) {
     console.error("Error saving return submission:", error);
-    return errorResponse(c, HTTP_STATUS.INTERNAL_SERVER_ERROR, "Failed to save return submission");
+    return errorResponse(
+      c,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to save return submission"
+    );
   }
 });

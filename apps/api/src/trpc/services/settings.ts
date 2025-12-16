@@ -154,4 +154,16 @@ export const settingsRouter = router({
     .mutation(async ({ ctx, input }) => {
       return upsertUserSettings(ctx.user.id, input);
     }),
+
+  // Get current user info (includes role for superadmin checks)
+  getCurrentUser: protectedProcedure.query(async ({ ctx }) => {
+    return {
+      id: ctx.user.id,
+      email: ctx.user.email,
+      name: ctx.user.name,
+      avatarUrl: ctx.user.avatarUrl,
+      role: ctx.user.role,
+      isSuspended: ctx.user.isSuspended,
+    };
+  }),
 });

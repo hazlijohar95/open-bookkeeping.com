@@ -89,7 +89,10 @@ class ToolRegistry {
     if (existingTool) {
       // Check for breaking changes
       const breakingChanges = this.detectBreakingChanges(existingTool, tool);
-      if (breakingChanges.length > 0 && tool.version.major <= existingTool.version.major) {
+      if (
+        breakingChanges.length > 0 &&
+        tool.version.major <= existingTool.version.major
+      ) {
         logger.warn(
           { tool: tool.name, changes: breakingChanges },
           "Breaking changes detected without major version bump"
@@ -111,7 +114,11 @@ class ToolRegistry {
     });
 
     logger.info(
-      { tool: tool.name, version: this.formatVersion(tool.version), status: tool.status },
+      {
+        tool: tool.name,
+        version: this.formatVersion(tool.version),
+        status: tool.status,
+      },
       "Tool registered"
     );
   }
@@ -130,7 +137,10 @@ class ToolRegistry {
     }
 
     if (tool?.status === "retired") {
-      logger.error({ tool: name }, `Tool "${name}" is retired and should not be used`);
+      logger.error(
+        { tool: name },
+        `Tool "${name}" is retired and should not be used`
+      );
       return undefined;
     }
 
@@ -150,7 +160,9 @@ class ToolRegistry {
     // Validate input
     const validation = tool.inputSchema.safeParse(args);
     if (!validation.success) {
-      throw new Error(`Invalid input for tool "${name}": ${validation.error.message}`);
+      throw new Error(
+        `Invalid input for tool "${name}": ${validation.error.message}`
+      );
     }
 
     try {
@@ -188,21 +200,27 @@ class ToolRegistry {
    * Get tools by category
    */
   getByCategory(category: ToolCategory): ToolRegistryEntry[] {
-    return Array.from(this.tools.values()).filter((t) => t.category === category);
+    return Array.from(this.tools.values()).filter(
+      (t) => t.category === category
+    );
   }
 
   /**
    * Get active tools only
    */
   getActive(): ToolRegistryEntry[] {
-    return Array.from(this.tools.values()).filter((t) => t.status === "active" || t.status === "beta");
+    return Array.from(this.tools.values()).filter(
+      (t) => t.status === "active" || t.status === "beta"
+    );
   }
 
   /**
    * Get deprecated tools
    */
   getDeprecated(): ToolRegistryEntry[] {
-    return Array.from(this.tools.values()).filter((t) => t.status === "deprecated");
+    return Array.from(this.tools.values()).filter(
+      (t) => t.status === "deprecated"
+    );
   }
 
   /**
@@ -268,7 +286,9 @@ class ToolRegistry {
     if (tool) {
       tool.status = "deprecated";
       tool.replacedBy = replacedBy;
-      tool.deprecationNotice = notice ?? `This tool is deprecated${replacedBy ? `. Use "${replacedBy}" instead.` : ""}`;
+      tool.deprecationNotice =
+        notice ??
+        `This tool is deprecated${replacedBy ? `. Use "${replacedBy}" instead.` : ""}`;
       tool.lastModifiedAt = new Date();
 
       logger.info({ tool: name, replacedBy }, "Tool deprecated");
@@ -305,14 +325,20 @@ class ToolRegistry {
     // Check if required fields were added (breaking for callers)
     // This is a simplified check - in production, you'd do deep schema comparison
     try {
-      const oldShape = (oldTool.inputSchema as z.ZodObject<z.ZodRawShape>).shape;
-      const newShape = (newTool.inputSchema as z.ZodObject<z.ZodRawShape>).shape;
+      const oldShape = (oldTool.inputSchema as z.ZodObject<z.ZodRawShape>)
+        .shape;
+      const newShape = (newTool.inputSchema as z.ZodObject<z.ZodRawShape>)
+        .shape;
 
       if (oldShape && newShape) {
         for (const [key, schema] of Object.entries(newShape)) {
           if (!(key in oldShape)) {
-            // Check if new field is required
-            if (!schema.isOptional()) {
+            // Check if new field is required (Zod v4 compatible)
+            // In Zod v4, we check by parsing undefined and seeing if it succeeds
+            const isOptional = (schema as z.ZodTypeAny).safeParse(
+              undefined
+            ).success;
+            if (!isOptional) {
               changes.push(`Added required field: ${key}`);
             }
           }

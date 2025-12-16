@@ -245,7 +245,7 @@ export function CostMonitoringDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">AI Agent Usage</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">AI Co-Worker Usage</h2>
           <p className="text-sm text-muted-foreground">
             Monitor your AI assistant's usage and costs
           </p>

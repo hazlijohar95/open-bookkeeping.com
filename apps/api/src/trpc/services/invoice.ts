@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
-import { invoiceRepository } from "@open-bookkeeping/db";
+import {
+  invoiceV2Repository,
+  isValidStatusTransition,
+  getValidNextStatuses,
+} from "@open-bookkeeping/db";
 import { createLogger } from "@open-bookkeeping/shared";
 import { aggregationService } from "../../services/aggregation.service";
 import { journalEntryIntegration } from "../../services/journalEntry.integration";
@@ -14,9 +18,24 @@ import {
   companyDetailsSchema,
   clientDetailsSchema,
 } from "../../schemas/common";
-import { forbidden, internalError, assertFound } from "../../lib/errors";
+import {
+  forbidden,
+  internalError,
+  assertFound,
+  badRequest,
+} from "../../lib/errors";
 
 const logger = createLogger("invoice-service");
+
+// V2 Status values
+const invoiceStatusV2Values = [
+  "draft",
+  "open",
+  "paid",
+  "void",
+  "uncollectible",
+  "refunded",
+] as const;
 
 /**
  * Retry wrapper with exponential backoff for aggregation updates.
@@ -60,8 +79,32 @@ async function retryAggregationUpdate(
   );
 }
 
-// Invoice creation schema using common schemas
-const createInvoiceSchema = z.object({
+// V2 Invoice creation schema - uses flat structure
+const createInvoiceV2Schema = z.object({
+  customerId: z.string().uuid().optional().nullable(),
+  status: z.enum(invoiceStatusV2Values).optional().default("draft"),
+  prefix: z.string(),
+  serialNumber: z.string(),
+  currency: z.string().default("MYR"),
+  invoiceDate: z.date(),
+  dueDate: z.date().nullable().optional(),
+  paymentTerms: z.string().nullable().optional(),
+  theme: themeSchema.nullable().optional(),
+  companyDetails: companyDetailsSchema,
+  clientDetails: clientDetailsSchema,
+  billingDetails: z.array(billingDetailSchema).optional().default([]),
+  metadata: z
+    .object({
+      notes: z.string().optional(),
+      terms: z.string().optional(),
+      paymentInformation: z.array(metadataItemSchema).optional(),
+    })
+    .optional(),
+  items: z.array(documentItemSchema),
+});
+
+// Legacy schema for backwards compatibility during migration
+const createInvoiceLegacySchema = z.object({
   customerId: z.string().uuid().optional(),
   companyDetails: companyDetailsSchema,
   clientDetails: clientDetailsSchema,
@@ -85,114 +128,261 @@ const createInvoiceSchema = z.object({
     .optional(),
 });
 
+// Record payment schema
+const recordPaymentSchema = z.object({
+  invoiceId: z.string().uuid(),
+  amount: z.number(),
+  method: z.string().optional(),
+  reference: z.string().optional(),
+  paidAt: z.date().optional(),
+  notes: z.string().optional(),
+});
+
+// Helper to convert billing details value to string for V2 format
+function convertBillingDetails(
+  details: {
+    label: string;
+    value: number;
+    type: "fixed" | "percentage";
+    isSstTax?: boolean;
+    sstTaxType?: "sales_tax" | "service_tax";
+    sstRateCode?: string;
+  }[]
+): {
+  label: string;
+  value: string;
+  type: "fixed" | "percentage";
+  isSstTax?: boolean;
+  sstTaxType?: "sales_tax" | "service_tax";
+  sstRateCode?: string;
+}[] {
+  return details.map((d) => ({
+    ...d,
+    value: String(d.value),
+  }));
+}
+
 export const invoiceRouter = router({
+  // List invoices (V2 format) - uses lightweight query
   list: protectedProcedure
     .input(paginationSchema)
     .query(async ({ ctx, input }) => {
       const { limit = 50, offset = 0 } = input ?? {};
 
-      const invoices = await invoiceRepository.findMany(ctx.user.id, {
+      const invoices = await invoiceV2Repository.findManyLight(ctx.user.id, {
         limit,
         offset,
       });
 
-      logger.debug({ userId: ctx.user.id, count: invoices.length }, "Listed invoices");
+      logger.debug(
+        { userId: ctx.user.id, count: invoices.length },
+        "Listed invoices (V2)"
+      );
       return invoices;
     }),
 
-  // Lightweight list for table views - much faster than full list
+  // Lightweight list for table views - same as list in V2
   listLight: protectedProcedure
     .input(paginationSchema)
     .query(async ({ ctx, input }) => {
       const { limit = 50, offset = 0 } = input ?? {};
 
-      const invoices = await invoiceRepository.findManyLight(ctx.user.id, {
+      const invoices = await invoiceV2Repository.findManyLight(ctx.user.id, {
         limit,
         offset,
       });
 
-      logger.debug({ userId: ctx.user.id, count: invoices.length }, "Listed invoices (light)");
+      logger.debug(
+        { userId: ctx.user.id, count: invoices.length },
+        "Listed invoices (light V2)"
+      );
       return invoices;
     }),
 
+  // Get single invoice by ID
   get: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const invoice = await invoiceRepository.findById(input.id, ctx.user.id);
+      const invoice = await invoiceV2Repository.findById(input.id, ctx.user.id);
       assertFound(invoice, "invoice", input.id);
       return invoice;
     }),
 
+  // Create invoice (V2 format)
   insert: protectedProcedure
-    .input(createInvoiceSchema)
+    .input(createInvoiceV2Schema)
     .mutation(async ({ ctx, input }) => {
       if (!ctx.user.allowedSavingData) {
         throw forbidden("You have disabled data saving");
       }
 
       try {
-        const result = await invoiceRepository.create({
+        const result = await invoiceV2Repository.create({
           userId: ctx.user.id,
-          customerId: input.customerId,
+          customerId: input.customerId ?? undefined,
+          status: input.status,
+          prefix: input.prefix,
+          serialNumber: input.serialNumber,
+          currency: input.currency,
+          invoiceDate: input.invoiceDate,
+          dueDate: input.dueDate ?? undefined,
+          paymentTerms: input.paymentTerms ?? undefined,
+          theme: input.theme ?? undefined,
           companyDetails: input.companyDetails,
           clientDetails: input.clientDetails,
-          invoiceDetails: input.invoiceDetails,
-          items: input.items,
+          billingDetails: input.billingDetails
+            ? convertBillingDetails(input.billingDetails)
+            : [],
           metadata: input.metadata,
+          items: input.items.map((item) => ({
+            name: item.name,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+          })),
         });
 
-        logger.info({ userId: ctx.user.id, invoiceId: result.invoiceId }, "Invoice created");
+        logger.info(
+          { userId: ctx.user.id, invoiceId: result.invoiceId },
+          "Invoice created (V2)"
+        );
 
         // Trigger webhook in background (non-blocking)
         invoiceWebhooks.created(ctx.user.id, {
           id: result.invoiceId,
-          invoiceNumber: input.invoiceDetails.serialNumber,
+          invoiceNumber: `${input.prefix}${input.serialNumber}`,
           customerId: input.customerId,
-          currency: input.invoiceDetails.currency,
-          date: input.invoiceDetails.date,
-          dueDate: input.invoiceDetails.dueDate,
-          status: "pending",
+          currency: input.currency,
+          date: input.invoiceDate,
+          dueDate: input.dueDate,
+          status: input.status ?? "draft",
           itemCount: input.items.length,
         });
 
-        // Create journal entry in background (non-blocking)
-        journalEntryIntegration.hasChartOfAccounts(ctx.user.id).then((hasAccounts) => {
-          if (hasAccounts) {
-            journalEntryIntegration.createInvoiceJournalEntry(ctx.user.id, {
-              id: result.invoiceId,
-              serialNumber: input.invoiceDetails.serialNumber,
-              date: input.invoiceDetails.date,
-              currency: input.invoiceDetails.currency,
-              items: input.items,
-              billingDetails: input.invoiceDetails.billingDetails,
-              clientDetails: input.clientDetails,
-            }).then((jeResult) => {
-              if (jeResult.success) {
-                logger.info({ userId: ctx.user.id, invoiceId: result.invoiceId, entryId: jeResult.entryId }, "Journal entry created for invoice");
-              } else {
-                logger.warn({ userId: ctx.user.id, invoiceId: result.invoiceId, error: jeResult.error }, "Failed to create journal entry for invoice");
+        // Create journal entry when invoice is issued (status = open)
+        if (input.status === "open") {
+          journalEntryIntegration
+            .hasChartOfAccounts(ctx.user.id)
+            .then((hasAccounts) => {
+              if (hasAccounts) {
+                journalEntryIntegration
+                  .createInvoiceJournalEntry(ctx.user.id, {
+                    id: result.invoiceId,
+                    serialNumber: input.serialNumber,
+                    date: input.invoiceDate,
+                    currency: input.currency,
+                    items: input.items,
+                    billingDetails: input.billingDetails,
+                    clientDetails: input.clientDetails,
+                  })
+                  .then((jeResult) => {
+                    if (jeResult.success) {
+                      logger.info(
+                        {
+                          userId: ctx.user.id,
+                          invoiceId: result.invoiceId,
+                          entryId: jeResult.entryId,
+                        },
+                        "Journal entry created for invoice"
+                      );
+                    } else {
+                      logger.warn(
+                        {
+                          userId: ctx.user.id,
+                          invoiceId: result.invoiceId,
+                          error: jeResult.error,
+                        },
+                        "Failed to create journal entry for invoice"
+                      );
+                    }
+                  })
+                  .catch((err) => {
+                    logger.warn(
+                      {
+                        userId: ctx.user.id,
+                        invoiceId: result.invoiceId,
+                        error: err,
+                      },
+                      "Error creating journal entry for invoice"
+                    );
+                  });
               }
-            }).catch((err) => {
-              logger.warn({ userId: ctx.user.id, invoiceId: result.invoiceId, error: err }, "Error creating journal entry for invoice");
+            })
+            .catch(() => {
+              // Silently ignore - chart of accounts not initialized
             });
-          }
-        }).catch(() => {
-          // Silently ignore - chart of accounts not initialized
-        });
+        }
 
         return result;
       } catch (error) {
-        throw internalError("Failed to create invoice", error, { userId: ctx.user.id });
+        throw internalError("Failed to create invoice", error, {
+          userId: ctx.user.id,
+        });
       }
     }),
 
+  // Legacy create endpoint for backwards compatibility
+  insertLegacy: protectedProcedure
+    .input(createInvoiceLegacySchema)
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.user.allowedSavingData) {
+        throw forbidden("You have disabled data saving");
+      }
+
+      try {
+        // Convert legacy format to V2 format
+        const result = await invoiceV2Repository.create({
+          userId: ctx.user.id,
+          customerId: input.customerId,
+          status: "open", // Legacy invoices are created as open
+          prefix: input.invoiceDetails.prefix,
+          serialNumber: input.invoiceDetails.serialNumber,
+          currency: input.invoiceDetails.currency,
+          invoiceDate: input.invoiceDetails.date,
+          dueDate: input.invoiceDetails.dueDate ?? undefined,
+          paymentTerms: input.invoiceDetails.paymentTerms,
+          theme: input.invoiceDetails.theme,
+          companyDetails: input.companyDetails,
+          clientDetails: input.clientDetails,
+          billingDetails: input.invoiceDetails.billingDetails
+            ? convertBillingDetails(input.invoiceDetails.billingDetails)
+            : [],
+          metadata: input.metadata,
+          items: input.items.map((item) => ({
+            name: item.name,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+          })),
+        });
+
+        logger.info(
+          { userId: ctx.user.id, invoiceId: result.invoiceId },
+          "Invoice created (legacy -> V2)"
+        );
+
+        return { invoiceId: result.invoiceId };
+      } catch (error) {
+        throw internalError("Failed to create invoice", error, {
+          userId: ctx.user.id,
+        });
+      }
+    }),
+
+  // Delete invoice (soft delete)
   delete: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      const deleted = await invoiceRepository.delete(input.id, ctx.user.id);
-      assertFound(deleted, "invoice", input.id);
+      const deleted = await invoiceV2Repository.delete(input.id, ctx.user.id);
 
-      logger.info({ userId: ctx.user.id, invoiceId: input.id }, "Invoice deleted");
+      if (!deleted) {
+        assertFound(null, "invoice", input.id);
+      }
+
+      logger.info(
+        { userId: ctx.user.id, invoiceId: input.id },
+        "Invoice deleted"
+      );
 
       // Trigger webhook in background (non-blocking)
       invoiceWebhooks.deleted(ctx.user.id, {
@@ -203,15 +393,28 @@ export const invoiceRouter = router({
       return { success: true };
     }),
 
+  // Update invoice status (V2 with validation)
   updateStatus: protectedProcedure
     .input(
       z.object({
         id: z.string().uuid(),
-        status: z.enum(["pending", "success", "error", "expired", "refunded"]),
+        status: z.enum(invoiceStatusV2Values),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const updated = await invoiceRepository.updateStatus(
+      // Get current invoice to validate transition
+      const invoice = await invoiceV2Repository.findById(input.id, ctx.user.id);
+      assertFound(invoice, "invoice", input.id);
+
+      // Validate status transition
+      if (!isValidStatusTransition(invoice.status, input.status)) {
+        const validStatuses = getValidNextStatuses(invoice.status);
+        throw badRequest(
+          `Cannot transition from '${invoice.status}' to '${input.status}'. Valid transitions: ${validStatuses.join(", ")}`
+        );
+      }
+
+      const updated = await invoiceV2Repository.updateStatus(
         input.id,
         ctx.user.id,
         input.status
@@ -221,7 +424,7 @@ export const invoiceRouter = router({
 
       logger.info(
         { userId: ctx.user.id, invoiceId: input.id, status: input.status },
-        "Invoice status updated"
+        "Invoice status updated (V2)"
       );
 
       // Trigger webhook in background (non-blocking)
@@ -231,8 +434,8 @@ export const invoiceRouter = router({
         updatedAt: new Date().toISOString(),
       });
 
-      // Also trigger invoice.paid webhook when status is "success"
-      if (input.status === "success") {
+      // Trigger invoice.paid webhook when status is "paid"
+      if (input.status === "paid") {
         invoiceWebhooks.paid(ctx.user.id, {
           id: input.id,
           paidAt: new Date().toISOString(),
@@ -253,46 +456,115 @@ export const invoiceRouter = router({
         );
       }
 
-      // Create payment journal entry when invoice is marked as paid (status = success)
-      if (input.status === "success") {
-        journalEntryIntegration.hasChartOfAccounts(ctx.user.id).then(async (hasAccounts) => {
-          if (hasAccounts) {
-            // Get invoice details for the payment entry
-            const invoice = await invoiceRepository.findById(input.id, ctx.user.id);
-            if (invoice) {
-              // Access nested invoiceFields structure
-              const invoiceFields = invoice.invoiceFields as {
-                invoiceDetails?: { total?: number; serialNumber?: string };
-                clientDetails?: { name?: string };
-              } | null;
-              const paymentAmount = invoiceFields?.invoiceDetails?.total ?? 0;
-              const clientName = invoiceFields?.clientDetails?.name ?? "Customer";
-              const serialNumber = invoiceFields?.invoiceDetails?.serialNumber || input.id;
+      // Create payment journal entry when invoice is marked as paid
+      if (input.status === "paid") {
+        journalEntryIntegration
+          .hasChartOfAccounts(ctx.user.id)
+          .then(async (hasAccounts) => {
+            if (hasAccounts) {
+              const paymentAmount = parseFloat(invoice.total);
+              const clientName =
+                (invoice.clientDetails as { name?: string })?.name ??
+                "Customer";
 
-              journalEntryIntegration.createPaymentJournalEntry(ctx.user.id, {
-                sourceType: "invoice",
-                sourceId: input.id,
-                sourceNumber: serialNumber,
-                amount: paymentAmount,
-                date: new Date(),
-                partyName: clientName,
-              }).then((jeResult) => {
-                if (jeResult.success) {
-                  logger.info({ userId: ctx.user.id, invoiceId: input.id, entryId: jeResult.entryId }, "Payment journal entry created");
-                } else {
-                  logger.warn({ userId: ctx.user.id, invoiceId: input.id, error: jeResult.error }, "Failed to create payment journal entry");
-                }
-              }).catch((err) => {
-                logger.warn({ userId: ctx.user.id, invoiceId: input.id, error: err }, "Error creating payment journal entry");
-              });
+              journalEntryIntegration
+                .createPaymentJournalEntry(ctx.user.id, {
+                  sourceType: "invoice",
+                  sourceId: input.id,
+                  sourceNumber: `${invoice.prefix}${invoice.serialNumber}`,
+                  amount: paymentAmount,
+                  date: new Date(),
+                  partyName: clientName,
+                })
+                .then((jeResult) => {
+                  if (jeResult.success) {
+                    logger.info(
+                      {
+                        userId: ctx.user.id,
+                        invoiceId: input.id,
+                        entryId: jeResult.entryId,
+                      },
+                      "Payment journal entry created"
+                    );
+                  } else {
+                    logger.warn(
+                      {
+                        userId: ctx.user.id,
+                        invoiceId: input.id,
+                        error: jeResult.error,
+                      },
+                      "Failed to create payment journal entry"
+                    );
+                  }
+                })
+                .catch((err) => {
+                  logger.warn(
+                    { userId: ctx.user.id, invoiceId: input.id, error: err },
+                    "Error creating payment journal entry"
+                  );
+                });
             }
-          }
-        }).catch(() => {
-          // Silently ignore - chart of accounts not initialized
-        });
+          })
+          .catch(() => {
+            // Silently ignore - chart of accounts not initialized
+          });
       }
 
       return { success: true };
+    }),
+
+  // Get valid status transitions for an invoice
+  getStatusTransitions: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const invoice = await invoiceV2Repository.findById(input.id, ctx.user.id);
+      assertFound(invoice, "invoice", input.id);
+
+      return {
+        currentStatus: invoice.status,
+        validTransitions: getValidNextStatuses(invoice.status),
+      };
+    }),
+
+  // Record a payment for an invoice
+  recordPayment: protectedProcedure
+    .input(recordPaymentSchema)
+    .mutation(async ({ ctx, input }) => {
+      const invoice = await invoiceV2Repository.findById(
+        input.invoiceId,
+        ctx.user.id
+      );
+      assertFound(invoice, "invoice", input.invoiceId);
+
+      // Only allow payments for open invoices
+      if (invoice.status !== "open") {
+        throw badRequest(
+          `Cannot record payment for invoice with status '${invoice.status}'. Invoice must be 'open'.`
+        );
+      }
+
+      const payment = await invoiceV2Repository.recordPayment({
+        invoiceId: input.invoiceId,
+        amount: input.amount,
+        currency: invoice.currency,
+        method: input.method,
+        reference: input.reference,
+        paidAt: input.paidAt ?? new Date(),
+        notes: input.notes,
+        createdBy: ctx.user.id,
+      });
+
+      logger.info(
+        {
+          userId: ctx.user.id,
+          invoiceId: input.invoiceId,
+          paymentId: payment?.id,
+          amount: input.amount,
+        },
+        "Payment recorded"
+      );
+
+      return payment!;
     }),
 
   // Get invoices by customer
@@ -305,7 +577,7 @@ export const invoiceRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const invoices = await invoiceRepository.findByCustomer(
+      const invoices = await invoiceV2Repository.findByCustomer(
         input.customerId,
         ctx.user.id,
         { limit: input.limit, offset: input.offset }
@@ -317,25 +589,21 @@ export const invoiceRouter = router({
   getUnpaidByCustomer: protectedProcedure
     .input(z.object({ customerId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const invoices = await invoiceRepository.getUnpaidByCustomer(
+      const invoices = await invoiceV2Repository.getUnpaidByCustomer(
         input.customerId,
         ctx.user.id
       );
       return invoices;
     }),
 
-  // Get AR aging report
-  getAgingReport: protectedProcedure
-    .input(
-      z.object({
-        customerId: z.string().uuid().optional(),
-      }).optional()
-    )
+  // Get next serial number for a prefix
+  getNextSerialNumber: protectedProcedure
+    .input(z.object({ prefix: z.string() }))
     .query(async ({ ctx, input }) => {
-      const report = await invoiceRepository.getAgingReport(
+      const nextSerial = await invoiceV2Repository.getNextSerialNumber(
         ctx.user.id,
-        input?.customerId
+        input.prefix
       );
-      return report;
+      return { serialNumber: nextSerial };
     }),
 });

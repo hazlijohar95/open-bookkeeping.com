@@ -10,9 +10,11 @@
     "db:generate": "tsx --env-file=../../.env ../../node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "tsx --env-file=../../.env ../../node_modules/drizzle-kit/bin.cjs migrate",
     "db:push": "tsx --env-file=../../.env ../../node_modules/drizzle-kit/bin.cjs push",
-    "db:studio": "tsx --env-file=../../.env ../../node_modules/drizzle-kit/bin.cjs studio"
+    "db:studio": "tsx --env-file=../../.env ../../node_modules/drizzle-kit/bin.cjs studio",
+    "db:seed:superadmin": "tsx --env-file=../../.env ./src/seed/superadmin.ts"
   },
   "dependencies": {
+    "@upstash/redis": "^1.34.4",
     "decimal.js": "^10.5.0",
     "drizzle-orm": "^0.43.1",
     "postgres": "^3.4.5"

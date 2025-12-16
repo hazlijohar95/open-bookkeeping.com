@@ -127,6 +127,7 @@ export {
   // Objects & Concepts
   House as Home,
   Buildings as Building2,
+  Buildings as BuildingIcon,
   User,
   User as UserIcon,
   Users,
@@ -211,12 +212,15 @@ export {
 
   // Agent/Workflow icons
   Shield,
+  Shield as ShieldIcon,
   StopCircle,
   StopCircle as StopCircleIcon,
   Pause,
   ArrowCounterClockwise as RotateCcw,
   Pulse as Activity,
+  Pulse as ActivityIcon,
   ChatCircle as MessageSquare,
+  ChatCircle as MessageSquareIcon,
   Command as CommandIcon,
   Question as HelpCircle,
 
@@ -235,4 +239,30 @@ export {
   ChartLineUp as ChartIcon,
   Handshake as HandshakeIcon,
   Bank as BankIcon,
+
+  // Superadmin icons
+  Gauge as GaugeIcon,
+  ToggleLeft as ToggleLeftIcon,
+  ToggleRight as ToggleRightIcon,
+  ArrowSquareOut as ExternalLinkIcon,
+  ArrowLeft as ArrowLeftIcon,
+  ArrowUpRight as ArrowUpRightIcon,
+  Funnel as FilterIcon,
+  CurrencyDollar as DollarSignIcon,
+  Prohibit as BanIcon,
+  Gear as GearIcon,
+  Trash as TrashIcon,
+  ShieldWarning as ShieldAlertIcon,
+
+  // Data Flow Explorer icons
+  Truck,
+  Truck as TruckIcon,
+  Database,
+  GitBranch,
+  GitBranch as GitBranchIcon,
+  Link as Link2,
+
+  // Print
+  Printer,
+  Printer as PrinterIcon,
 } from "@phosphor-icons/react";

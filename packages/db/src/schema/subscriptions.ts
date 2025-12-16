@@ -7,31 +7,12 @@ import {
   integer,
   numeric,
   varchar,
-  pgEnum,
   index,
   jsonb,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
-
-// ============================================
-// ENUMS
-// ============================================
-
-export const subscriptionPlanEnum = pgEnum("subscription_plan", [
-  "trial", // 7-day trial with full access
-  "free", // Post-trial free tier
-  "starter", // Future paid tier
-  "pro", // Future paid tier
-  "enterprise", // Future paid tier
-]);
-
-export const subscriptionStatusEnum = pgEnum("subscription_status", [
-  "active", // Currently active
-  "expired", // Trial/plan expired
-  "cancelled", // User cancelled
-  "past_due", // Payment failed (future)
-]);
+import { subscriptionPlanEnum, subscriptionStatusEnum } from "./enums";
 
 // ============================================
 // SUBSCRIPTION PLANS (Reference Table)
@@ -282,9 +263,9 @@ export const PLAN_DEFAULTS = {
     monthlyPrice: "49.00",
     yearlyPrice: "490.00",
   },
-  pro: {
-    name: "pro",
-    displayName: "Pro",
+  professional: {
+    name: "professional",
+    displayName: "Professional",
     description: "For growing businesses",
     dailyInvoiceLimit: 200,
     dailyBillLimit: 200,
@@ -303,7 +284,28 @@ export const PLAN_DEFAULTS = {
     monthlyPrice: "149.00",
     yearlyPrice: "1490.00",
   },
+  enterprise: {
+    name: "enterprise",
+    displayName: "Enterprise",
+    description: "For large organizations with custom needs",
+    dailyInvoiceLimit: 1000,
+    dailyBillLimit: 1000,
+    dailyJournalEntryLimit: 2000,
+    dailyQuotationLimit: 1000,
+    dailyTokenLimit: 10000000,
+    features: {
+      aiChatEnabled: true,
+      myInvoisEnabled: true,
+      bankFeedsEnabled: true,
+      multiCurrency: true,
+      customBranding: true,
+      prioritySupport: true,
+      apiAccess: true,
+    },
+    monthlyPrice: "499.00",
+    yearlyPrice: "4990.00",
+  },
 } as const;
 
-export type SubscriptionPlan = keyof typeof PLAN_DEFAULTS;
-export type PlanConfig = (typeof PLAN_DEFAULTS)[SubscriptionPlan];
+// Note: SubscriptionPlan type is exported from enums.ts
+export type PlanConfig = (typeof PLAN_DEFAULTS)[keyof typeof PLAN_DEFAULTS];

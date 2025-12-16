@@ -21,26 +21,39 @@ const MESSAGES_UPDATE = "messages-update";
 
 /**
  * Hook for managing agent chat threads
+ * @param userId - REQUIRED for user isolation (security)
  */
-export function useAgentThreads() {
+export function useAgentThreads(userId: string | null) {
   const [threads, setThreads] = useState<IDBAgentThread[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadThreads = useCallback(async () => {
+    // CRITICAL: Don't load threads without userId (security)
+    if (!userId) {
+      setThreads([]);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const db = await getDB();
-      const allThreads = await db.getAllFromIndex(
+      // CRITICAL: Filter by userId to prevent cross-account data leaks
+      const userThreads = await db.getAllFromIndex(
         IDB_AGENT_THREADS,
-        "updatedAt"
+        "userId",
+        userId
       );
       // Sort by most recent first
-      setThreads(allThreads.reverse());
+      userThreads.sort((a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+      setThreads(userThreads);
     } catch (error) {
       console.error("[AgentChat] Failed to load threads:", error);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   // Initial load
   useEffect(() => {
@@ -144,19 +157,26 @@ export function useAgentMessages(threadId: string | null) {
 /**
  * Main hook for agent chat operations
  * Provides CRUD operations with automatic IndexedDB persistence
+ * @param userId - REQUIRED for user isolation (security)
  */
-export function useAgentChatStore() {
+export function useAgentChatStore(userId: string | null) {
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
   const streamingMessageRef = useRef<string | null>(null);
 
   // Create a new thread
   const createThread = useCallback(async (title?: string): Promise<string> => {
+    // CRITICAL: Require userId for security
+    if (!userId) {
+      throw new Error("Cannot create thread without userId");
+    }
+
     const db = await getDB();
     const now = new Date().toISOString();
     const threadId = crypto.randomUUID();
 
     const thread: IDBAgentThread = {
       id: threadId,
+      userId, // CRITICAL: Associate thread with user
       title: title ?? null,
       createdAt: now,
       updatedAt: now,
@@ -170,7 +190,7 @@ export function useAgentChatStore() {
     setCurrentThreadId(threadId);
 
     return threadId;
-  }, []);
+  }, [userId]);
 
   // Delete a thread and its messages
   const deleteThread = useCallback(async (threadId: string) => {
@@ -395,18 +415,28 @@ export function useAgentChatStore() {
 
   // Get or create active thread
   const getOrCreateThread = useCallback(async (): Promise<string> => {
+    // CRITICAL: Require userId for security
+    if (!userId) {
+      throw new Error("Cannot get/create thread without userId");
+    }
+
+    // Use user-scoped localStorage key
+    const storageKey = `agent_current_thread_${userId}`;
+
     if (currentThreadId) {
       const db = await getDB();
       const thread = await db.get(IDB_AGENT_THREADS, currentThreadId);
-      if (thread) return currentThreadId;
+      // CRITICAL: Verify thread belongs to current user
+      if (thread && thread.userId === userId) return currentThreadId;
     }
 
-    // Check localStorage for last thread
-    const lastThreadId = localStorage.getItem("agent_current_thread");
+    // Check localStorage for last thread (user-scoped key)
+    const lastThreadId = localStorage.getItem(storageKey);
     if (lastThreadId) {
       const db = await getDB();
       const thread = await db.get(IDB_AGENT_THREADS, lastThreadId);
-      if (thread) {
+      // CRITICAL: Verify thread belongs to current user
+      if (thread && thread.userId === userId) {
         setCurrentThreadId(lastThreadId);
         return lastThreadId;
       }
@@ -414,14 +444,14 @@ export function useAgentChatStore() {
 
     // Create new thread
     return createThread();
-  }, [currentThreadId, createThread]);
+  }, [currentThreadId, createThread, userId]);
 
-  // Persist current thread to localStorage
+  // Persist current thread to localStorage (user-scoped key)
   useEffect(() => {
-    if (currentThreadId) {
-      localStorage.setItem("agent_current_thread", currentThreadId);
+    if (currentThreadId && userId) {
+      localStorage.setItem(`agent_current_thread_${userId}`, currentThreadId);
     }
-  }, [currentThreadId]);
+  }, [currentThreadId, userId]);
 
   return {
     currentThreadId,

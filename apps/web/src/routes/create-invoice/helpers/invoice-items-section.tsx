@@ -193,7 +193,7 @@ const HandleItemModal = ({ type, append, update, editingIndex, data, children }:
                 <Button type="button" variant="outline">Cancel</Button>
               </DialogClose>
               <Button type="submit">
-                {type === "add" ? "Add Item" : "SaveIcon Changes"}
+                {type === "add" ? "Add Item" : "Save Changes"}
               </Button>
             </DialogFooter>
           </form>

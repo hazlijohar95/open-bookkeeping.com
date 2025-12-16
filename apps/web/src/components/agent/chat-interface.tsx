@@ -70,10 +70,20 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
   const { session } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
-  const [agentSessionId, setAgentSessionId] = useState<string | null>(() => {
-    // Restore session from localStorage if available
-    return localStorage.getItem("agent_session_id");
-  });
+  const [agentSessionId, setAgentSessionId] = useState<string | null>(null);
+
+  // Get userId for user isolation (CRITICAL: prevents cross-account data leaks)
+  const userId = session?.user?.id ?? null;
+
+  // Restore agent session from user-scoped localStorage
+  useEffect(() => {
+    if (userId) {
+      const storedSessionId = localStorage.getItem(`agent_session_id_${userId}`);
+      if (storedSessionId) {
+        setAgentSessionId(storedSessionId);
+      }
+    }
+  }, [userId]);
 
   // Document upload state
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
@@ -95,10 +105,10 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // T3-style IndexedDB chat store
-  const chatStore = useAgentChatStore();
+  // T3-style IndexedDB chat store (user-scoped)
+  const chatStore = useAgentChatStore(userId);
   const { messages: idbMessages, isLoading: idbLoading } = useAgentMessages(chatStore.currentThreadId);
-  const { threads } = useAgentThreads();
+  const { threads } = useAgentThreads(userId);
   const streamingMessageIdRef = useRef<string | null>(null);
   const lastSyncedMessageCountRef = useRef(0);
 
@@ -113,9 +123,10 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
       fetch: async (url, options) => {
         const response = await fetch(url, options);
         const newSessionId = response.headers.get("X-Session-Id");
-        if (newSessionId && newSessionId !== agentSessionId) {
+        if (newSessionId && newSessionId !== agentSessionId && userId) {
           setAgentSessionId(newSessionId);
-          localStorage.setItem("agent_session_id", newSessionId);
+          // CRITICAL: Use user-scoped key to prevent cross-account leaks
+          localStorage.setItem(`agent_session_id_${userId}`, newSessionId);
           // Link thread to server session
           if (chatStore.currentThreadId) {
             void chatStore.linkToServerSession(chatStore.currentThreadId, newSessionId);
@@ -133,6 +144,12 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
 
   // Track if we're clearing to prevent IDB reload race condition
   const isClearingRef = useRef(false);
+
+  // Track if we're syncing to prevent concurrent sync operations (race condition guard)
+  const isSyncingRef = useRef(false);
+
+  // Track completed stream IDs to prevent double completion (race condition guard)
+  const completedStreamIdsRef = useRef<Set<string>>(new Set());
 
   // T3-style background sync to PostgreSQL
   const { triggerSync } = useChatBackgroundSync({
@@ -203,42 +220,48 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
   // Sync new messages to IndexedDB (T3-style: stream to local)
   useEffect(() => {
     const syncToIndexedDB = async () => {
+      // Guard against concurrent sync operations (race condition fix)
+      if (isSyncingRef.current) return;
       if (!chatStore.currentThreadId || messages.length === 0) return;
 
-      for (const msg of messages) {
-         
-        const msgAny = msg as any;
-        const msgId = msgAny.id as string;
+      isSyncingRef.current = true;
+      try {
+        for (const msg of messages) {
+          const msgAny = msg as any;
+          const msgId = msgAny.id as string;
 
-        if (msgAny.role === "user") {
-          // User messages - save once
-          if (!syncedMessageIdsRef.current.has(msgId)) {
-            const textPart = msgAny.parts?.find((p: { type: string }) => p.type === "text");
-            if (textPart?.text) {
-              await chatStore.addUserMessage(chatStore.currentThreadId, textPart.text);
-              syncedMessageIdsRef.current.add(msgId);
+          if (msgAny.role === "user") {
+            // User messages - save once
+            if (!syncedMessageIdsRef.current.has(msgId)) {
+              const textPart = msgAny.parts?.find((p: { type: string }) => p.type === "text");
+              if (textPart?.text) {
+                await chatStore.addUserMessage(chatStore.currentThreadId, textPart.text);
+                syncedMessageIdsRef.current.add(msgId);
+              }
+            }
+          } else if (msgAny.role === "assistant") {
+            // Assistant messages - handle streaming
+            // Start a streaming message if this is a new assistant message
+            if (!syncedMessageIdsRef.current.has(msgId) && !streamingMessageIdRef.current) {
+              streamingMessageIdRef.current = await chatStore.startAssistantMessage(
+                chatStore.currentThreadId
+              );
+            }
+
+            // Update streaming message with current parts (T3-style: write as tokens arrive)
+            if (streamingMessageIdRef.current && msgAny.parts) {
+              await chatStore.updateStreamingMessage(
+                streamingMessageIdRef.current,
+                aiMessageToIDBParts(msgAny.parts)
+              );
             }
           }
-        } else if (msgAny.role === "assistant") {
-          // Assistant messages - handle streaming
-          // Start a streaming message if this is a new assistant message
-          if (!syncedMessageIdsRef.current.has(msgId) && !streamingMessageIdRef.current) {
-            streamingMessageIdRef.current = await chatStore.startAssistantMessage(
-              chatStore.currentThreadId
-            );
-          }
-
-          // Update streaming message with current parts (T3-style: write as tokens arrive)
-          if (streamingMessageIdRef.current && msgAny.parts) {
-            await chatStore.updateStreamingMessage(
-              streamingMessageIdRef.current,
-              aiMessageToIDBParts(msgAny.parts)
-            );
-          }
         }
-      }
 
-      lastSyncedMessageCountRef.current = messages.length;
+        lastSyncedMessageCountRef.current = messages.length;
+      } finally {
+        isSyncingRef.current = false;
+      }
     };
 
     void syncToIndexedDB();
@@ -247,13 +270,23 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
   // Complete streaming message when status changes from streaming
   useEffect(() => {
     if (status === "ready" && streamingMessageIdRef.current) {
+      const streamId = streamingMessageIdRef.current;
+
+      // Guard against double completion (race condition fix)
+      if (completedStreamIdsRef.current.has(streamId)) {
+        streamingMessageIdRef.current = null;
+        return;
+      }
+
       const lastMessage = messages[messages.length - 1];
-       
       const lastMsgAny = lastMessage as any;
 
       if (lastMsgAny?.role === "assistant" && lastMsgAny.parts) {
+        // Mark as completed before async operation to prevent re-entry
+        completedStreamIdsRef.current.add(streamId);
+
         void chatStore.completeStreamingMessage(
-          streamingMessageIdRef.current,
+          streamId,
           aiMessageToIDBParts(lastMsgAny.parts)
         );
         // Mark message as synced after completion
@@ -276,9 +309,11 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
     pendingFiles.forEach((f) => f.preview && URL.revokeObjectURL(f.preview));
     setPendingFiles([]);
 
-    // Clear session
+    // Clear session (user-scoped key)
     setAgentSessionId(null);
-    localStorage.removeItem("agent_session_id");
+    if (userId) {
+      localStorage.removeItem(`agent_session_id_${userId}`);
+    }
 
     // Clear IndexedDB thread messages FIRST (before clearing React state)
     if (chatStore.currentThreadId) {
@@ -286,16 +321,21 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
       lastSyncedMessageCountRef.current = 0;
       streamingMessageIdRef.current = null;
       syncedMessageIdsRef.current.clear();
+      // Also clear completed stream IDs
+      completedStreamIdsRef.current.clear();
     }
 
     // Now clear React messages state (after IDB is cleared)
     setMessages([]);
 
-    // Reset clearing flag after a tick to allow effects to settle
-    setTimeout(() => {
-      isClearingRef.current = false;
-    }, 100);
-  }, [setMessages, pendingFiles, chatStore]);
+    // Reset clearing flag after next paint cycle (deterministic timing instead of arbitrary 100ms)
+    // This ensures React has finished updating before we allow IDB reload effects to run
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        isClearingRef.current = false;
+      });
+    });
+  }, [setMessages, pendingFiles, chatStore, userId]);
 
   // Thread handlers
   const handleSelectThread = useCallback(async (threadId: string) => {
@@ -305,14 +345,15 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
     lastSyncedMessageCountRef.current = 0;
     streamingMessageIdRef.current = null;
 
-    // Clear session to start fresh with new thread
+    // Clear session to start fresh with new thread (user-scoped key)
     setAgentSessionId(null);
-    localStorage.removeItem("agent_session_id");
+    if (userId) {
+      localStorage.removeItem(`agent_session_id_${userId}`);
+    }
 
-    // Switch to the selected thread
+    // Switch to the selected thread (localStorage handled by chatStore hook)
     chatStore.setCurrentThreadId(threadId);
-    localStorage.setItem("agent_current_thread", threadId);
-  }, [setMessages, chatStore]);
+  }, [setMessages, chatStore, userId]);
 
   const handleCreateThread = useCallback(async () => {
     // Clear current messages
@@ -321,13 +362,15 @@ export const ChatInterface = memo(function ChatInterface(_props: ChatInterfacePr
     lastSyncedMessageCountRef.current = 0;
     streamingMessageIdRef.current = null;
 
-    // Clear session
+    // Clear session (user-scoped key)
     setAgentSessionId(null);
-    localStorage.removeItem("agent_session_id");
+    if (userId) {
+      localStorage.removeItem(`agent_session_id_${userId}`);
+    }
 
     // Create new thread
     return chatStore.createThread();
-  }, [setMessages, chatStore]);
+  }, [setMessages, chatStore, userId]);
 
   const handleDeleteThread = useCallback(async (threadId: string) => {
     await chatStore.deleteThread(threadId);

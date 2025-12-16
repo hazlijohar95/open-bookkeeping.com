@@ -47,6 +47,7 @@ export interface IndexedDBSchema extends DBSchema {
     value: IDBAgentThread;
     indexes: {
       id: string;
+      userId: string; // CRITICAL: For user isolation
       updatedAt: string;
     };
   };

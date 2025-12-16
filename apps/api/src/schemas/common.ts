@@ -1,101 +1,97 @@
-import { z } from "zod";
+/**
+ * Common API Schemas
+ *
+ * Re-exports shared schemas from @open-bookkeeping/shared.
+ * This file exists for backward compatibility and to add any API-specific schemas.
+ */
 
-// ============= Common Pagination Schema =============
+// Re-export all schemas from shared package
+export {
+  // Enums
+  valueTypeSchema,
+  sstTaxTypeSchema,
+  themeModeSchema,
+  invoiceTemplateSchema,
+  documentTemplateSchema,
+  documentStatusSchema,
+  noteReasonSchema,
 
-export const paginationBaseSchema = z.object({
-  limit: z.number().min(1).max(100).default(50),
-  offset: z.number().min(0).default(0),
-});
+  // Pagination
+  paginationBaseSchema,
+  paginationSchema,
 
-export const paginationSchema = paginationBaseSchema.optional();
+  // ID
+  idParamSchema,
 
-export type PaginationInput = z.infer<typeof paginationSchema>;
+  // Date Range
+  dateRangeSchema,
 
-// ============= Common ID Schemas =============
+  // Metadata
+  metadataItemSchema,
+  fieldKeyStringValuesSchema,
+  billingDetailSchema,
+  fieldKeyNumberValuesSchema,
 
-export const idParamSchema = z.object({
-  id: z.string().uuid(),
-});
+  // Document Items
+  documentItemSchema,
+  documentItemFormSchema,
+  invoiceItemSchema,
 
-export type IdParam = z.infer<typeof idParamSchema>;
+  // Theme
+  themeSchema,
+  invoiceThemeSchema,
+  documentThemeSchema,
 
-// ============= Common Status Schemas =============
+  // Company & Client Details
+  companyDetailsSchema,
+  companyDetailsFormSchema,
+  clientDetailsSchema,
+  clientDetailsFormSchema,
 
-export const documentStatusSchema = z.enum(["draft", "pending", "paid", "overdue", "cancelled"]);
-export type DocumentStatus = z.infer<typeof documentStatusSchema>;
+  // Document Metadata
+  documentMetadataSchema,
+  documentMetadataWithPaymentInfoSchema,
+  invoiceMetadataSchema,
 
-// ============= Note Reason Schema (for credit/debit notes) =============
+  // Invoice
+  invoiceDetailsSchema,
+  createInvoiceSchema,
 
-export const noteReasonSchema = z.enum(["return", "discount", "pricing_error", "damaged_goods", "other"]);
-export type NoteReason = z.infer<typeof noteReasonSchema>;
+  // Default Values
+  defaultCompanyDetails,
+  defaultClientDetails,
+  defaultTheme,
+  defaultInvoiceValues,
 
-// ============= Common Metadata Schemas =============
-
-export const metadataItemSchema = z.object({
-  label: z.string(),
-  value: z.string(),
-});
-
-export type MetadataItem = z.infer<typeof metadataItemSchema>;
-
-export const billingDetailSchema = z.object({
-  label: z.string(),
-  type: z.enum(["fixed", "percentage"]),
-  value: z.number(),
-  // SST fields for Malaysian Sales and Service Tax
-  isSstTax: z.boolean().optional(),
-  sstTaxType: z.enum(["sales_tax", "service_tax"]).optional(),
-  sstRateCode: z.string().optional(),
-});
-
-export type BillingDetail = z.infer<typeof billingDetailSchema>;
-
-// ============= Common Theme Schema =============
-
-export const themeSchema = z.object({
-  baseColor: z.string(),
-  mode: z.enum(["dark", "light"]),
-  template: z.enum(["default", "cynco", "classic", "zen", "executive"]).optional(),
-});
-
-export type Theme = z.infer<typeof themeSchema>;
-
-// ============= Common Item Schema =============
-
-export const documentItemSchema = z.object({
-  name: z.string(),
-  description: z.string().optional(),
-  quantity: z.number().positive(),
-  unitPrice: z.number().positive(),
-});
-
-export type DocumentItem = z.infer<typeof documentItemSchema>;
-
-// ============= Common Company/Client Details =============
-
-export const companyDetailsSchema = z.object({
-  name: z.string(),
-  address: z.string(),
-  logo: z.string().nullable().optional(),
-  signature: z.string().nullable().optional(),
-  metadata: z.array(metadataItemSchema).optional(),
-});
-
-export type CompanyDetails = z.infer<typeof companyDetailsSchema>;
-
-export const clientDetailsSchema = z.object({
-  name: z.string(),
-  address: z.string(),
-  metadata: z.array(metadataItemSchema).optional(),
-});
-
-export type ClientDetails = z.infer<typeof clientDetailsSchema>;
-
-// ============= Date Range Schema =============
-
-export const dateRangeSchema = z.object({
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().optional(),
-});
-
-export type DateRange = z.infer<typeof dateRangeSchema>;
+  // Types
+  type ValueType,
+  type SstTaxType,
+  type ThemeMode,
+  type InvoiceTemplate,
+  type DocumentTemplate,
+  type DocumentStatus,
+  type NoteReason,
+  type PaginationInput,
+  type Pagination,
+  type IdParam,
+  type DateRange,
+  type MetadataItem,
+  type FieldKeyStringValues,
+  type BillingDetail,
+  type FieldKeyNumberValues,
+  type DocumentItem,
+  type DocumentItemForm,
+  type InvoiceItem,
+  type Theme,
+  type InvoiceTheme,
+  type DocumentTheme,
+  type CompanyDetails,
+  type CompanyDetailsForm,
+  type ClientDetails,
+  type ClientDetailsForm,
+  type DocumentMetadata,
+  type DocumentMetadataWithPaymentInfo,
+  type InvoiceMetadata,
+  type InvoiceDetails,
+  type CreateInvoiceInput,
+} from "@open-bookkeeping/shared";

@@ -14,14 +14,31 @@
 
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { eq, isNull } from "drizzle-orm";
+import { eq, isNull, sql } from "drizzle-orm";
 import Decimal from "decimal.js";
 import * as schema from "../schema";
+import type { InvoiceStatusV2 } from "../schema/enums";
+
+// Status mapping from V1 to V2
+type V1Status = "pending" | "success" | "error" | "expired" | "refunded";
+
+function mapStatus(v1Status: V1Status): InvoiceStatusV2 {
+  const mapping: Record<V1Status, InvoiceStatusV2> = {
+    pending: "open", // Finalized invoices awaiting payment
+    success: "paid", // Paid invoices
+    error: "void", // System errors treated as voided
+    expired: "uncollectible", // Expired = unlikely to be collected
+    refunded: "refunded", // Direct mapping
+  };
+  return mapping[v1Status] || "open";
+}
 
 // Parse command line arguments
 const args = process.argv.slice(2);
 const isDryRun = args.includes("--dry-run");
-const batchSize = parseInt(args.find(a => a.startsWith("--batch-size="))?.split("=")[1] ?? "100");
+const batchSize = parseInt(
+  args.find((a) => a.startsWith("--batch-size="))?.split("=")[1] ?? "100"
+);
 const shouldValidate = args.includes("--validate");
 
 // Database connection
@@ -75,7 +92,11 @@ function calculateTotals(
     const value = new Decimal(detail.value);
     const label = detail.label.toLowerCase();
 
-    if (label.includes("tax") || label.includes("sst") || label.includes("gst")) {
+    if (
+      label.includes("tax") ||
+      label.includes("sst") ||
+      label.includes("gst")
+    ) {
       if (detail.type === "percentage") {
         taxTotal = taxTotal.plus(subtotal.times(value).div(100));
       } else {
@@ -103,7 +124,9 @@ function calculateTotals(
 /**
  * Migrate a single invoice
  */
-async function migrateInvoice(invoice: NonNullable<Awaited<ReturnType<typeof fetchInvoice>>>) {
+async function migrateInvoice(
+  invoice: NonNullable<Awaited<ReturnType<typeof fetchInvoice>>>
+) {
   const fields = invoice.invoiceFields;
 
   if (!fields) {
@@ -119,7 +142,7 @@ async function migrateInvoice(invoice: NonNullable<Awaited<ReturnType<typeof fet
       address: fields.companyDetails?.address ?? "",
       logo: fields.companyDetails?.logo,
       signature: fields.companyDetails?.signature,
-      metadata: fields.companyDetails?.metadata?.map(m => ({
+      metadata: fields.companyDetails?.metadata?.map((m) => ({
         label: m.label,
         value: m.value,
       })),
@@ -129,14 +152,16 @@ async function migrateInvoice(invoice: NonNullable<Awaited<ReturnType<typeof fet
     const clientDetails: schema.ClientDetailsV2 = {
       name: fields.clientDetails?.name ?? "Unknown",
       address: fields.clientDetails?.address ?? "",
-      metadata: fields.clientDetails?.metadata?.map(m => ({
+      metadata: fields.clientDetails?.metadata?.map((m) => ({
         label: m.label,
         value: m.value,
       })),
     };
 
     // Build billing details
-    const billingDetails: schema.BillingDetailV2[] = (fields.invoiceDetails?.billingDetails ?? []).map(b => ({
+    const billingDetails: schema.BillingDetailV2[] = (
+      fields.invoiceDetails?.billingDetails ?? []
+    ).map((b) => ({
       label: b.label,
       type: b.type as "fixed" | "percentage",
       value: b.value,
@@ -149,7 +174,7 @@ async function migrateInvoice(invoice: NonNullable<Awaited<ReturnType<typeof fet
     const metadata: schema.InvoiceMetadataV2 = {
       notes: fields.metadata?.notes ?? undefined,
       terms: fields.metadata?.terms ?? undefined,
-      paymentInformation: fields.metadata?.paymentInformation?.map(p => ({
+      paymentInformation: fields.metadata?.paymentInformation?.map((p) => ({
         label: p.label,
         value: p.value,
       })),
@@ -159,14 +184,16 @@ async function migrateInvoice(invoice: NonNullable<Awaited<ReturnType<typeof fet
     const items = fields.items ?? [];
     const totals = calculateTotals(items, billingDetails);
 
+    // Map V1 status to V2 status
+    const v2Status = mapStatus(invoice.status as V1Status);
+
     // Prepare the new invoice record
     const newInvoice = {
-      id: invoice.id, // Keep same ID for reference
       userId: invoice.userId,
       customerId: invoice.customerId,
       vendorId: invoice.vendorId,
       type: invoice.type,
-      status: invoice.status,
+      status: v2Status,
       einvoiceStatus: invoice.einvoiceStatus,
       prefix: fields.invoiceDetails?.prefix ?? "INV",
       serialNumber: fields.invoiceDetails?.serialNumber ?? "0",
@@ -178,8 +205,8 @@ async function migrateInvoice(invoice: NonNullable<Awaited<ReturnType<typeof fet
       taxTotal: totals.taxTotal,
       discountTotal: totals.discountTotal,
       total: totals.total,
-      amountPaid: invoice.status === "success" ? totals.total : "0",
-      amountDue: invoice.status === "success" ? "0" : totals.total,
+      amountPaid: v2Status === "paid" ? totals.total : "0",
+      amountDue: v2Status === "paid" ? "0" : totals.total,
       theme: fields.invoiceDetails?.theme,
       companyDetails,
       clientDetails,
@@ -191,53 +218,106 @@ async function migrateInvoice(invoice: NonNullable<Awaited<ReturnType<typeof fet
       deletedAt: invoice.deletedAt,
     };
 
-    // Prepare line items
-    const newItems = items.map((item, index) => ({
-      invoiceId: invoice.id,
-      name: item.name,
-      description: item.description,
-      quantity: String(item.quantity),
-      unitPrice: item.unitPrice,
-      amount: new Decimal(item.unitPrice).times(item.quantity).toFixed(2),
-      sortOrder: String(index),
-    }));
+    // Store original invoice ID for reference
+    const originalInvoiceId = invoice.id;
 
     if (isDryRun) {
-      console.log(`  [DRY RUN] Would migrate invoice ${invoice.id}`);
+      console.log(`  [DRY RUN] Would migrate invoice ${originalInvoiceId}`);
       console.log(`    - ${items.length} line items`);
       console.log(`    - Total: ${totals.total}`);
+      console.log(`    - Status: ${invoice.status} -> ${v2Status}`);
     } else {
       // Insert into new tables
       await db.transaction(async (tx) => {
-        // Check if already migrated
-        const existing = await tx.query.invoicesV2.findFirst({
-          where: eq(schema.invoicesV2.id, invoice.id),
-        });
+        // Insert invoice using raw SQL to preserve original ID
+        const [insertedInvoice] = await tx.execute(sql`
+          INSERT INTO invoices_v2 (
+            id, user_id, customer_id, vendor_id, type, status, einvoice_status,
+            prefix, serial_number, currency, invoice_date, due_date, payment_terms,
+            subtotal, tax_total, discount_total, total, amount_paid, amount_due,
+            theme, company_details, client_details, billing_details, metadata,
+            created_at, updated_at, paid_at, deleted_at
+          ) VALUES (
+            ${originalInvoiceId},
+            ${newInvoice.userId},
+            ${newInvoice.customerId},
+            ${newInvoice.vendorId},
+            ${newInvoice.type},
+            ${v2Status},
+            ${newInvoice.einvoiceStatus},
+            ${newInvoice.prefix},
+            ${newInvoice.serialNumber},
+            ${newInvoice.currency},
+            ${newInvoice.invoiceDate},
+            ${newInvoice.dueDate},
+            ${newInvoice.paymentTerms},
+            ${newInvoice.subtotal},
+            ${newInvoice.taxTotal},
+            ${newInvoice.discountTotal},
+            ${newInvoice.total},
+            ${newInvoice.amountPaid},
+            ${newInvoice.amountDue},
+            ${JSON.stringify(newInvoice.theme)}::jsonb,
+            ${JSON.stringify(newInvoice.companyDetails)}::jsonb,
+            ${JSON.stringify(newInvoice.clientDetails)}::jsonb,
+            ${JSON.stringify(newInvoice.billingDetails)}::jsonb,
+            ${JSON.stringify(newInvoice.metadata)}::jsonb,
+            ${newInvoice.createdAt},
+            ${newInvoice.updatedAt},
+            ${newInvoice.paidAt},
+            ${newInvoice.deletedAt}
+          )
+          ON CONFLICT (id) DO NOTHING
+          RETURNING id
+        `);
 
-        if (existing) {
-          console.log(`  Skipping invoice ${invoice.id}: Already migrated`);
+        // If no rows returned, invoice was already migrated
+        if (!insertedInvoice) {
+          console.log(
+            `  Skipping invoice ${originalInvoiceId}: Already migrated`
+          );
           stats.skipped++;
           return;
         }
 
-        // Insert invoice
-        await tx.insert(schema.invoicesV2).values(newInvoice);
-
         // Insert line items
-        if (newItems.length > 0) {
-          await tx.insert(schema.invoiceItemsV2).values(newItems);
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          const amount = new Decimal(item.unitPrice)
+            .times(item.quantity)
+            .toFixed(2);
+
+          await tx.execute(sql`
+            INSERT INTO invoice_items_v2 (
+              invoice_id, name, description, quantity, unit_price, amount, sort_order
+            ) VALUES (
+              ${originalInvoiceId},
+              ${item.name},
+              ${item.description},
+              ${String(item.quantity)},
+              ${item.unitPrice},
+              ${amount},
+              ${String(i)}
+            )
+          `);
         }
 
         // Create activity record for migration
-        await tx.insert(schema.invoiceActivitiesV2).values({
-          invoiceId: invoice.id,
-          action: "migrated",
-          description: "Migrated from legacy schema",
-          performedAt: new Date(),
-        });
+        await tx.execute(sql`
+          INSERT INTO invoice_activities_v2 (
+            invoice_id, action, description, performed_at
+          ) VALUES (
+            ${originalInvoiceId},
+            'migrated',
+            ${`Migrated from V1 schema. Original status: ${invoice.status}`},
+            NOW()
+          )
+        `);
       });
 
-      console.log(`  Migrated invoice ${invoice.id} (${items.length} items, total: ${totals.total})`);
+      console.log(
+        `  Migrated invoice ${originalInvoiceId} (${items.length} items, total: ${totals.total})`
+      );
     }
 
     stats.migrated++;
@@ -304,9 +384,13 @@ async function migrate() {
     const batchNum = Math.floor(offset / batchSize) + 1;
     const totalBatches = Math.ceil(stats.total / batchSize);
 
-    console.log(`Processing batch ${batchNum}/${totalBatches} (${offset}-${Math.min(offset + batchSize, stats.total)})`);
+    console.log(
+      `Processing batch ${batchNum}/${totalBatches} (${offset}-${Math.min(offset + batchSize, stats.total)})`
+    );
 
-    const invoiceIds = allInvoices.slice(offset, offset + batchSize).map(i => i.id);
+    const invoiceIds = allInvoices
+      .slice(offset, offset + batchSize)
+      .map((i) => i.id);
 
     for (const id of invoiceIds) {
       const invoice = await fetchInvoice(id);
@@ -342,7 +426,9 @@ async function migrate() {
     console.log("Validating migration...");
 
     const v1Count = await db.query.invoices.findMany({ columns: { id: true } });
-    const v2Count = await db.query.invoicesV2.findMany({ columns: { id: true } });
+    const v2Count = await db.query.invoicesV2.findMany({
+      columns: { id: true },
+    });
 
     console.log(`  V1 invoices: ${v1Count.length}`);
     console.log(`  V2 invoices: ${v2Count.length}`);

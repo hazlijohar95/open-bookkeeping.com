@@ -92,7 +92,9 @@ describe("Cache Service", () => {
 
       const result = await getCachedRevenueChart(userId, 12);
 
-      expect(mockCacheGet).toHaveBeenCalledWith(`dashboard:revenue:${userId}:12`);
+      expect(mockCacheGet).toHaveBeenCalledWith(
+        `dashboard:revenue:${userId}:12`
+      );
       expect(result).toEqual(mockData);
     });
 
@@ -111,7 +113,9 @@ describe("Cache Service", () => {
     it("should invalidate revenue chart with pattern", async () => {
       await invalidateRevenueChart(userId);
 
-      expect(mockCacheDelPattern).toHaveBeenCalledWith(`dashboard:revenue:${userId}:*`);
+      expect(mockCacheDelPattern).toHaveBeenCalledWith(
+        `dashboard:revenue:${userId}:*`
+      );
     });
   });
 
@@ -122,7 +126,9 @@ describe("Cache Service", () => {
 
       const result = await getCachedInvoiceList(userId, "page:1:limit:10");
 
-      expect(mockCacheGet).toHaveBeenCalledWith(`invoices:list:${userId}:page:1:limit:10`);
+      expect(mockCacheGet).toHaveBeenCalledWith(
+        `invoices:list:${userId}:page:1:limit:10`
+      );
       expect(result).toEqual(mockData);
     });
 
@@ -141,7 +147,9 @@ describe("Cache Service", () => {
     it("should invalidate invoice list with pattern", async () => {
       await invalidateInvoiceList(userId);
 
-      expect(mockCacheDelPattern).toHaveBeenCalledWith(`invoices:list:${userId}:*`);
+      expect(mockCacheDelPattern).toHaveBeenCalledWith(
+        `invoices:list:${userId}:*`
+      );
     });
   });
 
@@ -171,7 +179,9 @@ describe("Cache Service", () => {
     it("should invalidate customer list with pattern", async () => {
       await invalidateCustomerList(userId);
 
-      expect(mockCacheDelPattern).toHaveBeenCalledWith(`customers:list:${userId}:*`);
+      expect(mockCacheDelPattern).toHaveBeenCalledWith(
+        `customers:list:${userId}:*`
+      );
     });
   });
 
@@ -182,7 +192,9 @@ describe("Cache Service", () => {
 
       const result = await getCachedQuotationList(userId, "pending");
 
-      expect(mockCacheGet).toHaveBeenCalledWith(`quotations:list:${userId}:pending`);
+      expect(mockCacheGet).toHaveBeenCalledWith(
+        `quotations:list:${userId}:pending`
+      );
       expect(result).toEqual(mockData);
     });
 
@@ -201,7 +213,9 @@ describe("Cache Service", () => {
     it("should invalidate quotation list with pattern", async () => {
       await invalidateQuotationList(userId);
 
-      expect(mockCacheDelPattern).toHaveBeenCalledWith(`quotations:list:${userId}:*`);
+      expect(mockCacheDelPattern).toHaveBeenCalledWith(
+        `quotations:list:${userId}:*`
+      );
     });
   });
 
@@ -210,41 +224,71 @@ describe("Cache Service", () => {
       await invalidateAllUserCaches(userId);
 
       expect(mockCacheDel).toHaveBeenCalledWith(`dashboard:stats:${userId}`);
-      expect(mockCacheDelPattern).toHaveBeenCalledWith(`dashboard:revenue:${userId}:*`);
-      expect(mockCacheDelPattern).toHaveBeenCalledWith(`invoices:list:${userId}:*`);
-      expect(mockCacheDelPattern).toHaveBeenCalledWith(`customers:list:${userId}:*`);
-      expect(mockCacheDelPattern).toHaveBeenCalledWith(`quotations:list:${userId}:*`);
+      expect(mockCacheDelPattern).toHaveBeenCalledWith(
+        `dashboard:revenue:${userId}:*`
+      );
+      expect(mockCacheDelPattern).toHaveBeenCalledWith(
+        `invoices:list:${userId}:*`
+      );
+      expect(mockCacheDelPattern).toHaveBeenCalledWith(
+        `customers:list:${userId}:*`
+      );
+      expect(mockCacheDelPattern).toHaveBeenCalledWith(
+        `quotations:list:${userId}:*`
+      );
     });
 
     it("should invalidate invoice-related caches", async () => {
       await invalidateInvoiceCaches(userId);
 
       expect(mockCacheDel).toHaveBeenCalledWith(`dashboard:stats:${userId}`);
-      expect(mockCacheDelPattern).toHaveBeenCalledWith(`dashboard:revenue:${userId}:*`);
-      expect(mockCacheDelPattern).toHaveBeenCalledWith(`invoices:list:${userId}:*`);
+      expect(mockCacheDelPattern).toHaveBeenCalledWith(
+        `dashboard:revenue:${userId}:*`
+      );
+      expect(mockCacheDelPattern).toHaveBeenCalledWith(
+        `invoices:list:${userId}:*`
+      );
       // Should not invalidate customer or quotation caches
-      expect(mockCacheDelPattern).not.toHaveBeenCalledWith(`customers:list:${userId}:*`);
-      expect(mockCacheDelPattern).not.toHaveBeenCalledWith(`quotations:list:${userId}:*`);
+      expect(mockCacheDelPattern).not.toHaveBeenCalledWith(
+        `customers:list:${userId}:*`
+      );
+      expect(mockCacheDelPattern).not.toHaveBeenCalledWith(
+        `quotations:list:${userId}:*`
+      );
     });
 
     it("should invalidate quotation-related caches", async () => {
       await invalidateQuotationCaches(userId);
 
       expect(mockCacheDel).toHaveBeenCalledWith(`dashboard:stats:${userId}`);
-      expect(mockCacheDelPattern).toHaveBeenCalledWith(`quotations:list:${userId}:*`);
+      expect(mockCacheDelPattern).toHaveBeenCalledWith(
+        `quotations:list:${userId}:*`
+      );
       // Should not invalidate invoice or customer caches
-      expect(mockCacheDelPattern).not.toHaveBeenCalledWith(`invoices:list:${userId}:*`);
-      expect(mockCacheDelPattern).not.toHaveBeenCalledWith(`customers:list:${userId}:*`);
+      expect(mockCacheDelPattern).not.toHaveBeenCalledWith(
+        `invoices:list:${userId}:*`
+      );
+      expect(mockCacheDelPattern).not.toHaveBeenCalledWith(
+        `customers:list:${userId}:*`
+      );
     });
 
     it("should invalidate customer-related caches including invoices", async () => {
       await invalidateCustomerCaches(userId);
 
-      expect(mockCacheDelPattern).toHaveBeenCalledWith(`customers:list:${userId}:*`);
-      expect(mockCacheDelPattern).toHaveBeenCalledWith(`invoices:list:${userId}:*`);
+      expect(mockCacheDelPattern).toHaveBeenCalledWith(
+        `customers:list:${userId}:*`
+      );
+      expect(mockCacheDelPattern).toHaveBeenCalledWith(
+        `invoices:list:${userId}:*`
+      );
       // Should not invalidate dashboard or quotation caches
-      expect(mockCacheDel).not.toHaveBeenCalledWith(`dashboard:stats:${userId}`);
-      expect(mockCacheDelPattern).not.toHaveBeenCalledWith(`quotations:list:${userId}:*`);
+      expect(mockCacheDel).not.toHaveBeenCalledWith(
+        `dashboard:stats:${userId}`
+      );
+      expect(mockCacheDelPattern).not.toHaveBeenCalledWith(
+        `quotations:list:${userId}:*`
+      );
     });
   });
 
@@ -275,7 +319,7 @@ describe("Cache Service", () => {
       expect(result).toBeNull();
     });
 
-    it("should set cached API key with 2 minute TTL for security", async () => {
+    it("should set cached API key with 5 second TTL for security", async () => {
       const apiKey = {
         id: "key-1",
         userId: "user-1",
@@ -289,7 +333,7 @@ describe("Cache Service", () => {
       expect(mockCacheSet).toHaveBeenCalledWith(
         `apikey:hash:${keyHash}`,
         apiKey,
-        120 // 2 minutes - shorter for security
+        5 // 5 seconds - very short for security (revoked keys expire quickly)
       );
     });
 
@@ -315,8 +359,14 @@ describe("Cache Service", () => {
       await getCachedDashboardStats("user-abc");
 
       expect(mockCacheGet).toHaveBeenCalledTimes(2);
-      expect(mockCacheGet).toHaveBeenNthCalledWith(1, "dashboard:stats:user-abc");
-      expect(mockCacheGet).toHaveBeenNthCalledWith(2, "dashboard:stats:user-abc");
+      expect(mockCacheGet).toHaveBeenNthCalledWith(
+        1,
+        "dashboard:stats:user-abc"
+      );
+      expect(mockCacheGet).toHaveBeenNthCalledWith(
+        2,
+        "dashboard:stats:user-abc"
+      );
     });
 
     it("should generate different keys for different users", async () => {

@@ -1,4 +1,10 @@
-import { useState } from "react";
+/**
+ * Balance Sheet
+ * Statement of Financial Position following the design system
+ */
+
+import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useBalanceSheetReport } from "@/api/ledger";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
@@ -6,29 +12,25 @@ import { PageContainer } from "@/components/ui/page-container";
 import { PageHeader } from "@/components/ui/page-header";
 import { PageSkeleton } from "@/components/skeletons";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableFooter,
-} from "@/components/ui/table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Building2,
   CheckCircleIcon,
   XCircleIcon,
-  CalendarIcon,
   Download,
-  ChevronRightIcon,
+  Scale,
 } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
-import { Link } from "react-router-dom";
+import {
+  ReportSection,
+  ReportSummaryCard,
+  ReportHeader,
+  ReportAccountRow,
+  SingleDatePicker,
+} from "@/components/reports";
 
-function formatCurrency(amount: string): string {
-  const value = parseFloat(amount);
+function formatCurrency(amount: string | number): string {
+  const value = typeof amount === "string" ? parseFloat(amount) : amount;
   return new Intl.NumberFormat("en-MY", {
     style: "currency",
     currency: "MYR",
@@ -46,13 +48,36 @@ function formatDate(dateStr: string): string {
 
 export function BalanceSheet() {
   const { user, isLoading: isAuthLoading } = useAuth();
-  const [asOfDate, setAsOfDate] = useState<string>(
+  const [asOfDate, setAsOfDate] = useState(
     new Date().toISOString().split("T")[0] ?? ""
   );
 
   const { data: report, isLoading } = useBalanceSheetReport(asOfDate, {
     enabled: !!user && !isAuthLoading,
   });
+
+  const metrics = useMemo(() => {
+    if (!report) return null;
+
+    const totalAssets = parseFloat(report.assets.total);
+    const totalLiabilities = parseFloat(report.liabilities.total);
+    const totalEquity = parseFloat(report.equity.total);
+    const currentRatio =
+      parseFloat(report.liabilities.totalCurrent) > 0
+        ? parseFloat(report.assets.totalCurrent) /
+          parseFloat(report.liabilities.totalCurrent)
+        : 0;
+    const debtToEquity = totalEquity > 0 ? totalLiabilities / totalEquity : 0;
+
+    return {
+      totalAssets,
+      totalLiabilities,
+      totalEquity,
+      currentRatio,
+      debtToEquity,
+      isBalanced: report.isBalanced,
+    };
+  }, [report]);
 
   if (isLoading || isAuthLoading) {
     return (
@@ -71,7 +96,7 @@ export function BalanceSheet() {
         action={
           <Link to="/profit-loss">
             <Button variant="outline">
-              <ChevronRightIcon className="size-4" />
+              <Scale className="size-4" />
               Profit & Loss
             </Button>
           </Link>
@@ -79,17 +104,12 @@ export function BalanceSheet() {
       />
 
       {/* Date Filter and Balance Status */}
-      <div className="flex items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-3">
-          <CalendarIcon className="size-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">As of:</span>
-          <Input
-            type="date"
-            value={asOfDate}
-            onChange={(e) => setAsOfDate(e.target.value)}
-            className="w-40"
-          />
-        </div>
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <SingleDatePicker
+          date={asOfDate}
+          onDateChange={setAsOfDate}
+          label="As of"
+        />
 
         <div className="flex items-center gap-3">
           {report && (
@@ -122,23 +142,13 @@ export function BalanceSheet() {
         </div>
       </div>
 
-      {/* Report Header */}
-      {report && (
-        <div className="text-center mb-6 py-4 border-b">
-          <h2 className="text-xl font-semibold">Statement of Financial Position</h2>
-          <p className="text-sm text-muted-foreground">
-            As of {formatDate(report.asOfDate)}
-          </p>
-        </div>
-      )}
-
-      {/* Balance Sheet Report */}
+      {/* Empty State */}
       {!report ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center rounded-lg border bg-muted/30">
-          <Building2 className="size-12 text-muted-foreground/50 mb-4" />
+        <div className="bg-muted/30 flex flex-col items-center justify-center rounded-lg border py-12 text-center">
+          <Building2 className="text-muted-foreground/50 mb-4 size-12" />
           <div className="text-muted-foreground">No data available</div>
-          <div className="text-muted-foreground/70 text-sm mt-1">
-            Post journal entries to see financial data
+          <div className="text-muted-foreground/70 mt-1 text-sm">
+            Post journal entries to see your financial position
           </div>
           <Link to="/journal-entries" className="mt-4">
             <Button variant="outline" size="sm">
@@ -147,281 +157,250 @@ export function BalanceSheet() {
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column: Assets */}
-          <div className="space-y-6">
-            {/* Current Assets */}
-            <div className="rounded-lg border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-blue-50 dark:bg-blue-900/20">
-                    <TableHead colSpan={2} className="font-semibold text-blue-800 dark:text-blue-400">
-                      Current Assets
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {report.assets.currentAssets.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={2} className="text-center text-muted-foreground py-4">
-                        No current assets
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    report.assets.currentAssets.map((account) => (
-                      <TableRow key={account.id}>
-                        <TableCell>
-                          <span className="font-mono text-sm text-muted-foreground mr-2">
-                            {account.code}
-                          </span>
-                          {account.name}
-                        </TableCell>
-                        <TableCell className="text-right font-mono tabular-nums w-32">
-                          {formatCurrency(account.balance)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-                <TableFooter>
-                  <TableRow className="bg-blue-50/50 dark:bg-blue-900/10">
-                    <TableCell className="font-semibold">Total Current Assets</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums font-semibold">
-                      {formatCurrency(report.assets.totalCurrent)}
-                    </TableCell>
-                  </TableRow>
-                </TableFooter>
-              </Table>
-            </div>
+        <div className="space-y-6 print:space-y-4">
+          {/* Report Header */}
+          <ReportHeader
+            title="Statement of Financial Position"
+            subtitle="Balance Sheet"
+            period={`As of ${formatDate(report.asOfDate)}`}
+          />
 
-            {/* Fixed Assets */}
-            <div className="rounded-lg border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-indigo-50 dark:bg-indigo-900/20">
-                    <TableHead colSpan={2} className="font-semibold text-indigo-800 dark:text-indigo-400">
-                      Non-Current Assets
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {report.assets.fixedAssets.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={2} className="text-center text-muted-foreground py-4">
-                        No non-current assets
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    report.assets.fixedAssets.map((account) => (
-                      <TableRow key={account.id}>
-                        <TableCell>
-                          <span className="font-mono text-sm text-muted-foreground mr-2">
-                            {account.code}
-                          </span>
-                          {account.name}
-                        </TableCell>
-                        <TableCell className="text-right font-mono tabular-nums w-32">
-                          {formatCurrency(account.balance)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-                <TableFooter>
-                  <TableRow className="bg-indigo-50/50 dark:bg-indigo-900/10">
-                    <TableCell className="font-semibold">Total Non-Current Assets</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums font-semibold">
-                      {formatCurrency(report.assets.totalFixed)}
-                    </TableCell>
-                  </TableRow>
-                </TableFooter>
-              </Table>
-            </div>
-
-            {/* Total Assets */}
-            <div className="rounded-lg border bg-blue-100 dark:bg-blue-900/30 p-4">
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-lg text-blue-800 dark:text-blue-300">Total Assets</span>
-                <span className="font-mono tabular-nums text-xl font-bold text-blue-800 dark:text-blue-300">
-                  {formatCurrency(report.assets.total)}
-                </span>
-              </div>
-            </div>
+          {/* Key Metrics */}
+          <div className="grid gap-4 sm:grid-cols-4 print:hidden">
+            <ReportSummaryCard
+              label="Total Assets"
+              value={formatCurrency(report.assets.total)}
+            />
+            <ReportSummaryCard
+              label="Total Liabilities"
+              value={formatCurrency(report.liabilities.total)}
+            />
+            <ReportSummaryCard
+              label="Total Equity"
+              value={formatCurrency(report.equity.total)}
+            />
+            {metrics && metrics.currentRatio > 0 && (
+              <ReportSummaryCard
+                label="Current Ratio"
+                value={metrics.currentRatio.toFixed(2)}
+                description={metrics.currentRatio >= 1 ? "Healthy" : "Low"}
+              />
+            )}
           </div>
 
-          {/* Right Column: Liabilities & Equity */}
-          <div className="space-y-6">
-            {/* Current Liabilities */}
-            <div className="rounded-lg border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-orange-50 dark:bg-orange-900/20">
-                    <TableHead colSpan={2} className="font-semibold text-orange-800 dark:text-orange-400">
-                      Current Liabilities
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {report.liabilities.currentLiabilities.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={2} className="text-center text-muted-foreground py-4">
-                        No current liabilities
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    report.liabilities.currentLiabilities.map((account) => (
-                      <TableRow key={account.id}>
-                        <TableCell>
-                          <span className="font-mono text-sm text-muted-foreground mr-2">
-                            {account.code}
-                          </span>
-                          {account.name}
-                        </TableCell>
-                        <TableCell className="text-right font-mono tabular-nums w-32">
-                          {formatCurrency(account.balance)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-                <TableFooter>
-                  <TableRow className="bg-orange-50/50 dark:bg-orange-900/10">
-                    <TableCell className="font-semibold">Total Current Liabilities</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums font-semibold">
-                      {formatCurrency(report.liabilities.totalCurrent)}
-                    </TableCell>
-                  </TableRow>
-                </TableFooter>
-              </Table>
+          {/* Two Column Layout */}
+          <div className="grid gap-6 lg:grid-cols-2 print:grid-cols-2 print:gap-4">
+            {/* Left Column: Assets */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Assets</h3>
+
+              {/* Current Assets */}
+              <ReportSection
+                title="Current Assets"
+                total={formatCurrency(report.assets.totalCurrent)}
+                isEmpty={report.assets.currentAssets.length === 0}
+                emptyMessage="No current assets"
+              >
+                {report.assets.currentAssets.map((account) => (
+                  <ReportAccountRow
+                    key={account.id}
+                    code={account.code}
+                    name={account.name}
+                    amount={formatCurrency(account.balance)}
+                  />
+                ))}
+              </ReportSection>
+
+              {/* Non-Current Assets */}
+              <ReportSection
+                title="Non-Current Assets"
+                total={formatCurrency(report.assets.totalFixed)}
+                isEmpty={report.assets.fixedAssets.length === 0}
+                emptyMessage="No non-current assets"
+              >
+                {report.assets.fixedAssets.map((account) => (
+                  <ReportAccountRow
+                    key={account.id}
+                    code={account.code}
+                    name={account.name}
+                    amount={formatCurrency(account.balance)}
+                  />
+                ))}
+              </ReportSection>
+
+              {/* Total Assets */}
+              <Card className="bg-muted/50">
+                <CardContent className="flex items-center justify-between py-4">
+                  <span className="font-semibold">Total Assets</span>
+                  <span className="font-mono text-xl font-semibold tabular-nums">
+                    {formatCurrency(report.assets.total)}
+                  </span>
+                </CardContent>
+              </Card>
             </div>
 
-            {/* Non-Current Liabilities */}
-            <div className="rounded-lg border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-amber-50 dark:bg-amber-900/20">
-                    <TableHead colSpan={2} className="font-semibold text-amber-800 dark:text-amber-400">
-                      Non-Current Liabilities
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {report.liabilities.nonCurrentLiabilities.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={2} className="text-center text-muted-foreground py-4">
-                        No non-current liabilities
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    report.liabilities.nonCurrentLiabilities.map((account) => (
-                      <TableRow key={account.id}>
-                        <TableCell>
-                          <span className="font-mono text-sm text-muted-foreground mr-2">
-                            {account.code}
-                          </span>
-                          {account.name}
-                        </TableCell>
-                        <TableCell className="text-right font-mono tabular-nums w-32">
-                          {formatCurrency(account.balance)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-                <TableFooter>
-                  <TableRow className="bg-amber-50/50 dark:bg-amber-900/10">
-                    <TableCell className="font-semibold">Total Non-Current Liabilities</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums font-semibold">
-                      {formatCurrency(report.liabilities.totalNonCurrent)}
-                    </TableCell>
-                  </TableRow>
-                </TableFooter>
-              </Table>
-            </div>
+            {/* Right Column: Liabilities & Equity */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Liabilities & Equity</h3>
 
-            {/* Total Liabilities */}
-            <div className="rounded-lg border bg-orange-100 dark:bg-orange-900/30 p-4">
-              <div className="flex justify-between items-center">
-                <span className="font-semibold text-orange-800 dark:text-orange-300">Total Liabilities</span>
-                <span className="font-mono tabular-nums text-lg font-semibold text-orange-800 dark:text-orange-300">
+              {/* Current Liabilities */}
+              <ReportSection
+                title="Current Liabilities"
+                total={formatCurrency(report.liabilities.totalCurrent)}
+                isEmpty={report.liabilities.currentLiabilities.length === 0}
+                emptyMessage="No current liabilities"
+              >
+                {report.liabilities.currentLiabilities.map((account) => (
+                  <ReportAccountRow
+                    key={account.id}
+                    code={account.code}
+                    name={account.name}
+                    amount={formatCurrency(account.balance)}
+                  />
+                ))}
+              </ReportSection>
+
+              {/* Non-Current Liabilities */}
+              <ReportSection
+                title="Non-Current Liabilities"
+                total={formatCurrency(report.liabilities.totalNonCurrent)}
+                isEmpty={report.liabilities.nonCurrentLiabilities.length === 0}
+                emptyMessage="No non-current liabilities"
+              >
+                {report.liabilities.nonCurrentLiabilities.map((account) => (
+                  <ReportAccountRow
+                    key={account.id}
+                    code={account.code}
+                    name={account.name}
+                    amount={formatCurrency(account.balance)}
+                  />
+                ))}
+              </ReportSection>
+
+              {/* Total Liabilities */}
+              <div className="border-border/40 bg-muted/30 flex items-center justify-between rounded-none border px-4 py-3">
+                <span className="text-sm font-semibold">Total Liabilities</span>
+                <span className="font-mono font-semibold tabular-nums">
                   {formatCurrency(report.liabilities.total)}
                 </span>
               </div>
-            </div>
 
-            {/* Equity */}
-            <div className="rounded-lg border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-purple-50 dark:bg-purple-900/20">
-                    <TableHead colSpan={2} className="font-semibold text-purple-800 dark:text-purple-400">
-                      Equity
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {report.equity.accounts.map((account) => (
-                    <TableRow key={account.id}>
-                      <TableCell>
-                        <span className="font-mono text-sm text-muted-foreground mr-2">
-                          {account.code}
-                        </span>
-                        {account.name}
-                      </TableCell>
-                      <TableCell className="text-right font-mono tabular-nums w-32">
-                        {formatCurrency(account.balance)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {parseFloat(report.equity.currentYearEarnings) !== 0 && (
-                    <TableRow>
-                      <TableCell className="italic text-muted-foreground">
-                        Current Year Earnings
-                      </TableCell>
-                      <TableCell className="text-right font-mono tabular-nums w-32 italic">
-                        {formatCurrency(report.equity.currentYearEarnings)}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-                <TableFooter>
-                  <TableRow className="bg-purple-50/50 dark:bg-purple-900/10">
-                    <TableCell className="font-semibold">Total Equity</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums font-semibold">
-                      {formatCurrency(report.equity.total)}
-                    </TableCell>
-                  </TableRow>
-                </TableFooter>
-              </Table>
-            </div>
+              {/* Equity */}
+              <ReportSection
+                title="Equity"
+                total={formatCurrency(report.equity.total)}
+              >
+                {report.equity.accounts.map((account) => (
+                  <ReportAccountRow
+                    key={account.id}
+                    code={account.code}
+                    name={account.name}
+                    amount={formatCurrency(account.balance)}
+                  />
+                ))}
+                {parseFloat(report.equity.currentYearEarnings) !== 0 && (
+                  <div className="bg-muted/20 flex items-center justify-between px-4 py-2.5">
+                    <span className="text-muted-foreground text-sm italic">
+                      Current Year Earnings
+                    </span>
+                    <span className="font-mono text-sm italic tabular-nums">
+                      {formatCurrency(report.equity.currentYearEarnings)}
+                    </span>
+                  </div>
+                )}
+              </ReportSection>
 
-            {/* Total Liabilities & Equity */}
-            <div className="rounded-lg border bg-purple-100 dark:bg-purple-900/30 p-4">
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-lg text-purple-800 dark:text-purple-300">
-                  Total Liabilities & Equity
-                </span>
-                <span className="font-mono tabular-nums text-xl font-bold text-purple-800 dark:text-purple-300">
-                  {formatCurrency(report.totalLiabilitiesAndEquity)}
-                </span>
-              </div>
+              {/* Total Liabilities & Equity */}
+              <Card className="bg-muted/50">
+                <CardContent className="flex items-center justify-between py-4">
+                  <span className="font-semibold">
+                    Total Liabilities & Equity
+                  </span>
+                  <span className="font-mono text-xl font-semibold tabular-nums">
+                    {formatCurrency(report.totalLiabilitiesAndEquity)}
+                  </span>
+                </CardContent>
+              </Card>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Balance Check */}
-      {report && !report.isBalanced && (
-        <div className="mt-6 rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 p-4">
-          <div className="flex items-center gap-2 text-red-800 dark:text-red-400">
-            <XCircleIcon className="size-5" />
-            <span className="font-semibold">Balance Sheet is not balanced</span>
-          </div>
-          <p className="text-sm text-red-700 dark:text-red-300 mt-1">
-            Difference: {formatCurrency(
-              (parseFloat(report.assets.total) - parseFloat(report.totalLiabilitiesAndEquity)).toFixed(2)
-            )}
-          </p>
+          {/* Balance Check Warning */}
+          {!report.isBalanced && (
+            <Card className="border-destructive/50 bg-destructive/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-destructive flex items-center gap-2">
+                  <XCircleIcon className="size-5" />
+                  Balance Sheet is not balanced
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-sm">
+                  There is a difference of{" "}
+                  <span className="font-mono font-semibold">
+                    {formatCurrency(
+                      Math.abs(
+                        parseFloat(report.assets.total) -
+                          parseFloat(report.totalLiabilitiesAndEquity)
+                      )
+                    )}
+                  </span>{" "}
+                  between Assets and Liabilities + Equity. Please review your
+                  journal entries for any discrepancies.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Financial Ratios */}
+          {metrics && (
+            <Card className="print:hidden">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">
+                  Key Financial Ratios
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                  <div>
+                    <div className="text-muted-foreground text-sm">
+                      Current Ratio
+                    </div>
+                    <div className="font-mono text-lg font-semibold tabular-nums">
+                      {metrics.currentRatio > 0
+                        ? metrics.currentRatio.toFixed(2)
+                        : "N/A"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground text-sm">
+                      Debt to Equity
+                    </div>
+                    <div className="font-mono text-lg font-semibold tabular-nums">
+                      {metrics.debtToEquity > 0
+                        ? metrics.debtToEquity.toFixed(2)
+                        : "N/A"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground text-sm">
+                      Total Assets
+                    </div>
+                    <div className="font-mono text-lg font-semibold tabular-nums">
+                      {formatCurrency(metrics.totalAssets)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground text-sm">
+                      Net Worth
+                    </div>
+                    <div className="font-mono text-lg font-semibold tabular-nums">
+                      {formatCurrency(metrics.totalEquity)}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
     </PageContainer>

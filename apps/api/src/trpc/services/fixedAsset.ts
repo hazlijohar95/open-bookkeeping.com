@@ -58,11 +58,21 @@ const updateCategorySchema = z.object({
   code: z.string().min(1).max(20).optional(),
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional().nullable(),
-  defaultUsefulLifeMonths: z.number().int().min(1).max(600).optional().nullable(),
+  defaultUsefulLifeMonths: z
+    .number()
+    .int()
+    .min(1)
+    .max(600)
+    .optional()
+    .nullable(),
   defaultDepreciationMethod: depreciationMethodSchema.optional().nullable(),
   defaultAssetAccountId: z.string().uuid().optional().nullable(),
   defaultDepreciationExpenseAccountId: z.string().uuid().optional().nullable(),
-  defaultAccumulatedDepreciationAccountId: z.string().uuid().optional().nullable(),
+  defaultAccumulatedDepreciationAccountId: z
+    .string()
+    .uuid()
+    .optional()
+    .nullable(),
 });
 
 // Asset schemas
@@ -77,15 +87,21 @@ const createAssetSchema = z.object({
   invoiceReference: z.string().max(100).optional(),
   depreciationMethod: depreciationMethodSchema.optional(),
   usefulLifeMonths: z.number().int().min(1).max(600),
-  salvageValue: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  salvageValue: z
+    .string()
+    .regex(/^\d+(\.\d{1,2})?$/)
+    .optional(),
   depreciationStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   assetAccountId: z.string().uuid(),
   depreciationExpenseAccountId: z.string().uuid(),
   accumulatedDepreciationAccountId: z.string().uuid(),
   location: z.string().max(200).optional(),
   serialNumber: z.string().max(100).optional(),
-  warrantyExpiry: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  metadata: z.record(z.string()).optional(),
+  warrantyExpiry: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
 });
 
 const updateAssetSchema = z.object({
@@ -93,48 +109,74 @@ const updateAssetSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(1000).optional().nullable(),
   categoryId: z.string().uuid().optional().nullable(),
-  acquisitionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  acquisitionCost: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  acquisitionDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  acquisitionCost: z
+    .string()
+    .regex(/^\d+(\.\d{1,2})?$/)
+    .optional(),
   acquisitionMethod: acquisitionMethodSchema.optional(),
   vendorId: z.string().uuid().optional().nullable(),
   invoiceReference: z.string().max(100).optional(),
   depreciationMethod: depreciationMethodSchema.optional(),
   usefulLifeMonths: z.number().int().min(1).max(600).optional(),
-  salvageValue: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
-  depreciationStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  salvageValue: z
+    .string()
+    .regex(/^\d+(\.\d{1,2})?$/)
+    .optional(),
+  depreciationStartDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   assetAccountId: z.string().uuid().optional(),
   depreciationExpenseAccountId: z.string().uuid().optional(),
   accumulatedDepreciationAccountId: z.string().uuid().optional(),
   location: z.string().max(200).optional(),
   serialNumber: z.string().max(100).optional(),
-  warrantyExpiry: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
-  metadata: z.record(z.string()).optional(),
+  warrantyExpiry: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .nullable(),
+  metadata: z.record(z.string(), z.string()).optional(),
 });
 
-const queryOptionsSchema = z.object({
-  limit: z.number().min(1).max(100).default(50),
-  offset: z.number().min(0).default(0),
-  status: fixedAssetStatusSchema.optional(),
-  categoryId: z.string().uuid().optional(),
-  search: z.string().max(200).optional(),
-}).optional();
+const queryOptionsSchema = z
+  .object({
+    limit: z.number().min(1).max(100).default(50),
+    offset: z.number().min(0).default(0),
+    status: fixedAssetStatusSchema.optional(),
+    categoryId: z.string().uuid().optional(),
+    search: z.string().max(200).optional(),
+  })
+  .optional();
 
 const disposeAssetSchema = z.object({
   assetId: z.string().uuid(),
   disposalDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   disposalMethod: disposalMethodSchema,
-  proceeds: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
-  buyerInfo: z.object({
-    name: z.string().max(200).optional(),
-    contact: z.string().max(200).optional(),
-    reference: z.string().max(100).optional(),
-  }).optional(),
+  proceeds: z
+    .string()
+    .regex(/^\d+(\.\d{1,2})?$/)
+    .optional(),
+  buyerInfo: z
+    .object({
+      name: z.string().max(200).optional(),
+      contact: z.string().max(200).optional(),
+      reference: z.string().max(100).optional(),
+    })
+    .optional(),
   notes: z.string().max(1000).optional(),
 });
 
 const previewDepreciationSchema = z.object({
   acquisitionCost: z.string().regex(/^\d+(\.\d{1,2})?$/),
-  salvageValue: z.string().regex(/^\d+(\.\d{1,2})?$/).default("0"),
+  salvageValue: z
+    .string()
+    .regex(/^\d+(\.\d{1,2})?$/)
+    .default("0"),
   usefulLifeMonths: z.number().int().min(1).max(600),
   depreciationMethod: depreciationMethodSchema,
   depreciationStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -146,10 +188,14 @@ const previewDepreciationSchema = z.object({
 
 export const fixedAssetCategoryRouter = router({
   list: protectedProcedure
-    .input(z.object({
-      limit: z.number().min(1).max(100).default(50),
-      offset: z.number().min(0).default(0),
-    }).optional())
+    .input(
+      z
+        .object({
+          limit: z.number().min(1).max(100).default(50),
+          offset: z.number().min(0).default(0),
+        })
+        .optional()
+    )
     .query(async ({ ctx, input }) => {
       const { limit = 50, offset = 0 } = input ?? {};
       return fixedAssetCategoryRepository.findMany(ctx.user.id, limit, offset);
@@ -158,7 +204,10 @@ export const fixedAssetCategoryRouter = router({
   get: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const category = await fixedAssetCategoryRepository.findById(input.id, ctx.user.id);
+      const category = await fixedAssetCategoryRepository.findById(
+        input.id,
+        ctx.user.id
+      );
       if (!category) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -175,7 +224,10 @@ export const fixedAssetCategoryRouter = router({
         userId: ctx.user.id,
         ...input,
       });
-      logger.info({ userId: ctx.user.id, categoryId: category?.id }, "Fixed asset category created");
+      logger.info(
+        { userId: ctx.user.id, categoryId: category?.id },
+        "Fixed asset category created"
+      );
       return category;
     }),
 
@@ -183,28 +235,41 @@ export const fixedAssetCategoryRouter = router({
     .input(updateCategorySchema)
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
-      const updated = await fixedAssetCategoryRepository.update(id, ctx.user.id, data);
+      const updated = await fixedAssetCategoryRepository.update(
+        id,
+        ctx.user.id,
+        data
+      );
       if (!updated) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Category not found",
         });
       }
-      logger.info({ userId: ctx.user.id, categoryId: id }, "Fixed asset category updated");
+      logger.info(
+        { userId: ctx.user.id, categoryId: id },
+        "Fixed asset category updated"
+      );
       return updated;
     }),
 
   delete: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      const deleted = await fixedAssetCategoryRepository.delete(input.id, ctx.user.id);
+      const deleted = await fixedAssetCategoryRepository.delete(
+        input.id,
+        ctx.user.id
+      );
       if (!deleted) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Category not found",
         });
       }
-      logger.info({ userId: ctx.user.id, categoryId: input.id }, "Fixed asset category deleted");
+      logger.info(
+        { userId: ctx.user.id, categoryId: input.id },
+        "Fixed asset category deleted"
+      );
       return { success: true };
     }),
 });
@@ -248,7 +313,14 @@ export const fixedAssetRouter = router({
         userId: ctx.user.id,
         ...input,
       });
-      logger.info({ userId: ctx.user.id, assetId: asset?.id, assetCode: asset?.assetCode }, "Fixed asset created");
+      logger.info(
+        {
+          userId: ctx.user.id,
+          assetId: asset?.id,
+          assetCode: asset?.assetCode,
+        },
+        "Fixed asset created"
+      );
       return asset;
     }),
 
@@ -269,9 +341,19 @@ export const fixedAssetRouter = router({
 
       // Restrict updates for non-draft assets
       if (existing.status !== "draft") {
-        const allowedFields = ["name", "description", "location", "serialNumber", "metadata"];
-        const attemptedFields = Object.keys(data).filter(k => data[k as keyof typeof data] !== undefined);
-        const restrictedFields = attemptedFields.filter(f => !allowedFields.includes(f));
+        const allowedFields = [
+          "name",
+          "description",
+          "location",
+          "serialNumber",
+          "metadata",
+        ];
+        const attemptedFields = Object.keys(data).filter(
+          (k) => data[k as keyof typeof data] !== undefined
+        );
+        const restrictedFields = attemptedFields.filter(
+          (f) => !allowedFields.includes(f)
+        );
 
         if (restrictedFields.length > 0) {
           throw new TRPCError({
@@ -294,10 +376,14 @@ export const fixedAssetRouter = router({
       if (!deleted) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Asset not found or cannot be deleted (must be in draft status)",
+          message:
+            "Asset not found or cannot be deleted (must be in draft status)",
         });
       }
-      logger.info({ userId: ctx.user.id, assetId: input.id }, "Fixed asset deleted");
+      logger.info(
+        { userId: ctx.user.id, assetId: input.id },
+        "Fixed asset deleted"
+      );
       return { success: true };
     }),
 
@@ -314,9 +400,15 @@ export const fixedAssetRouter = router({
       }
 
       // Generate depreciation schedule
-      await fixedAssetRepository.createDepreciationSchedule(input.id, ctx.user.id);
+      await fixedAssetRepository.createDepreciationSchedule(
+        input.id,
+        ctx.user.id
+      );
 
-      logger.info({ userId: ctx.user.id, assetId: input.id }, "Fixed asset activated");
+      logger.info(
+        { userId: ctx.user.id, assetId: input.id },
+        "Fixed asset activated"
+      );
       return asset;
     }),
 
@@ -338,7 +430,10 @@ export const fixedAssetRouter = router({
     .input(z.object({ assetId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       // Verify asset belongs to user
-      const asset = await fixedAssetRepository.findById(input.assetId, ctx.user.id);
+      const asset = await fixedAssetRepository.findById(
+        input.assetId,
+        ctx.user.id
+      );
       if (!asset) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -353,8 +448,10 @@ export const fixedAssetRouter = router({
     .input(z.object({ depreciationId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       // Get depreciation record with asset
-      const schedule = await fixedAssetRepository.getDepreciationSchedule(input.depreciationId);
-      const depreciation = schedule.find(s => s.id === input.depreciationId);
+      const schedule = await fixedAssetRepository.getDepreciationSchedule(
+        input.depreciationId
+      );
+      const depreciation = schedule.find((s) => s.id === input.depreciationId);
 
       if (!depreciation) {
         throw new TRPCError({
@@ -371,7 +468,10 @@ export const fixedAssetRouter = router({
       }
 
       // Get asset details
-      const asset = await fixedAssetRepository.findById(depreciation.fixedAssetId, ctx.user.id);
+      const asset = await fixedAssetRepository.findById(
+        depreciation.fixedAssetId,
+        ctx.user.id
+      );
       if (!asset) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -406,14 +506,20 @@ export const fixedAssetRouter = router({
       await journalEntryRepository.post(journalEntry.id, ctx.user.id);
 
       // Link depreciation to journal entry and update asset
-      await fixedAssetRepository.postDepreciation(input.depreciationId, journalEntry.id);
+      await fixedAssetRepository.postDepreciation(
+        input.depreciationId,
+        journalEntry.id
+      );
 
-      logger.info({
-        userId: ctx.user.id,
-        assetId: asset.id,
-        depreciationId: input.depreciationId,
-        journalEntryId: journalEntry.id,
-      }, "Depreciation posted");
+      logger.info(
+        {
+          userId: ctx.user.id,
+          assetId: asset.id,
+          depreciationId: input.depreciationId,
+          journalEntryId: journalEntry.id,
+        },
+        "Depreciation posted"
+      );
 
       return { success: true, journalEntryId: journalEntry.id };
     }),
@@ -422,8 +528,15 @@ export const fixedAssetRouter = router({
   runBulkDepreciation: protectedProcedure
     .input(z.object({ beforeDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
     .mutation(async ({ ctx, input }) => {
-      const pending = await fixedAssetRepository.getPendingDepreciations(ctx.user.id, input.beforeDate);
-      const results: { assetId: string; journalEntryId: string; year: number }[] = [];
+      const pending = await fixedAssetRepository.getPendingDepreciations(
+        ctx.user.id,
+        input.beforeDate
+      );
+      const results: {
+        assetId: string;
+        journalEntryId: string;
+        year: number;
+      }[] = [];
 
       for (const depreciation of pending) {
         if (!depreciation.fixedAsset) continue;
@@ -443,7 +556,8 @@ export const fixedAssetRouter = router({
                 creditAmount: "0",
               },
               {
-                accountId: depreciation.fixedAsset.accumulatedDepreciationAccountId,
+                accountId:
+                  depreciation.fixedAsset.accumulatedDepreciationAccountId,
                 debitAmount: "0",
                 creditAmount: depreciation.depreciationAmount,
               },
@@ -451,7 +565,10 @@ export const fixedAssetRouter = router({
           });
 
           await journalEntryRepository.post(journalEntry.id, ctx.user.id);
-          await fixedAssetRepository.postDepreciation(depreciation.id, journalEntry.id);
+          await fixedAssetRepository.postDepreciation(
+            depreciation.id,
+            journalEntry.id
+          );
 
           results.push({
             assetId: depreciation.fixedAssetId,
@@ -459,29 +576,43 @@ export const fixedAssetRouter = router({
             year: depreciation.year,
           });
         } catch (error) {
-          logger.error({ error, depreciationId: depreciation.id }, "Failed to process depreciation");
+          logger.error(
+            { error, depreciationId: depreciation.id },
+            "Failed to process depreciation"
+          );
         }
       }
 
-      logger.info({ userId: ctx.user.id, count: results.length }, "Bulk depreciation completed");
+      logger.info(
+        { userId: ctx.user.id, count: results.length },
+        "Bulk depreciation completed"
+      );
       return { processed: results.length, results };
     }),
 
   // Skip a depreciation period
   skipDepreciation: protectedProcedure
-    .input(z.object({
-      depreciationId: z.string().uuid(),
-      notes: z.string().max(500).optional(),
-    }))
+    .input(
+      z.object({
+        depreciationId: z.string().uuid(),
+        notes: z.string().max(500).optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
-      const updated = await fixedAssetRepository.skipDepreciation(input.depreciationId, input.notes);
+      const updated = await fixedAssetRepository.skipDepreciation(
+        input.depreciationId,
+        input.notes
+      );
       if (!updated) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Depreciation record not found",
         });
       }
-      logger.info({ userId: ctx.user.id, depreciationId: input.depreciationId }, "Depreciation skipped");
+      logger.info(
+        { userId: ctx.user.id, depreciationId: input.depreciationId },
+        "Depreciation skipped"
+      );
       return updated;
     }),
 
@@ -490,7 +621,10 @@ export const fixedAssetRouter = router({
     .input(disposeAssetSchema)
     .mutation(async ({ ctx, input }) => {
       // Verify asset belongs to user
-      const asset = await fixedAssetRepository.findById(input.assetId, ctx.user.id);
+      const asset = await fixedAssetRepository.findById(
+        input.assetId,
+        ctx.user.id
+      );
       if (!asset) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -526,12 +660,15 @@ export const fixedAssetRouter = router({
       // This requires additional accounts (gain/loss on disposal)
       // For now, we just record the disposal
 
-      logger.info({
-        userId: ctx.user.id,
-        assetId: input.assetId,
-        disposalId: disposal.id,
-        gainLoss: disposal.gainLoss,
-      }, "Asset disposed");
+      logger.info(
+        {
+          userId: ctx.user.id,
+          assetId: input.assetId,
+          disposalId: disposal.id,
+          gainLoss: disposal.gainLoss,
+        },
+        "Asset disposed"
+      );
 
       return disposal;
     }),
@@ -543,9 +680,21 @@ export const fixedAssetRouter = router({
 
   // Get pending depreciations
   getPendingDepreciations: protectedProcedure
-    .input(z.object({ beforeDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).optional())
+    .input(
+      z
+        .object({
+          beforeDate: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/)
+            .optional(),
+        })
+        .optional()
+    )
     .query(async ({ ctx, input }) => {
-      return fixedAssetRepository.getPendingDepreciations(ctx.user.id, input?.beforeDate);
+      return fixedAssetRepository.getPendingDepreciations(
+        ctx.user.id,
+        input?.beforeDate
+      );
     }),
 
   // Category routes (nested)

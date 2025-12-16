@@ -128,7 +128,7 @@ export function Agent() {
             <Sparkles className="h-4 w-4 text-primary" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">AI Agent</h1>
+            <h1 className="text-lg font-semibold tracking-tight">AI Co-Worker</h1>
             <p className="text-xs text-muted-foreground">Intelligent assistant for accounting and business automation</p>
           </div>
         </div>

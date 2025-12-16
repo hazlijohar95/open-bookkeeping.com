@@ -11,9 +11,13 @@ import {
   DialogIcon,
   DialogClose,
 } from "@/components/ui/dialog";
-import type { InvoiceTypeType, InvoiceStatusType } from "@/types/common/invoice";
-import { useMutation } from "@tanstack/react-query";
+import type {
+  InvoiceTypeType,
+  InvoiceStatusV2Type,
+} from "@/types/common/invoice";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { updateInvoiceStatus as updateLocalInvoiceStatus } from "@/lib/indexdb-queries/invoice";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { FilePenIcon } from "@/assets/icons";
@@ -31,28 +35,40 @@ import {
 interface UpdateStatusModalProps {
   type: InvoiceTypeType;
   invoiceId: string;
-  currentStatus: InvoiceStatusType;
+  currentStatus: InvoiceStatusV2Type;
 }
 
-const STATUS_OPTIONS: { value: InvoiceStatusType; label: string }[] = [
-  { value: "pending", label: "Pending" },
-  { value: "success", label: "Paid" },
-  { value: "error", label: "Failed" },
-  { value: "expired", label: "Expired" },
+const STATUS_OPTIONS: { value: InvoiceStatusV2Type; label: string }[] = [
+  { value: "draft", label: "Draft" },
+  { value: "open", label: "Open" },
+  { value: "paid", label: "Paid" },
+  { value: "void", label: "Void" },
+  { value: "uncollectible", label: "Uncollectible" },
   { value: "refunded", label: "Refunded" },
 ];
 
-const UpdateStatusModal = ({ invoiceId, type, currentStatus }: UpdateStatusModalProps) => {
+const UpdateStatusModal = ({
+  invoiceId,
+  type,
+  currentStatus,
+}: UpdateStatusModalProps) => {
   const [open, setOpen] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState<InvoiceStatusType>(currentStatus);
+  const [selectedStatus, setSelectedStatus] =
+    useState<InvoiceStatusV2Type>(currentStatus);
+  const queryClient = useQueryClient();
 
   const updateServerInvoiceMutation = useUpdateInvoiceStatus();
 
   const updateIDBInvoiceMutation = useMutation({
     mutationFn: async () => {
-      // For local invoices, we'd update IndexedDB here
-      // This is a placeholder - implement as needed
-      throw new Error("Local invoice status update not implemented");
+      await updateLocalInvoiceStatus(invoiceId, selectedStatus);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["idb-invoices"] });
+      toast.success("Invoice status updated!", {
+        description: "The invoice status has been updated.",
+      });
+      setOpen(false);
     },
     onError: (error) => {
       toast.error("Failed to update status!", {
@@ -80,7 +96,8 @@ const UpdateStatusModal = ({ invoiceId, type, currentStatus }: UpdateStatusModal
         }
       );
     } else {
-      await updateIDBInvoiceMutation.mutateAsync();
+      // Local invoice - use IndexedDB
+      updateIDBInvoiceMutation.mutate();
     }
   };
 
@@ -99,13 +116,18 @@ const UpdateStatusModal = ({ invoiceId, type, currentStatus }: UpdateStatusModal
           </DialogIcon>
           <DialogHeader>
             <DialogTitle>Update Invoice Status</DialogTitle>
-            <DialogDescription>Change the status of this invoice.</DialogDescription>
+            <DialogDescription>
+              Change the status of this invoice.
+            </DialogDescription>
           </DialogHeader>
         </DialogHeaderContainer>
         <DialogContentContainer>
           <div className="flex flex-col gap-1.5">
             <Label>Status</Label>
-            <Select value={selectedStatus} onValueChange={(v) => setSelectedStatus(v as InvoiceStatusType)}>
+            <Select
+              value={selectedStatus}
+              onValueChange={(v) => setSelectedStatus(v as InvoiceStatusV2Type)}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select status" />
               </SelectTrigger>
@@ -126,9 +148,15 @@ const UpdateStatusModal = ({ invoiceId, type, currentStatus }: UpdateStatusModal
           <Button
             type="button"
             onClick={onSubmit}
-            disabled={updateServerInvoiceMutation.isPending || updateIDBInvoiceMutation.isPending}
+            disabled={
+              updateServerInvoiceMutation.isPending ||
+              updateIDBInvoiceMutation.isPending
+            }
           >
-            {(updateServerInvoiceMutation.isPending || updateIDBInvoiceMutation.isPending) ? "Updating..." : "Update"}
+            {updateServerInvoiceMutation.isPending ||
+            updateIDBInvoiceMutation.isPending
+              ? "Updating..."
+              : "Update"}
           </Button>
         </DialogFooter>
       </DialogContent>

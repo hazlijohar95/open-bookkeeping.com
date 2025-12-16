@@ -59,7 +59,10 @@ export type Result<T, E = Error> =
 
 // Result helper functions
 export const ok = <T>(data: T): Result<T, never> => ({ success: true, data });
-export const err = <E>(error: E): Result<never, E> => ({ success: false, error });
+export const err = <E>(error: E): Result<never, E> => ({
+  success: false,
+  error,
+});
 
 // API Response types (inspired by Tempo codebase patterns)
 export interface ApiResponse<T> {
@@ -116,11 +119,13 @@ export interface CurrencyInfo {
   name: string;
 }
 
-// Common currencies
+// Common currencies (MYR first as default for Malaysian market)
 export const currencies: CurrencyInfo[] = [
+  { code: "MYR", symbol: "RM", name: "Malaysian Ringgit" },
   { code: "USD", symbol: "$", name: "US Dollar" },
   { code: "EUR", symbol: "€", name: "Euro" },
   { code: "GBP", symbol: "£", name: "British Pound" },
+  { code: "SGD", symbol: "S$", name: "Singapore Dollar" },
   { code: "JPY", symbol: "¥", name: "Japanese Yen" },
   { code: "CAD", symbol: "C$", name: "Canadian Dollar" },
   { code: "AUD", symbol: "A$", name: "Australian Dollar" },
@@ -130,7 +135,6 @@ export const currencies: CurrencyInfo[] = [
   { code: "MXN", symbol: "$", name: "Mexican Peso" },
   { code: "BRL", symbol: "R$", name: "Brazilian Real" },
   { code: "KRW", symbol: "₩", name: "South Korean Won" },
-  { code: "SGD", symbol: "S$", name: "Singapore Dollar" },
   { code: "HKD", symbol: "HK$", name: "Hong Kong Dollar" },
   { code: "NOK", symbol: "kr", name: "Norwegian Krone" },
   { code: "SEK", symbol: "kr", name: "Swedish Krona" },
@@ -140,14 +144,40 @@ export const currencies: CurrencyInfo[] = [
   { code: "RUB", symbol: "₽", name: "Russian Ruble" },
 ];
 
-// Format currency amount
+// Format currency amount (default: Malaysian locale)
 export function formatCurrency(
   amount: number,
-  currencyCode: string,
-  locale = "en-US"
+  currencyCode: string = "MYR",
+  locale = "en-MY"
 ): string {
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: currencyCode,
+  }).format(amount);
+}
+
+// Format currency amount with compact notation for large numbers
+export function formatCurrencyCompact(
+  amount: number,
+  currencyCode: string = "MYR",
+  locale = "en-MY"
+): string {
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: currencyCode,
+    notation: "compact",
+    compactDisplay: "short",
+  }).format(amount);
+}
+
+// Format number with Malaysian locale (no currency symbol)
+export function formatNumber(
+  amount: number,
+  locale = "en-MY",
+  decimals = 2
+): string {
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   }).format(amount);
 }

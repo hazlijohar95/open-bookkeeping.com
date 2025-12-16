@@ -32,12 +32,16 @@ if (!supabaseServiceKey) {
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+export type UserRole = "superadmin" | "admin" | "user" | "viewer";
+
 export interface User {
   id: string;
   supabaseId: string;
   email: string;
   name: string | null;
   avatarUrl: string | null;
+  role: UserRole;
+  isSuspended: boolean;
   allowedSavingData: boolean;
 }
 
@@ -163,6 +167,8 @@ export async function createContext({
           email: user.email,
           name: user.name,
           avatarUrl: user.avatarUrl,
+          role: (user.role as UserRole) || "user",
+          isSuspended: user.isSuspended || false,
           allowedSavingData: user.allowedSavingData,
         }
       : null;
